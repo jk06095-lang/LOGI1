@@ -116,7 +116,12 @@ export const parseDocument = async (file: File, docType: DocumentScanType, sourc
             - **Total CBM / Measurement**: Look for "MEASUREMENT", "CBM", "M3", "VOL". Extract the total volume value.
             - **Total Gross Weight**: Look for "GROSS WEIGHT", "G.W", "KGS", "T.W". Extract the total weight value.
             - **Total Packages**: Look for "NO. OF PKGS", "PACKAGES", "TOTAL PACKAGES". Extract the numeric count.
-            - **Item Details**: If multiple items are listed, extract Description, Quantity, Gross Weight, and Measurement (CBM) for *each* item.
+            - **Item Details**: EXTRACT TABLE DATA. Return a list of items.
+              For EACH item, extract:
+              - Description
+              - Quantity
+              - Gross Weight
+              - Measurement (CBM/M3). Look for columns like "MEASUREMENT", "CBM". If individual CBM is listed, capture it.
             
             IMPORTANT CLASSIFICATION RULES:
             1. "IMPORT" vs "TRANSHIPMENT":

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { VesselJob, BLData, BLChecklist, CargoSourceType, Language, CargoItem } from '../types';
 import { ArrowLeft, Upload, FileText, CheckSquare, Download, Calendar, Ship, MapPin, Eye, Container, Package, Truck, Plus, Trash2, Save, Keyboard, Share2, FileImage, X, Link, Check, Anchor, Box, Layers } from 'lucide-react';
@@ -40,6 +41,7 @@ const translations = {
     desc: '품명 (Description) *',
     qty: '수량 *',
     weight: '중량 (KG)',
+    cbm: '용적 (CBM)',
     save: '저장하기',
     cancel: '취소',
     voyage: '항차',
@@ -67,6 +69,7 @@ const translations = {
     desc: 'Description *',
     qty: 'Quantity *',
     weight: 'Weight (KG)',
+    cbm: 'Measurement (CBM)',
     save: 'Save',
     cancel: 'Cancel',
     voyage: 'VOY',
@@ -94,6 +97,7 @@ const translations = {
     desc: '货物描述 *',
     qty: '数量 *',
     weight: '重量 (KG)',
+    cbm: '体积 (CBM)',
     save: '确认保存',
     cancel: '取消',
     voyage: '航次',
@@ -382,13 +386,17 @@ export const VesselDetail: React.FC<VesselDetailProps> = ({
                                     <label className="block text-xs font-bold text-slate-500 mb-1">{t.desc}</label>
                                     <input type="text" className="w-full border dark:border-slate-600 dark:bg-slate-700 dark:text-white p-2.5 rounded-lg text-sm" value={manualForm.items[0].description} onChange={e => handleItemChange('description', e.target.value)} placeholder="Item Name" />
                                   </div>
-                                  <div className="col-span-3">
+                                  <div className="col-span-2">
                                     <label className="block text-xs font-bold text-slate-500 mb-1">{t.qty}</label>
                                     <input type="number" className="w-full border dark:border-slate-600 dark:bg-slate-700 dark:text-white p-2.5 rounded-lg text-sm text-right" value={manualForm.items[0].quantity} onChange={e => handleItemChange('quantity', Number(e.target.value))} />
                                   </div>
-                                  <div className="col-span-3">
+                                  <div className="col-span-2">
                                     <label className="block text-xs font-bold text-slate-500 mb-1">{t.weight}</label>
                                     <input type="number" className="w-full border dark:border-slate-600 dark:bg-slate-700 dark:text-white p-2.5 rounded-lg text-sm text-right" value={manualForm.items[0].grossWeight} onChange={e => handleItemChange('grossWeight', Number(e.target.value))} />
+                                  </div>
+                                   <div className="col-span-2">
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">{t.cbm}</label>
+                                    <input type="number" step="0.001" className="w-full border dark:border-slate-600 dark:bg-slate-700 dark:text-white p-2.5 rounded-lg text-sm text-right" value={manualForm.items[0].measurement || 0} onChange={e => handleItemChange('measurement', Number(e.target.value))} />
                                   </div>
                               </div>
                           </div>

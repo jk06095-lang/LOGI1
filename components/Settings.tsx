@@ -284,21 +284,25 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdateSettings, 
             </p>
           </div>
           
-          <div className="text-right">
-            <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{user?.email || 'operator@logi1.com'}</p>
-            <div className="flex items-center justify-end gap-2 mt-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold tracking-wide">{t.syncActive}</span>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{user?.email || 'operator@logi1.com'}</p>
+              <div className="flex items-center justify-end gap-2 mt-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold tracking-wide">{t.syncActive}</span>
+              </div>
             </div>
+            
+            <span className="text-[10px] text-slate-400 font-mono">alpha 0.0.1</span>
+            
+            <button 
+              onClick={onLogout}
+              className="flex items-center gap-2 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-200 transition-colors"
+            >
+              <LogOut size={16} />
+              {t.logout}
+            </button>
           </div>
-          
-          <button 
-            onClick={onLogout}
-            className="flex items-center gap-2 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-200 transition-colors ml-4"
-          >
-            <LogOut size={16} />
-            {t.logout}
-          </button>
         </div>
 
         <div className="space-y-6">
