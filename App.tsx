@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard, BriefingReport } from './components/Dashboard';
@@ -288,8 +286,14 @@ const App: React.FC = () => {
           addToHistory('Upload Error', `${file.name}: ${error.message}`, 'error');
       }
     }
-    setIsProcessing(false); setProgressMessage('');
+    setIsProcessing(false); 
+    setProgressMessage('');
     addToHistory('Bulk Upload Completed', `Processed ${files.length} files.`, 'success');
+
+    // Auto navigate to list if multiple files were uploaded to review them
+    if (files.length > 0) {
+       handleSidebarNavigation('bl-list');
+    }
   };
 
   const renderContent = () => {
@@ -305,6 +309,7 @@ const App: React.FC = () => {
                 language={settings.language} 
                 onUpdateBL={dataService.updateBL} 
                 onOpenBriefing={openBriefingTab}
+                onUploadBLs={handleBLUpload}
             />
         );
       case 'briefing':

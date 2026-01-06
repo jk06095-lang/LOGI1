@@ -1,11 +1,10 @@
-
-
 import React, { useState, useMemo } from 'react';
-import { BLData, Language } from '../types';
+import { BLData, Language, BLChecklist } from '../types';
 import { Download, Package, ArrowRight, Layers, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink } from 'lucide-react';
 
 interface CargoListProps {
   data: BLData[];
+  checklists?: Record<string, BLChecklist>;
   language?: Language;
   onAddRequest?: () => void;
   onViewDetail?: (blId: string) => void;
@@ -27,6 +26,7 @@ const translations = {
     weight: '중량 (kg)',
     cbm: 'CBM',
     action: '관리',
+    status: '진행상태',
     transit: '환적',
     fisco: 'LOGI1',
     thirdParty: '타사',
@@ -36,7 +36,16 @@ const translations = {
     clsTrans: '환적',
     subReturn: '반송',
     subStore: '선용품',
-    subGen: '일반'
+    subGen: '일반',
+    stages: {
+        A: '수신',
+        B: '전달',
+        C: '대행',
+        D: '운송',
+        E: '선적',
+        Done: '완료',
+        Unassigned: '미배정'
+    }
   },
   en: {
     title: 'Integrated Cargo List',
@@ -53,6 +62,7 @@ const translations = {
     weight: 'Weight',
     cbm: 'CBM',
     action: 'Action',
+    status: 'Status',
     transit: 'TRANSIT',
     fisco: 'LOGI1',
     thirdParty: '3RD',
@@ -62,7 +72,16 @@ const translations = {
     clsTrans: 'T/S',
     subReturn: 'RET',
     subStore: 'STR',
-    subGen: 'GEN'
+    subGen: 'GEN',
+    stages: {
+        A: 'Rcv',
+        B: 'Fwd',
+        C: 'Agcy',
+        D: 'Trns',
+        E: 'Load',
+        Done: 'Done',
+        Unassigned: '-'
+    }
   },
   cn: {
     title: '综合货物清单',
@@ -79,6 +98,7 @@ const translations = {
     weight: '重量 (KG)',
     cbm: '体积 (CBM)',
     action: '操作',
+    status: '状态',
     transit: '中转',
     fisco: 'LOGI1',
     thirdParty: '第三方',
@@ -88,11 +108,20 @@ const translations = {
     clsTrans: '中转',
     subReturn: '退运',
     subStore: '船用',
-    subGen: '一般'
+    subGen: '一般',
+    stages: {
+        A: '接收',
+        B: '转交',
+        C: '代理',
+        D: '车队',
+        E: '装船',
+        Done: '完成',
+        Unassigned: '未分'
+    }
   }
 };
 
-type SortKey = 'sourceType' | 'cargoClass' | 'blNumber' | 'shipper' | 'description' | 'quantity' | 'grossWeight' | 'cbm';
+type SortKey = 'sourceType' | 'cargoClass' | 'blNumber' | 'shipper' | 'description' | 'quantity' | 'grossWeight' | 'cbm' | 'status';
 type SortDirection = 'asc' | 'desc';
 
 interface SortConfig {
@@ -100,7 +129,7 @@ interface SortConfig {
   direction: SortDirection;
 }
 
-export const CargoList: React.FC<CargoListProps> = ({ data = [], language = 'ko', onAddRequest, onViewDetail }) => {
+export const CargoList: React.FC<CargoListProps> = ({ data = [], checklists = {}, language = 'ko', onAddRequest, onViewDetail }) => {
   const t = translations[language] || translations.ko;
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
 
@@ -112,8 +141,6 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], language = 'ko'
     setSortConfig({ key, direction });
   };
 
-  // Helper functions to get data, prioritizing Packing List (Manual Entry) as the Standard
-  // Updated to strictly enforce Packing List data as standard if present (>0)
   const getCbm = (bl: BLData) => {
       if (bl.packingList && typeof bl.packingList.totalCbm === 'number' && bl.packingList.totalCbm > 0) {
           return bl.packingList.totalCbm;
@@ -136,6 +163,29 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], language = 'ko'
       return bl.cargoItems.reduce((acc, item) => acc + (Number(item.grossWeight) || 0), 0);
   };
 
+  const getStatus = (bl: BLData) => {
+     if (!bl.vesselJobId || !checklists[bl.id]) return { percent: 0, label: t.stages.Unassigned };
+     
+     const checklist = checklists[bl.id];
+     const sections = ['sectionA', 'sectionB', 'sectionC', 'sectionD', 'sectionE'] as const;
+     const allItems = sections.flatMap(k => checklist[k]);
+     const total = allItems.length;
+     const checked = allItems.filter(i => i.checked).length;
+     
+     let label = t.stages.Done;
+     // Determine active stage
+     for(const sec of sections) {
+         if (checklist[sec].length > 0 && checklist[sec].some(i => !i.checked)) {
+             // Map section key to label (A..E)
+             const keyChar = sec.replace('section', '') as 'A'|'B'|'C'|'D'|'E';
+             label = t.stages[keyChar];
+             break;
+         }
+     }
+     
+     return { percent: total > 0 ? Math.round((checked / total) * 100) : 0, label };
+  };
+
   const sortedData = useMemo(() => {
     if (!sortConfig) return data;
     
@@ -148,24 +198,16 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], language = 'ko'
         case 'blNumber': aValue = a.blNumber; bValue = b.blNumber; break;
         case 'shipper': aValue = a.shipper; bValue = b.shipper; break;
         case 'description': aValue = a.cargoItems[0]?.description || ''; bValue = b.cargoItems[0]?.description || ''; break;
-        case 'quantity': 
-          aValue = getQty(a);
-          bValue = getQty(b);
-          break;
-        case 'grossWeight':
-          aValue = getWeight(a);
-          bValue = getWeight(b);
-          break;
-        case 'cbm':
-          aValue = getCbm(a);
-          bValue = getCbm(b);
-          break;
+        case 'quantity': aValue = getQty(a); bValue = getQty(b); break;
+        case 'grossWeight': aValue = getWeight(a); bValue = getWeight(b); break;
+        case 'cbm': aValue = getCbm(a); bValue = getCbm(b); break;
+        case 'status': aValue = getStatus(a).percent; bValue = getStatus(b).percent; break;
       }
       if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
       if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [data, sortConfig]);
+  }, [data, sortConfig, checklists]);
 
   const renderSortIcon = (key: SortKey) => {
     if (sortConfig?.key !== key) return <ArrowUpDown size={14} className="ml-1 text-slate-300" />;
@@ -222,7 +264,7 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], language = 'ko'
             <thead className="bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-600 font-bold uppercase tracking-widest text-[11px]">
               <tr>
                 <th onClick={() => handleSort('sourceType')} className="px-6 py-5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.type} {renderSortIcon('sourceType')}</div></th>
-                <th onClick={() => handleSort('cargoClass')} className="px-6 py-5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.class} {renderSortIcon('cargoClass')}</div></th>
+                <th onClick={() => handleSort('status')} className="px-6 py-5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.status} {renderSortIcon('status')}</div></th>
                 <th onClick={() => handleSort('blNumber')} className="px-6 py-5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.blNo} {renderSortIcon('blNumber')}</div></th>
                 <th onClick={() => handleSort('shipper')} className="px-6 py-5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.shipper} {renderSortIcon('shipper')}</div></th>
                 <th onClick={() => handleSort('description')} className="px-6 py-5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.desc} {renderSortIcon('description')}</div></th>
@@ -238,6 +280,7 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], language = 'ko'
                 const totalWeight = getWeight(bl);
                 const totalCbm = getCbm(bl);
                 const displayDesc = bl.cargoItems.length > 0 ? bl.cargoItems[0].description + (bl.cargoItems.length > 1 ? ` ${t.andOthers.replace('{count}', (bl.cargoItems.length - 1).toString())}` : '') : '-';
+                const status = getStatus(bl);
 
                 return (
                   <tr key={bl.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
@@ -248,25 +291,21 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], language = 'ko'
                        {bl.sourceType === 'THIRD_PARTY' && <span className="bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300 px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider">{t.thirdParty}</span>}
                     </td>
                     
-                    {/* Class / Sub-Class Badge */}
+                    {/* Status Column (ERP Style) */}
                     <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex flex-col gap-1">
-                            {bl.cargoClass === 'TRANSHIPMENT' && (
-                                <span className="w-fit border border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight">
-                                    {t.clsTrans}
-                                </span>
-                            )}
-                            {bl.cargoClass === 'IMPORT' && (
-                                <div className="flex gap-1">
-                                    <span className="w-fit border border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-tight">
-                                        {t.clsImport}
-                                    </span>
-                                    {bl.importSubClass === 'RETURN_EXPORT' && <span className="text-[10px] font-bold text-red-500 border border-red-200 bg-red-50 px-1 rounded">{t.subReturn}</span>}
-                                    {bl.importSubClass === 'SHIPS_STORES' && <span className="text-[10px] font-bold text-purple-500 border border-purple-200 bg-purple-50 px-1 rounded">{t.subStore}</span>}
+                         {status.percent === 0 && status.label === t.stages.Unassigned ? (
+                             <span className="text-slate-400 text-xs">-</span>
+                         ) : (
+                             <div className="w-24">
+                                <div className="flex justify-between items-center mb-1">
+                                    <span className={`text-[10px] font-bold uppercase ${status.percent === 100 ? 'text-emerald-600' : 'text-blue-600'}`}>{status.label}</span>
+                                    <span className="text-[9px] font-mono text-slate-400">{status.percent}%</span>
                                 </div>
-                            )}
-                            {!bl.cargoClass && <span className="text-slate-300 text-[10px]">-</span>}
-                        </div>
+                                <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                    <div style={{ width: `${status.percent}%` }} className={`h-full rounded-full ${status.percent === 100 ? 'bg-emerald-500' : 'bg-blue-500'}`}></div>
+                                </div>
+                             </div>
+                         )}
                     </td>
 
                     <td className="px-6 py-4 font-bold text-blue-600 dark:text-blue-400 font-mono cursor-pointer hover:underline" onClick={() => handleOpenFile(bl.fileUrl)}>

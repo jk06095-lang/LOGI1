@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect } from 'react';
 import { VesselJob, BLData, BLChecklist, CargoSourceType, Language, CargoItem } from '../types';
 import { ArrowLeft, Upload, FileText, CheckSquare, Download, Calendar, Ship, MapPin, Eye, Container, Package, Truck, Plus, Trash2, Save, Keyboard, Share2, FileImage, X, Link, Check, Anchor, Box, Layers } from 'lucide-react';
@@ -246,6 +244,7 @@ export const VesselDetail: React.FC<VesselDetailProps> = ({
             {activeTab === 'cargo' && (
                 <CargoList 
                     data={bls} 
+                    checklists={checklists}
                     language={language} 
                     onAddRequest={() => setShowRegisterModal(true)}
                     onViewDetail={onOpenBLDetail} 

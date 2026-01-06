@@ -1,7 +1,6 @@
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { VesselJob, BLData, Language } from '../types';
-import { Folder, Ship, Calendar as CalendarIcon, FileText, List, ChevronLeft, ChevronRight, Package, ArrowRight, Printer, PieChart, ArrowUpDown, ArrowUp, ArrowDown, ZoomIn, ZoomOut, Save, Layers, Home } from 'lucide-react';
+import { VesselJob, BLData, Language, CargoSourceType } from '../types';
+import { Folder, Ship, Calendar as CalendarIcon, FileText, List, ChevronLeft, ChevronRight, Package, ArrowRight, Printer, PieChart, ArrowUpDown, ArrowUp, ArrowDown, ZoomIn, ZoomOut, Save, Layers, Home, Upload, ScanLine } from 'lucide-react';
 
 // --- Types ---
 interface DashboardProps {
@@ -12,6 +11,7 @@ interface DashboardProps {
   logoUrl?: string;
   onUpdateBL?: (blId: string, updates: Partial<BLData>) => Promise<void>;
   onOpenBriefing: (date: Date) => void; // Trigger for new tab
+  onUploadBLs?: (files: File[], sourceType: CargoSourceType) => void;
 }
 
 interface BriefingReportProps {
@@ -73,7 +73,9 @@ const translations = {
     modeReport: '보고 (Report)',
     legendIncoming: '입항예정',
     legendWorking: '작업중',
-    legendCompleted: '완료됨'
+    legendCompleted: '완료됨',
+    bulkScan: 'Multiple B/L Scan (Bulk Upload)',
+    bulkScanDesc: '여러 B/L을 한 번에 스캔하여 카고 리스트를 생성합니다.',
   },
   en: {
     title: 'Dashboard',
@@ -124,7 +126,9 @@ const translations = {
     modeReport: 'Report',
     legendIncoming: 'Incoming',
     legendWorking: 'Working',
-    legendCompleted: 'Completed'
+    legendCompleted: 'Completed',
+    bulkScan: 'Multiple B/L Scan',
+    bulkScanDesc: 'Scan multiple B/Ls at once to generate cargo lists.',
   },
   cn: {
     title: '工作台',
@@ -175,7 +179,9 @@ const translations = {
     modeReport: '报告',
     legendIncoming: '预计抵港',
     legendWorking: '作业中',
-    legendCompleted: '已完成'
+    legendCompleted: '已完成',
+    bulkScan: '批量扫描 (B/L)',
+    bulkScanDesc: '一次扫描多份提单，自动生成货物清单。',
   }
 };
 
@@ -204,7 +210,7 @@ const AutoResizeTextarea = ({ value, onChange, className, placeholder }: { value
   );
 };
 
-export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, language, onOpenBriefing }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, language, onOpenBriefing, onUploadBLs }) => {
   const t = translations[language];
   const [currentDate, setCurrentDate] = useState(new Date());
 
@@ -228,6 +234,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
 
   const workingJobs = jobs.filter(j => j.status === 'working');
   const incomingJobs = jobs.filter(j => j.status === 'incoming');
+
+  const handleBulkScan = (e: React.ChangeEvent<HTMLInputElement>) => {
+     if (e.target.files && e.target.files.length > 0 && onUploadBLs) {
+         onUploadBLs(Array.from(e.target.files), 'TRANSIT');
+         // Clear input
+         e.target.value = '';
+     }
+  };
 
   const renderCalendar = () => {
     const dayCells = [];
@@ -277,12 +291,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
 
   return (
     <div className="h-full overflow-y-auto custom-scrollbar p-8 animate-fade-in space-y-8 dark:text-slate-200">
-       <div className="max-w-7xl mx-auto">
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <Home size={24} className="text-blue-600" />
-            {t.title}
-          </h2>
-          <p className="text-slate-500 dark:text-slate-400 mt-1">{t.subtitle}</p>
+       <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Home size={24} className="text-blue-600" />
+                {t.title}
+            </h2>
+            <p className="text-slate-500 dark:text-slate-400 mt-1">{t.subtitle}</p>
+          </div>
+          
+          {/* Quick Action: Bulk Upload */}
+          <label className="cursor-pointer group relative overflow-hidden bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl shadow-lg shadow-blue-500/30 transition-all hover:scale-105 active:scale-95 flex items-center gap-3">
+              <input type="file" multiple accept="image/*,application/pdf" className="hidden" onChange={handleBulkScan} />
+              <div className="bg-white/20 p-2 rounded-lg">
+                 <ScanLine size={20} className="text-white" />
+              </div>
+              <div className="flex flex-col">
+                 <span className="text-sm font-bold leading-tight">{t.bulkScan}</span>
+                 <span className="text-[10px] opacity-80 font-medium">Click to upload files</span>
+              </div>
+          </label>
        </div>
 
        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
