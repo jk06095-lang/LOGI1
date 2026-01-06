@@ -1,9 +1,10 @@
 
+
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { BLData, CargoSourceType, DocumentScanType } from "../types";
 
 // Initialize Gemini Client
-const ai = new GoogleGenAI({ apiKey: "AIzaSyCeusgVsmdMpTm4WOBD3GpBkVznu3hNUHQ" });
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const cargoItemSchema: Schema = {
   type: Type.OBJECT,
@@ -115,6 +116,7 @@ export const parseDocument = async (file: File, docType: DocumentScanType, sourc
             - **Total CBM / Measurement**: Look for "MEASUREMENT", "CBM", "M3", "VOL". Extract the total volume value.
             - **Total Gross Weight**: Look for "GROSS WEIGHT", "G.W", "KGS", "T.W". Extract the total weight value.
             - **Total Packages**: Look for "NO. OF PKGS", "PACKAGES", "TOTAL PACKAGES". Extract the numeric count.
+            - **Item Details**: If multiple items are listed, extract Description, Quantity, Gross Weight, and Measurement (CBM) for *each* item.
             
             IMPORTANT CLASSIFICATION RULES:
             1. "IMPORT" vs "TRANSHIPMENT":

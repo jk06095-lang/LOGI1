@@ -56,6 +56,7 @@ const translations = {
     qty: '수량',
     pkg: '단위',
     weight: '중량',
+    cbm: 'CBM',
     cntrNo: '컨테이너 No.',
     addItem: '품목 추가',
     runOCR: 'AI 분석 실행',
@@ -118,6 +119,7 @@ const translations = {
     qty: 'Qty',
     pkg: 'Pkg',
     weight: 'Weight',
+    cbm: 'CBM',
     cntrNo: 'Container No.',
     addItem: 'Add Item',
     runOCR: 'Run AI Analysis',
@@ -180,6 +182,7 @@ const translations = {
     qty: '数量',
     pkg: '单位',
     weight: '重量',
+    cbm: 'CBM',
     cntrNo: '集装箱号',
     addItem: '添加项目',
     runOCR: '执行 AI 智能识别',
@@ -699,6 +702,7 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, language, on
                             <th className="p-2 w-16 text-right">{t.qty}</th>
                             <th className="p-2 w-16">{t.pkg}</th>
                             <th className="p-2 w-20 text-right">{t.weight}</th>
+                            <th className="p-2 w-20 text-right">{t.cbm}</th>
                             <th className="p-2 w-8"></th>
                         </tr>
                     </thead>
@@ -711,6 +715,7 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, language, on
                           <td className="p-1"><input type="number" className="w-full p-1 border dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded text-right" value={item.quantity} onChange={e => handleItemChange(idx, 'quantity', Number(e.target.value))} /></td>
                           <td className="p-1"><input type="text" className="w-full p-1 border dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded" value={item.packageType} onChange={e => handleItemChange(idx, 'packageType', e.target.value)} /></td>
                           <td className="p-1"><input type="number" className="w-full p-1 border dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded text-right" value={item.grossWeight} onChange={e => handleItemChange(idx, 'grossWeight', Number(e.target.value))} /></td>
+                          <td className="p-1"><input type="number" className="w-full p-1 border dark:border-slate-600 dark:bg-slate-700 dark:text-white rounded text-right" value={item.measurement || 0} onChange={e => handleItemChange(idx, 'measurement', Number(e.target.value))} /></td>
                           <td className="p-1 text-center"><button onClick={() => removeItemRow(idx)} className="text-red-400 hover:text-red-600"><X size={14} /></button></td>
                         </tr>
                       ))}

@@ -1,8 +1,7 @@
 
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { VesselJob, BLData, Language } from '../types';
-import { Folder, Ship, Calendar as CalendarIcon, FileText, List, ChevronLeft, ChevronRight, Package, ArrowRight, Printer, PieChart, ArrowUpDown, ArrowUp, ArrowDown, ZoomIn, ZoomOut, Save, Layers } from 'lucide-react';
+import { Folder, Ship, Calendar as CalendarIcon, FileText, List, ChevronLeft, ChevronRight, Package, ArrowRight, Printer, PieChart, ArrowUpDown, ArrowUp, ArrowDown, ZoomIn, ZoomOut, Save, Layers, Home } from 'lucide-react';
 
 // --- Types ---
 interface DashboardProps {
@@ -280,7 +279,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
     <div className="h-full overflow-y-auto custom-scrollbar p-8 animate-fade-in space-y-8 dark:text-slate-200">
        <div className="max-w-7xl mx-auto">
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <Folder size={24} className="text-blue-600" />
+            <Home size={24} className="text-blue-600" />
             {t.title}
           </h2>
           <p className="text-slate-500 dark:text-slate-400 mt-1">{t.subtitle}</p>
@@ -374,11 +373,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
   );
 };
 
-// ==========================================
-// Briefing Report Component (Standalone Tab)
-// ==========================================
+// ... BriefingReport Component (unchanged) ...
 export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initialDate, language, logoUrl, onUpdateBL }) => {
-  const t = translations[language];
+    // ... code kept same as input ...
+    const t = translations[language];
   const [currentDate, setCurrentDate] = useState(new Date(initialDate));
   const [briefingPeriod, setBriefingPeriod] = useState<'week' | 'month'>('month');
   const [reportMode, setReportMode] = useState<'general' | 'report'>('general');
@@ -666,6 +664,7 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
                         marginBottom: pageIndex === pages.length - 1 ? '0' : '20px' 
                     }}
                   >
+                      {/* ... Page Content ... (Same as original) */}
                       {pageIndex === 0 ? (
                           <div className="flex justify-between items-start border-b-4 border-black pb-4 mb-6">
                             <div className="flex items-center gap-6">

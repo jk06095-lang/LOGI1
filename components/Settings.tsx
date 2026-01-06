@@ -1,7 +1,6 @@
 
-
 import React, { useRef, useState } from 'react';
-import { Moon, Sun, Monitor, Globe, Type, LogOut, Upload, Image as ImageIcon, X, Database, Download, Trash2, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
+import { Moon, Sun, Monitor, Globe, Type, LogOut, Upload, Image as ImageIcon, X, Database, Download, Trash2, AlertTriangle, CheckCircle, Loader2, Settings as SettingsIcon } from 'lucide-react';
 import { AppSettings, Language, Theme, FontSize, FontStyle, BLData, VesselJob } from '../types';
 import { User } from 'firebase/auth';
 import JSZip from 'jszip';
@@ -274,7 +273,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdateSettings, 
 
   return (
     <div className="h-full overflow-y-auto custom-scrollbar p-8 animate-fade-in dark:text-slate-200">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <div>
             <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -572,7 +571,3 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdateSettings, 
     </div>
   );
 };
-
-const SettingsIcon = ({ className }: { className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-);

@@ -23,7 +23,7 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({ tabs, activeTabId,
       case 'settings': return Settings;
       case 'vessel-detail': return Ship;
       case 'vessel-list': return Ship;
-      case 'bl-list': return FileText;
+      case 'bl-list': return FolderOpen; // Changed from FileText to match Sidebar
       case 'shipment-detail': return FileText;
       case 'briefing': return PieChart;
       default: return FolderOpen;

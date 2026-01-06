@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { BLData, VesselJob, Language, BLChecklist } from '../types';
-import { FileText, Search, ArrowRight, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, Building2, Truck, ListChecks } from 'lucide-react';
+import { FileText, Search, ArrowRight, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, Building2, Truck, ListChecks, FolderOpen } from 'lucide-react';
 
 interface BLManagementProps {
   bls: BLData[];
@@ -198,7 +198,7 @@ export const BLManagement: React.FC<BLManagementProps> = ({
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
            <h2 className="text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-4">
-             <FileText size={32} className="text-blue-600" />
+             <FolderOpen size={32} className="text-blue-600" />
              {t.title} 
              <span className="text-sm font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-3 py-1.5 rounded-xl ml-4">
                {filteredBLs.length} Units

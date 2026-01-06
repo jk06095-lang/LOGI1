@@ -243,7 +243,7 @@ export const VesselList: React.FC<VesselListProps> = ({
     <div className="h-full overflow-y-auto custom-scrollbar p-8 animate-fade-in space-y-6 dark:text-slate-200">
        <div className="max-w-7xl mx-auto">
         <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-           <Folder size={24} className="text-blue-600" />
+           <Ship size={24} className="text-blue-600" />
            {t.title}
         </h2>
         <p className="text-slate-500 dark:text-slate-400 mt-1">{t.subtitle}</p>
