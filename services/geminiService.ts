@@ -1,10 +1,9 @@
 
-
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { BLData, CargoSourceType, DocumentScanType } from "../types";
 
 // Initialize Gemini Client
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenAI({ apiKey: "AIzaSyCeusgVsmdMpTm4WOBD3GpBkVznu3hNUHQ" });
 
 const cargoItemSchema: Schema = {
   type: Type.OBJECT,
