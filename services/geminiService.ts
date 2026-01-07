@@ -1,5 +1,3 @@
-
-
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { BLData, CargoSourceType, DocumentScanType } from "../types";
 
