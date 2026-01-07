@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { VesselJob, BLData, Language, CargoSourceType } from '../types';
-import { Folder, Ship, Calendar as CalendarIcon, FileText, List, ChevronLeft, ChevronRight, Package, ArrowRight, Printer, PieChart, ArrowUpDown, ArrowUp, ArrowDown, ZoomIn, ZoomOut, Save, Layers, Home, Upload, ScanLine } from 'lucide-react';
+import { Folder, Ship, Calendar as CalendarIcon, FileText, List, ChevronLeft, ChevronRight, Package, ArrowRight, Printer, PieChart, ArrowUpDown, ArrowUp, ArrowDown, ZoomIn, ZoomOut, Save, Layers, Home } from 'lucide-react';
 
 // --- Types ---
 interface DashboardProps {
@@ -210,7 +210,7 @@ const AutoResizeTextarea = ({ value, onChange, className, placeholder }: { value
   );
 };
 
-export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, language, onOpenBriefing, onUploadBLs }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, language, onOpenBriefing }) => {
   const t = translations[language];
   const [currentDate, setCurrentDate] = useState(new Date());
 
@@ -234,14 +234,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
 
   const workingJobs = jobs.filter(j => j.status === 'working');
   const incomingJobs = jobs.filter(j => j.status === 'incoming');
-
-  const handleBulkScan = (e: React.ChangeEvent<HTMLInputElement>) => {
-     if (e.target.files && e.target.files.length > 0 && onUploadBLs) {
-         onUploadBLs(Array.from(e.target.files), 'TRANSIT');
-         // Clear input
-         e.target.value = '';
-     }
-  };
 
   const renderCalendar = () => {
     const dayCells = [];
@@ -299,18 +291,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
             </h2>
             <p className="text-slate-500 dark:text-slate-400 mt-1">{t.subtitle}</p>
           </div>
-          
-          {/* Quick Action: Bulk Upload */}
-          <label className="cursor-pointer group relative overflow-hidden bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl shadow-lg shadow-blue-500/30 transition-all hover:scale-105 active:scale-95 flex items-center gap-3">
-              <input type="file" multiple accept="image/*,application/pdf" className="hidden" onChange={handleBulkScan} />
-              <div className="bg-white/20 p-2 rounded-lg">
-                 <ScanLine size={20} className="text-white" />
-              </div>
-              <div className="flex flex-col">
-                 <span className="text-sm font-bold leading-tight">{t.bulkScan}</span>
-                 <span className="text-[10px] opacity-80 font-medium">Click to upload files</span>
-              </div>
-          </label>
        </div>
 
        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
