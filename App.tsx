@@ -326,7 +326,7 @@ const App: React.FC = () => {
       case 'vessel-list':
         return <VesselList jobs={vesselJobs} allBLs={blData} onSelectJob={openVesselTab} onCreateJob={dataService.addJob} onUpdateJob={dataService.updateJob} onDeleteJob={dataService.deleteJob} getBLCount={(id) => blData.filter(b => b.vesselJobId === id).length} getTotalWeight={(id) => 0} language={settings.language} />;
       case 'bl-list':
-        return <BLManagement bls={blData} jobs={vesselJobs} checklists={checklists} onUploadBLs={(f) => handleBLUpload(f)} onAssignBL={dataService.updateBL} onCreateJob={dataService.addJob} onNavigateToBL={(id) => openShipmentDetailTab(id)} isProcessing={isProcessing} progressMessage={progressMessage} language={settings.language} />;
+        return <BLManagement bls={blData} jobs={vesselJobs} checklists={checklists} onUploadBLs={(f) => handleBLUpload(f)} onAssignBL={(blId, jobId) => dataService.updateBL(blId, { vesselJobId: jobId })} onCreateJob={dataService.addJob} onNavigateToBL={(id) => openShipmentDetailTab(id)} isProcessing={isProcessing} progressMessage={progressMessage} language={settings.language} />;
       case 'settings':
         return (
           <Settings 
