@@ -2,6 +2,7 @@ import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { BLData, CargoSourceType, DocumentScanType } from "../types";
 
 // Initialize Gemini Client
+// Fixed: Use process.env.API_KEY as per guidelines
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const cargoItemSchema: Schema = {
