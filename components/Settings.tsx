@@ -1,8 +1,10 @@
 
+
 import React, { useRef, useState } from 'react';
 import { Moon, Sun, Monitor, Globe, Type, LogOut, Upload, Image as ImageIcon, X, Database, Download, Trash2, AlertTriangle, CheckCircle, Loader2, Settings as SettingsIcon } from 'lucide-react';
 import { AppSettings, Language, Theme, FontSize, FontStyle, BLData, VesselJob } from '../types';
 import { User } from 'firebase/auth';
+import { dataService } from '../services/dataService';
 import JSZip from 'jszip';
 import saveAs from 'file-saver';
 
@@ -130,6 +132,11 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdateSettings, 
     onUpdateSettings({ ...settings, [key]: value });
   };
 
+  const handleLogout = () => {
+      dataService.clearCache(); // Security: clear data before logging out
+      if (onLogout) onLogout();
+  };
+
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -236,7 +243,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdateSettings, 
 
       if (failCount > 0) {
         zip.file("error_log.txt", errorLog.join("\n"));
-        alert(`${successCount}개의 파일 백업 성공.\n${failCount}개의 파일 다운로드 실패 (상세 내용은 zip 파일 내 error_log.txt 확인).`);
+        alert(`${successCount}개의 파일 백업 성공.\n${failCount}개의 파일 다운로드 실패 (상세 내용은 zip 파일 내 error_log.txt 확인).\n\nNOTE: 다운로드 실패시 Firebase CORS 설정이 필요할 수 있습니다.`);
       }
 
       const content = await zip.generateAsync({ type: "blob" });
@@ -293,10 +300,10 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdateSettings, 
               </div>
             </div>
             
-            <span className="text-[10px] text-slate-400 font-mono">alpha 0.0.1</span>
+            <span className="text-[10px] text-slate-400 font-mono">alpha 0.0.2</span>
             
             <button 
-              onClick={onLogout}
+              onClick={handleLogout}
               className="flex items-center gap-2 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-200 transition-colors"
             >
               <LogOut size={16} />

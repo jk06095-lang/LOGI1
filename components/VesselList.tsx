@@ -1,8 +1,7 @@
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { VesselJob, Language, JobStatus, BLData } from '../types';
-import { Folder, Plus, Ship, MoreVertical, FileText, Calendar, Trash2, Edit, PackageCheck, Truck, Anchor, Search, ArrowUpDown } from 'lucide-react';
+import { Folder, Plus, Ship, MoreVertical, FileText, Calendar, Trash2, Edit, PackageCheck, Truck, Anchor, Search, ArrowUpDown, ArrowRightCircle } from 'lucide-react';
 
 interface VesselListProps {
   jobs: VesselJob[];
@@ -19,18 +18,20 @@ interface VesselListProps {
 
 const translations = {
   ko: {
-    title: '선박 관리',
+    title: '선박 목록',
     subtitle: '진행 중인 선박 업무 및 화물(환적/피스코/타업체) 일정을 관리합니다.',
     working: '작업 중',
     incoming: '입항 예정',
     completed: '완료됨',
     newVessel: '새 선박 추가',
-    eta: 'ETA',
+    eta: 'ETA (입항)',
+    etd: 'ETD (출항)',
     modalTitle: '새 선박 등록',
     editTitle: '선박 정보 수정',
     vesselName: '선박명 (Vessel Name)',
     voyage: '항차 (Voyage)',
     etaLabel: '입항예정일 (ETA)',
+    etdLabel: '출항예정일 (ETD)',
     statusLabel: '상태 (Status)',
     cancel: '취소',
     submit: '등록하기',
@@ -39,8 +40,8 @@ const translations = {
     placeholderVoyage: 'e.g. V.123W',
     deleteConfirm: '정말 삭제하시겠습니까? 연결된 데이터는 미배정 상태가 됩니다.',
     transit: '환적 (Transit)',
-    fisco: '피스코 (Fisco)',
-    other: '타업체 (Other)',
+    fisco: '피스코 (LOGI1)',
+    other: '타업체 (3rd)',
     docs: '건 (Docs)',
     ton: '톤',
     edit: '수정 (Edit)',
@@ -60,11 +61,13 @@ const translations = {
     completed: 'Completed',
     newVessel: 'New Vessel',
     eta: 'ETA',
+    etd: 'ETD',
     modalTitle: 'Register New Vessel',
     editTitle: 'Edit Vessel Info',
     vesselName: 'Vessel Name',
     voyage: 'Voyage No.',
     etaLabel: 'ETA Date',
+    etdLabel: 'ETD Date',
     statusLabel: 'Status',
     cancel: 'Cancel',
     submit: 'Register',
@@ -73,8 +76,8 @@ const translations = {
     placeholderVoyage: 'e.g. V.123W',
     deleteConfirm: 'Are you sure you want to delete this job?',
     transit: 'Transit',
-    fisco: 'Fisco',
-    other: 'Other',
+    fisco: 'LOGI1',
+    other: '3rd',
     docs: 'Docs',
     ton: 'ton',
     edit: 'Edit',
@@ -94,11 +97,13 @@ const translations = {
     completed: '已完成',
     newVessel: '添加新船舶',
     eta: '预计抵港',
+    etd: '预计离港',
     modalTitle: '注册新船舶',
     editTitle: '修改船舶信息',
     vesselName: '船名',
     voyage: '航次',
     etaLabel: '预计抵港日期',
+    etdLabel: '预计离港日期',
     statusLabel: '状态',
     cancel: '取消',
     submit: '确认注册',
@@ -106,9 +111,9 @@ const translations = {
     placeholderName: '例如 ZHONG TAI NO.3',
     placeholderVoyage: '例如 V.123W',
     deleteConfirm: '确定要删除吗？相关数据将变为未分配状态。',
-    transit: '中转 (Transit)',
-    fisco: '自营 (Fisco)',
-    other: '第三方 (Other)',
+    transit: '中转',
+    fisco: 'LOGI1',
+    other: '第三方',
     docs: '份',
     ton: '吨',
     edit: '编辑',
@@ -131,7 +136,7 @@ export const VesselList: React.FC<VesselListProps> = ({
   const [showEditJobModal, setShowEditJobModal] = useState(false);
   const [editingJob, setEditingJob] = useState<VesselJob | null>(null);
   
-  const [newJobForm, setNewJobForm] = useState({ name: '', voyage: '', eta: '' });
+  const [newJobForm, setNewJobForm] = useState({ name: '', voyage: '', eta: '', etd: '' });
   
   // Search & Sort State
   const [searchTerm, setSearchTerm] = useState('');
@@ -173,13 +178,14 @@ export const VesselList: React.FC<VesselListProps> = ({
       vesselName: newJobForm.name,
       voyageNo: newJobForm.voyage,
       eta: newJobForm.eta,
+      etd: newJobForm.etd,
       status: 'incoming',
       notes: '',
       createdAt: new Date().toISOString()
     };
     onCreateJob(newJob);
     setShowNewJobModal(false);
-    setNewJobForm({ name: '', voyage: '', eta: '' });
+    setNewJobForm({ name: '', voyage: '', eta: '', etd: '' });
   };
 
   const handleEditSubmit = (e: React.FormEvent) => {
@@ -345,23 +351,31 @@ export const VesselList: React.FC<VesselListProps> = ({
                   </h3>
                   <p className="text-sm text-slate-500 dark:text-slate-400 font-medium mb-4">Voy. {job.voyageNo}</p>
                   
-                  <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 mb-4">
-                    <Calendar size={14} className="text-slate-400" />
-                    <span>{t.eta}: {job.eta}</span>
+                  <div className="flex flex-col gap-1 text-xs text-slate-600 dark:text-slate-400 mb-4 bg-slate-50 dark:bg-slate-700/30 p-2 rounded-lg">
+                    <div className="flex items-center justify-between">
+                       <span className="flex items-center gap-1"><Calendar size={12} className="text-blue-400" /> {t.eta}</span>
+                       <span className="font-bold">{job.eta || '-'}</span>
+                    </div>
+                    {job.etd && (
+                      <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-600 pt-1 mt-1">
+                         <span className="flex items-center gap-1"><ArrowRightCircle size={12} className="text-amber-500" /> {t.etd}</span>
+                         <span className="font-bold">{job.etd}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Detailed Counts */}
                   <div className="grid grid-cols-3 gap-2 mt-2">
                     <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-2 text-center border border-slate-100 dark:border-slate-700">
-                       <span className="block text-[10px] text-slate-400 font-semibold uppercase truncate">Transit</span>
+                       <span className="block text-[10px] text-slate-400 font-semibold uppercase truncate">{t.transit}</span>
                        <span className="block text-sm font-bold text-slate-700 dark:text-slate-200">{stats.transit}</span>
                     </div>
                     <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-2 text-center border border-blue-100 dark:border-blue-800">
-                       <span className="block text-[10px] text-blue-400 font-semibold uppercase truncate">Fisco</span>
+                       <span className="block text-[10px] text-blue-400 font-semibold uppercase truncate">{t.fisco}</span>
                        <span className="block text-sm font-bold text-blue-700 dark:text-blue-300">{stats.pisco}</span>
                     </div>
                     <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-2 text-center border border-amber-100 dark:border-amber-800">
-                       <span className="block text-[10px] text-amber-500 font-semibold uppercase truncate">Other</span>
+                       <span className="block text-[10px] text-amber-500 font-semibold uppercase truncate">{t.other}</span>
                        <span className="block text-sm font-bold text-amber-700 dark:text-amber-300">{stats.thirdParty}</span>
                     </div>
                   </div>
@@ -381,10 +395,6 @@ export const VesselList: React.FC<VesselListProps> = ({
             );
           })}
           
-          {/* Add New Card (Only show if no search term, or if search matches nothing but we want to encourage adding)
-              For better UX with search, we moved the Add button to the toolbar, but we can keep this card 
-              as a shortcut at the end of the list if there are few items, or hide it when searching.
-          */}
           {!searchTerm && (
             <button
                 onClick={() => setShowNewJobModal(true)} 
@@ -441,6 +451,17 @@ export const VesselList: React.FC<VesselListProps> = ({
                   />
                 </div>
               </div>
+              {/* ETD Input */}
+              <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t.etdLabel}</label>
+                  <input 
+                    type="date" 
+                    value={newJobForm.etd}
+                    onChange={e => setNewJobForm({...newJobForm, etd: e.target.value})}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow dark:bg-slate-900 dark:text-white dark:scheme-dark"
+                  />
+              </div>
+
               <div className="pt-4 flex justify-end gap-2">
                 <button type="button" onClick={() => setShowNewJobModal(false)} className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg font-medium transition-colors">{t.cancel}</button>
                 <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 shadow-sm transition-colors">{t.submit}</button>
@@ -491,6 +512,16 @@ export const VesselList: React.FC<VesselListProps> = ({
                     className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow dark:bg-slate-900 dark:text-white dark:scheme-dark"
                   />
                 </div>
+              </div>
+              {/* ETD Input Edit */}
+              <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t.etdLabel}</label>
+                  <input 
+                    type="date" 
+                    value={editingJob.etd || ''}
+                    onChange={e => setEditingJob({...editingJob, etd: e.target.value})}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-shadow dark:bg-slate-900 dark:text-white dark:scheme-dark"
+                  />
               </div>
               <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t.statusLabel}</label>

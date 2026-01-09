@@ -1,7 +1,6 @@
-
 import React, { useState, useMemo } from 'react';
 import { BLData, VesselJob, Language, BLChecklist } from '../types';
-import { FileText, Search, ArrowRight, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, Building2, Truck, ListChecks, FolderOpen } from 'lucide-react';
+import { FileText, Search, ArrowRight, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, Building2, Truck, ListChecks, FolderOpen, Download } from 'lucide-react';
 
 interface BLManagementProps {
   bls: BLData[];
@@ -18,14 +17,20 @@ interface BLManagementProps {
 
 const translations = {
   ko: {
-    title: '문서 관리',
+    title: '화물 관리',
     subtitle: '업로드된 모든 화물 문서를 검색하고 관리합니다.',
     search: 'B/L 번호, 선박명, 화주, 운송사 검색...',
     unassigned: '미배정',
-    tableHeaders: ['진행상황', 'B/L 번호', '선박 / 항차', '화주 (Shipper)', '품목 수', '등록일', '관리'],
+    tableHeaders: ['진행상황', '캐리어', '화물분류', 'B/L 번호', '화주 (Shipper)', '수하인 (Consignee)', '품명', '수량', '중량(kg)', 'CBM', '관리'],
     allVessels: '모든 선박',
     allTypes: '모든 화물 유형',
     goToChecklist: '상세보기',
+    download: '엑셀 다운로드',
+    catBait: '베이트',
+    catGear: '어구',
+    catNets: '그물',
+    catPort: '항통장비',
+    catGen: '기타',
     stages: {
       A: 'A. 수신 (Recv)',
       B: 'B. 전달 (Fwd)',
@@ -33,17 +38,31 @@ const translations = {
       D: 'D. 운송 (Trns)',
       E: 'E. 선적 (Load)',
       Done: '완료 (Done)'
-    }
+    },
+    status: '상태',
+    vesselName: '선박명',
+    cargoCategory: '분류',
+    blNumber: 'B/L No.',
+    shipper: 'Shipper',
+    consignee: 'Consignee',
+    itemCount: '품목수',
+    uploadDate: '등록일'
   },
   en: {
-    title: 'Document Management',
+    title: 'Integrated Document List',
     subtitle: 'Search and manage all uploaded cargo documents.',
     search: 'Search B/L, Vessel, Shipper, Transporter...',
     unassigned: 'Unassigned',
-    tableHeaders: ['Progress', 'B/L No.', 'Vessel / Voyage', 'Shipper', 'Items', 'Date', 'Action'],
+    tableHeaders: ['Status', 'Vessel', 'Category', 'B/L No.', 'Shipper', 'Consignee', 'Description', 'Qty', 'Weight', 'CBM', 'Action'],
     allVessels: 'All Vessels',
     allTypes: 'All Types',
     goToChecklist: 'Detail View',
+    download: 'Export Excel',
+    catBait: 'BAIT',
+    catGear: 'GEAR',
+    catNets: 'NETS',
+    catPort: 'EQUIP',
+    catGen: 'GEN',
     stages: {
         A: 'A. Recv',
         B: 'B. Fwd',
@@ -51,17 +70,31 @@ const translations = {
         D: 'D. Trns',
         E: 'E. Load',
         Done: 'Completed'
-    }
+    },
+    status: 'Status',
+    vesselName: 'Vessel Name',
+    cargoCategory: 'Category',
+    blNumber: 'B/L No.',
+    shipper: 'Shipper',
+    consignee: 'Consignee',
+    itemCount: 'Item Count',
+    uploadDate: 'Date'
   },
   cn: {
-    title: '单证管理',
+    title: '综合单证清单',
     subtitle: '搜索并管理所有已上传的单证资料。',
     search: '搜索提单号、船名、发货人、车队...',
     unassigned: '未关联',
-    tableHeaders: ['进度', '提单号', '船名/航次', '发货人', '件数', '上传日期', '操作'],
+    tableHeaders: ['状态', '船舶', '分类', '提单号', '发货人', '收货人', '描述', '数量', '重量', '体积', '操作'],
     allVessels: '所有船舶',
     allTypes: '所有类型',
     goToChecklist: '查看详情',
+    download: '导出 Excel',
+    catBait: '诱饵',
+    catGear: '渔具',
+    catNets: '渔网',
+    catPort: '港口设备',
+    catGen: '一般',
     stages: {
         A: 'A. 接收',
         B: 'B. 转交',
@@ -69,11 +102,19 @@ const translations = {
         D: 'D. 车队',
         E: 'E. 装船',
         Done: '已完成'
-    }
+    },
+    status: '状态',
+    vesselName: '船名',
+    cargoCategory: '分类',
+    blNumber: '提单号',
+    shipper: '发货人',
+    consignee: '收货人',
+    itemCount: '项目数',
+    uploadDate: '日期'
   }
 };
 
-type SortKey = 'status' | 'blNumber' | 'vesselName' | 'shipper' | 'itemCount' | 'uploadDate';
+type SortKey = 'status' | 'blNumber' | 'vesselName' | 'shipper' | 'consignee' | 'itemCount' | 'uploadDate' | 'cargoCategory';
 type SortDirection = 'asc' | 'desc';
 
 interface SortConfig {
@@ -136,12 +177,42 @@ export const BLManagement: React.FC<BLManagementProps> = ({
       return { percentage, currentStageLabel, isUnassigned: false };
   };
 
+  const getCbm = (bl: BLData) => {
+      if (bl.packingList && typeof bl.packingList.totalCbm === 'number' && bl.packingList.totalCbm > 0) {
+          return bl.packingList.totalCbm;
+      }
+      const sum = bl.cargoItems.reduce((acc, item) => acc + (Number(item.measurement) || 0), 0);
+      return sum;
+  };
+
+  const getQty = (bl: BLData) => {
+      if (bl.packingList && typeof bl.packingList.totalPackageCount === 'number' && bl.packingList.totalPackageCount > 0) {
+          return bl.packingList.totalPackageCount;
+      }
+      return bl.cargoItems.reduce((acc, item) => acc + (Number(item.quantity) || 0), 0);
+  };
+
+  const getWeight = (bl: BLData) => {
+      if (bl.packingList && typeof bl.packingList.totalGrossWeight === 'number' && bl.packingList.totalGrossWeight > 0) {
+          return bl.packingList.totalGrossWeight;
+      }
+      return bl.cargoItems.reduce((acc, item) => acc + (Number(item.grossWeight) || 0), 0);
+  };
+
+  const getJobName = (jobId?: string) => {
+      if (!jobId) return undefined;
+      return jobs.find(j => j.id === jobId)?.vesselName;
+  };
+
   const filteredBLs = useMemo(() => {
     let result = bls.filter(bl => {
       const lowerSearch = searchTerm.toLowerCase();
+      const jobName = getJobName(bl.vesselJobId) || '';
+
       const matchesSearch = 
         bl.blNumber.toLowerCase().includes(lowerSearch) ||
         bl.vesselName.toLowerCase().includes(lowerSearch) ||
+        jobName.toLowerCase().includes(lowerSearch) ||
         bl.shipper.toLowerCase().includes(lowerSearch) ||
         (bl.transporterName && bl.transporterName.toLowerCase().includes(lowerSearch)) ||
         (bl.koreanForwarder && bl.koreanForwarder.toLowerCase().includes(lowerSearch));
@@ -161,9 +232,15 @@ export const BLManagement: React.FC<BLManagementProps> = ({
             aValue = getProgressInfo(a).percentage; 
             bValue = getProgressInfo(b).percentage; 
             break;
+          case 'cargoCategory': aValue = a.cargoCategory || ''; bValue = b.cargoCategory || ''; break;
           case 'blNumber': aValue = a.blNumber; bValue = b.blNumber; break;
-          case 'vesselName': aValue = a.vesselName || ''; bValue = b.vesselName || ''; break;
+          case 'vesselName': 
+             // Sort by Job Name if available, otherwise BL Vessel Name
+             aValue = getJobName(a.vesselJobId) || a.vesselName || ''; 
+             bValue = getJobName(b.vesselJobId) || b.vesselName || ''; 
+             break;
           case 'shipper': aValue = a.shipper; bValue = b.shipper; break;
+          case 'consignee': aValue = a.consignee; bValue = b.consignee; break;
           case 'itemCount': aValue = a.cargoItems.length; bValue = b.cargoItems.length; break;
           case 'uploadDate': aValue = new Date(a.uploadDate).getTime(); bValue = new Date(b.uploadDate).getTime(); break;
         }
@@ -173,7 +250,7 @@ export const BLManagement: React.FC<BLManagementProps> = ({
       });
     }
     return result;
-  }, [bls, searchTerm, vesselFilter, typeFilter, sortConfig, checklists, language]); // Added checklists and language as dependencies
+  }, [bls, searchTerm, vesselFilter, typeFilter, sortConfig, checklists, language, jobs]);
 
   const handleSort = (key: SortKey) => {
     let direction: SortDirection = 'asc';
@@ -193,22 +270,48 @@ export const BLManagement: React.FC<BLManagementProps> = ({
       else alert("파일이 없습니다.");
   };
 
+  const getCategoryBadge = (cat?: string) => {
+      switch(cat) {
+          case 'BAIT': return <span className="bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-pink-200 dark:border-pink-800">{t.catBait}</span>;
+          case 'NETS': return <span className="bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-cyan-200 dark:border-cyan-800">{t.catNets}</span>;
+          case 'FISHING_GEAR': return <span className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-orange-200 dark:border-orange-800">{t.catGear}</span>;
+          case 'PORT_EQUIPMENT': return <span className="bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-slate-300 dark:border-slate-600">{t.catPort}</span>;
+          default: return <span className="bg-white text-slate-500 dark:bg-transparent dark:text-slate-400 px-2 py-0.5 rounded text-[10px] border border-slate-200 dark:border-slate-700">{cat || t.catGen}</span>;
+      }
+  };
+
+  const exportCSV = () => {
+    const allItems = filteredBLs.flatMap(bl => (bl.cargoItems || []).map(item => ({ ...item, blNumber: bl.blNumber, vessel: bl.vesselName, shipper: bl.shipper, consignee: bl.consignee, category: bl.cargoCategory, cbm: getCbm(bl) })));
+    const headers = ["Vessel", "B/L Number", "Category", "Shipper", "Consignee", "Description", "Quantity", "Weight", "CBM"];
+    const rows = allItems.map(item => [item.vessel, item.blNumber, item.category || 'GENERAL', item.shipper, item.consignee, item.description, item.quantity, item.grossWeight, item.measurement]);
+    const csvContent = "data:text/csv;charset=utf-8,\ufeff" + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const link = document.createElement("a");
+    link.setAttribute("href", encodeURI(csvContent));
+    link.setAttribute("download", `integrated_cargo_list.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
-    <div className="h-full overflow-y-auto custom-scrollbar p-6 animate-fade-in space-y-8">
-      <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-6">
+    <div className="h-full overflow-y-auto custom-scrollbar p-6 animate-fade-in space-y-8 w-full">
+      <div className="w-full flex flex-col md:flex-row md:items-center justify-between gap-6 px-2">
         <div>
            <h2 className="text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-4">
              <FolderOpen size={32} className="text-blue-600" />
              {t.title} 
              <span className="text-sm font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-3 py-1.5 rounded-xl ml-4">
-               {filteredBLs.length} Units
+               {filteredBLs.length} Docs
              </span>
            </h2>
            <p className="text-slate-500 dark:text-slate-400 text-base mt-2">{t.subtitle}</p>
         </div>
+        <button onClick={exportCSV} className="flex items-center gap-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-600 transition-all shadow-sm">
+          <Download size={16} /> {t.download}
+        </button>
       </div>
 
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-4 gap-4 bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+      <div className="w-full grid grid-cols-1 lg:grid-cols-4 gap-4 bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
          <div className="relative lg:col-span-2">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
             <input 
@@ -232,23 +335,31 @@ export const BLManagement: React.FC<BLManagementProps> = ({
          </select>
       </div>
 
-      <div className="max-w-7xl mx-auto bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+      <div className="w-full bg-white dark:bg-slate-800 rounded-none shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className="overflow-x-auto">
            <table className="w-full text-sm text-left border-collapse whitespace-nowrap">
              <thead className="bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-600 font-bold uppercase tracking-widest text-[11px]">
                <tr>
-                 <th onClick={() => handleSort('status')} className="px-6 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors w-40"><div className="flex items-center">{t.tableHeaders[0]} {renderSortIcon('status')}</div></th>
-                 <th onClick={() => handleSort('blNumber')} className="px-6 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center">{t.tableHeaders[1]} {renderSortIcon('blNumber')}</div></th>
-                 <th onClick={() => handleSort('vesselName')} className="px-6 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center">{t.tableHeaders[2]} {renderSortIcon('vesselName')}</div></th>
-                 <th onClick={() => handleSort('shipper')} className="px-6 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center">{t.tableHeaders[3]} {renderSortIcon('shipper')}</div></th>
-                 <th onClick={() => handleSort('itemCount')} className="px-6 py-4 text-center cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center justify-center">{t.tableHeaders[4]} {renderSortIcon('itemCount')}</div></th>
-                 <th onClick={() => handleSort('uploadDate')} className="px-6 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center">{t.tableHeaders[5]} {renderSortIcon('uploadDate')}</div></th>
-                 <th className="px-6 py-4 text-center">{t.tableHeaders[6]}</th>
+                 <th onClick={() => handleSort('status')} className="px-4 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors w-24"><div className="flex items-center">{t.tableHeaders[0]} {renderSortIcon('status')}</div></th>
+                 <th onClick={() => handleSort('vesselName')} className="px-4 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center">{t.tableHeaders[1]} {renderSortIcon('vesselName')}</div></th>
+                 <th onClick={() => handleSort('cargoCategory')} className="px-4 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center">{t.tableHeaders[2]} {renderSortIcon('cargoCategory')}</div></th>
+                 <th onClick={() => handleSort('blNumber')} className="px-4 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center">{t.tableHeaders[3]} {renderSortIcon('blNumber')}</div></th>
+                 <th onClick={() => handleSort('shipper')} className="px-4 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center">{t.tableHeaders[4]} {renderSortIcon('shipper')}</div></th>
+                 <th onClick={() => handleSort('consignee')} className="px-4 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center">{t.tableHeaders[5]} {renderSortIcon('consignee')}</div></th>
+                 <th className="px-4 py-4">{t.tableHeaders[6]}</th>
+                 <th className="px-4 py-4 text-right">{t.tableHeaders[7]}</th>
+                 <th className="px-4 py-4 text-right">{t.tableHeaders[8]}</th>
+                 <th className="px-4 py-4 text-right">{t.tableHeaders[9]}</th>
+                 <th className="px-4 py-4 text-center">{t.tableHeaders[10]}</th>
                </tr>
              </thead>
              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                {filteredBLs.map(bl => {
                  const { percentage, currentStageLabel, isUnassigned } = getProgressInfo(bl);
+                 const totalQty = getQty(bl);
+                 const totalWeight = getWeight(bl);
+                 const totalCbm = getCbm(bl);
+                 const displayDesc = bl.cargoItems.length > 0 ? bl.cargoItems[0].description : '-';
                  
                  // Color coding based on stage roughly
                  let stageColor = 'text-slate-600 dark:text-slate-300';
@@ -265,15 +376,18 @@ export const BLManagement: React.FC<BLManagementProps> = ({
                      barColor = 'bg-slate-300 dark:bg-slate-600';
                  }
 
+                 // Resolve Job Name
+                 const jobName = getJobName(bl.vesselJobId);
+
                  return (
                    <tr key={bl.id} className="hover:bg-blue-50/30 dark:hover:bg-slate-800/50 transition-colors">
-                     <td className="px-6 py-4">
+                     <td className="px-4 py-4">
                        {isUnassigned ? (
                           <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
                               {t.unassigned}
                           </span>
                        ) : (
-                          <div className="flex flex-col gap-1.5 w-32">
+                          <div className="flex flex-col gap-1.5 w-24">
                              <div className="flex justify-between items-end">
                                 <span className={`text-[10px] font-bold uppercase truncate ${stageColor} max-w-[80px]`} title={currentStageLabel}>
                                    {currentStageLabel}
@@ -286,36 +400,35 @@ export const BLManagement: React.FC<BLManagementProps> = ({
                           </div>
                        )}
                      </td>
-                     <td className="px-6 py-4">
-                        <button onClick={() => handleOpenFile(bl.fileUrl)} className="font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-2 text-xs md:text-sm">
-                          {bl.blNumber} <ExternalLink size={12} className="opacity-40" />
-                        </button>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">{bl.sourceType || 'TRANSIT'}</span>
-                     </td>
-                     <td className="px-6 py-4">
-                       <div className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[180px] text-xs md:text-sm" title={bl.vesselName}>{bl.vesselName}</div>
+                     <td className="px-4 py-4">
+                       <div className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[150px]" title={jobName || bl.vesselName}>
+                           {jobName || bl.vesselName}
+                       </div>
                        <div className="text-[10px] text-slate-400 font-medium tabular-nums mt-0.5">{bl.voyageNo}</div>
                      </td>
-                     <td className="px-6 py-4">
-                         <div className="text-slate-600 dark:text-slate-400 font-medium max-w-[150px] truncate text-xs md:text-sm" title={bl.shipper}>{bl.shipper}</div>
-                         <div className="flex flex-col gap-1 mt-1">
-                            {bl.koreanForwarder && (
-                                <div className="text-[9px] text-slate-500 flex items-center gap-1 bg-slate-50 dark:bg-slate-700/50 px-1.5 py-0.5 rounded w-fit max-w-[150px] truncate" title={bl.koreanForwarder}>
-                                    <Building2 size={10} className="flex-shrink-0" /> {bl.koreanForwarder}
-                                </div>
-                            )}
-                            {bl.transporterName && (
-                                <div className="text-[9px] text-slate-500 flex items-center gap-1 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded w-fit max-w-[150px] truncate" title={bl.transporterName}>
-                                    <Truck size={10} className="flex-shrink-0" /> {bl.transporterName}
-                                </div>
-                            )}
-                         </div>
+                     
+                     <td className="px-4 py-4 text-center">
+                         {getCategoryBadge(bl.cargoCategory)}
                      </td>
-                     <td className="px-6 py-4 text-center font-bold text-slate-700 dark:text-slate-200 tabular-nums">{bl.cargoItems.length}</td>
-                     <td className="px-6 py-4 text-slate-400 font-mono text-[10px] tabular-nums">{new Date(bl.uploadDate).toLocaleDateString()}</td>
-                     <td className="px-6 py-4 text-center">
-                       <button onClick={() => onNavigateToBL(bl.id)} className="text-white bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 mx-auto whitespace-nowrap">
-                          {t.goToChecklist} <ArrowRight size={14} />
+
+                     <td className="px-4 py-4">
+                        <button onClick={() => handleOpenFile(bl.fileUrl)} className="font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-2">
+                          {bl.blNumber} <ExternalLink size={10} className="opacity-40" />
+                        </button>
+                     </td>
+                     <td className="px-4 py-4 text-slate-600 dark:text-slate-400 truncate max-w-[120px]" title={bl.shipper}>{bl.shipper}</td>
+                     <td className="px-4 py-4 text-slate-600 dark:text-slate-400 truncate max-w-[120px]" title={bl.consignee}>{bl.consignee}</td>
+                     
+                     <td className="px-4 py-4 text-slate-600 dark:text-slate-400 truncate max-w-[150px] text-xs" title={displayDesc}>{displayDesc}</td>
+                     <td className="px-4 py-4 text-right text-slate-700 dark:text-slate-300 tabular-nums font-bold">{totalQty.toLocaleString()}</td>
+                     <td className="px-4 py-4 text-right text-slate-600 dark:text-slate-400 font-mono tabular-nums">{totalWeight.toLocaleString()}</td>
+                     <td className="px-4 py-4 text-right text-slate-600 dark:text-slate-400 font-mono tabular-nums font-bold">
+                        {totalCbm > 0 ? totalCbm.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 3 }) : '-'}
+                     </td>
+
+                     <td className="px-4 py-4 text-center">
+                       <button onClick={() => onNavigateToBL(bl.id)} className="text-white bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 mx-auto whitespace-nowrap shadow-sm">
+                          {t.goToChecklist} <ArrowRight size={12} />
                        </button>
                      </td>
                    </tr>

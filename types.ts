@@ -8,18 +8,21 @@ export interface CargoItem {
   measurement: number; // cbm
   containerNo?: string;
   sealNo?: string;
+  containerType?: string; // New: 20GP, 40HC, etc.
   hsCode?: string; // New: HS Code
 }
 
 export type CargoSourceType = 'TRANSIT' | 'FISCO' | 'THIRD_PARTY';
 
-export type DocumentScanType = 'BL' | 'CI' | 'PL' | 'EXPORT_DEC' | 'MANIFEST';
+export type DocumentScanType = 'BL' | 'CI' | 'PL' | 'EXPORT_DEC' | 'MANIFEST' | 'AN';
 
 export type CargoType = 'LCL' | 'FCL'; // Existing
 
 // New Classifications
 export type CargoClass = 'IMPORT' | 'TRANSHIPMENT';
 export type ImportSubClass = 'GENERAL' | 'RETURN_EXPORT' | 'SHIPS_STORES';
+export type BLType = 'MASTER' | 'HOUSE';
+export type CargoCategory = string;
 
 // Background Task Types
 export interface BackgroundTask {
@@ -62,6 +65,14 @@ export interface ManifestData {
   fileUrl?: string;
 }
 
+export interface ArrivalNoticeData {
+  eta?: string;
+  location?: string; // CY or CFS Name
+  freightCost?: string; // 청구 운임
+  otherCosts?: string; // 기타 비용 (Demurrage etc)
+  fileUrl?: string;
+}
+
 export interface BLData {
   id: string;
   vesselJobId?: string; // Link to a specific vessel job
@@ -70,6 +81,7 @@ export interface BLData {
   
   // Core Identifiers
   blNumber: string;
+  blType?: BLType; // New: Master or House
   shipper: string;
   consignee: string;
   notifyParty: string;
@@ -80,11 +92,16 @@ export interface BLData {
   
   // Logistics Info
   vesselName: string;
+  carrierCompany?: string; // New: Carrier (e.g., Maersk, KMTC)
   voyageNo: string;
   portOfLoading: string;
   portOfDischarge: string;
   date: string;
   
+  // New: Storage Info
+  storageLocation?: string; // 보관 장소 (Warehouse Name)
+  storagePeriod?: string; // 보관 기간
+
   // Cargo Data
   cargoItems: CargoItem[];
   rawText?: string;
@@ -99,6 +116,7 @@ export interface BLData {
   // New Classification Fields
   cargoClass?: CargoClass; // I (Import) or T (Transhipment)
   importSubClass?: ImportSubClass; // Return Export, Ship Stores, etc.
+  cargoCategory?: CargoCategory; // New: Detailed Category (Bait, Net, etc.)
 
   supplierName?: string;
   
@@ -107,6 +125,7 @@ export interface BLData {
   packingList?: PackingListData;
   exportDeclaration?: ExportDeclarationData;
   manifest?: ManifestData;
+  arrivalNotice?: ArrivalNoticeData; // New: A/N Data
   
   // Global Remarks
   remarks?: string; // Used for Description edits
@@ -121,6 +140,7 @@ export interface VesselJob {
   vesselName: string;
   voyageNo: string;
   eta: string;
+  etd?: string; // New: Estimated Time of Departure
   status: JobStatus;
   notes: string;
   createdAt: string;

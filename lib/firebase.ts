@@ -1,8 +1,8 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
-import { getAnalytics } from "firebase/analytics";
-import { getStorage } from "firebase/storage";
-import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
+import { getFirestore, Firestore } from "firebase/firestore";
+import { getAnalytics, Analytics } from "firebase/analytics";
+import { getStorage, FirebaseStorage } from "firebase/storage";
+import { getAuth, GoogleAuthProvider, Auth } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBLnVbFSz2jpXIVCG0D_P57S4qlzDCKi0E",
@@ -15,25 +15,16 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-let app;
-let analytics;
-let db;
-let storage;
-let auth;
-let googleProvider;
+// We remove the try-catch block to ensure that if configuration fails, 
+// the app reports it immediately rather than crashing on undefined variables later.
 
-try {
-  // Prevent re-initialization error during hot reload or re-renders
-  app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-  analytics = getAnalytics(app);
-  db = getFirestore(app);
-  storage = getStorage(app);
-  auth = getAuth(app);
-  googleProvider = new GoogleAuthProvider();
+const app: FirebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+const analytics: Analytics = getAnalytics(app);
+const db: Firestore = getFirestore(app);
+const storage: FirebaseStorage = getStorage(app);
+const auth: Auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
 
-  console.log("Firebase initialized successfully");
-} catch (error) {
-  console.error("Firebase initialization failed:", error);
-}
+console.log("Firebase initialized successfully");
 
 export { db, app, analytics, storage, auth, googleProvider };

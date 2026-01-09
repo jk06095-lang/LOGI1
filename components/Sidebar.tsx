@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Anchor, Settings, Ship, ChevronLeft, ChevronRight, Home, FolderOpen } from 'lucide-react';
 import { ViewState, Language } from '../types';
@@ -17,8 +16,8 @@ interface SidebarProps {
 const translations = {
   ko: {
     dashboard: '대시보드',
-    vesselMgmt: '선박 관리',
-    blMgmt: '문서 관리', // Changed from B/L Management
+    vesselMgmt: '선박 목록', // Updated from '선박 관리'
+    blMgmt: '화물 관리', // Unify with Title
     settings: '환경 설정',
     role: '운영자',
     menu: '메인 메뉴'
@@ -26,7 +25,7 @@ const translations = {
   en: {
     dashboard: 'Dashboard',
     vesselMgmt: 'Vessel Mgmt',
-    blMgmt: 'Doc Mgmt',
+    blMgmt: 'Cargo Mgmt',
     settings: 'Settings',
     role: 'Operator',
     menu: 'Main Menu'
@@ -34,7 +33,7 @@ const translations = {
   cn: {
     dashboard: '工作台',
     vesselMgmt: '船舶管理',
-    blMgmt: '单证管理',
+    blMgmt: '货物管理',
     settings: '系统设置',
     role: '操作员',
     menu: '主菜单'

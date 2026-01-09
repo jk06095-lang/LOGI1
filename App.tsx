@@ -255,6 +255,13 @@ const App: React.FC = () => {
   const handleBLUpload = async (files: File[], sourceType: CargoSourceType = 'TRANSIT') => {
     setIsProcessing(true);
     let contextJobId = activeTab?.type === 'vessel-detail' ? activeTab.data.vesselId : undefined;
+    let contextJobName = '';
+
+    // If uploading within a vessel context, use that vessel name
+    if (contextJobId) {
+        const j = vesselJobs.find(x => x.id === contextJobId);
+        if (j) contextJobName = j.vesselName;
+    }
 
     // Log start
     addToHistory('Bulk Upload Started', `Uploading ${files.length} files...`, 'info');
@@ -277,7 +284,8 @@ const App: React.FC = () => {
           id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
           vesselJobId: matchedJobId, fileName: file.name, fileUrl: downloadUrl, uploadDate: new Date().toISOString(),
           status: 'completed', blNumber: rawData.blNumber || 'UNKNOWN', shipper: rawData.shipper || '',
-          consignee: rawData.consignee || '', notifyParty: rawData.notifyParty || '', vesselName: rawData.vesselName || '',
+          consignee: rawData.consignee || '', notifyParty: rawData.notifyParty || '', 
+          vesselName: contextJobName || rawData.vesselName || '', // Prioritize context job name
           voyageNo: rawData.voyageNo || '', portOfLoading: rawData.portOfLoading || '', portOfDischarge: rawData.portOfDischarge || '',
           date: rawData.date || '', sourceType: sourceType, cargoItems: rawData.cargoItems || []
         });
@@ -345,6 +353,7 @@ const App: React.FC = () => {
         return (
             <ShipmentDetail 
                 bl={currentBL} 
+                jobs={vesselJobs}
                 language={settings.language} 
                 onUpdateBL={dataService.updateBL} 
                 onClose={() => closeTab(activeTabId)}

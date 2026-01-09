@@ -19,8 +19,12 @@ const translations = {
     firstItem: '첫 번째 화물 등록하기',
     type: '구분',
     class: '분류',
+    category: '화물 종류',
+    vessel: '소요 선박',
     blNo: 'B/L 번호',
-    shipper: '공급자',
+    shipper: 'Shipper',
+    consignee: 'Consignee',
+    notify: 'Notify',
     desc: '대표 품명',
     qty: '수량',
     weight: '중량 (kg)',
@@ -32,11 +36,11 @@ const translations = {
     thirdParty: '타사',
     viewDetail: '상세보기',
     andOthers: '외 {count}건',
-    clsImport: '수입',
-    clsTrans: '환적',
-    subReturn: '반송',
-    subStore: '선용품',
-    subGen: '일반',
+    catBait: '베이트',
+    catGear: '어구',
+    catNets: '그물',
+    catPort: '항통장비',
+    catGen: '기타',
     stages: {
         A: '수신',
         B: '전달',
@@ -55,8 +59,12 @@ const translations = {
     firstItem: 'Register Cargo',
     type: 'Type',
     class: 'Class',
+    category: 'Category',
+    vessel: 'Vessel',
     blNo: 'B/L No.',
     shipper: 'Shipper',
+    consignee: 'Consignee',
+    notify: 'Notify',
     desc: 'Description',
     qty: 'Qty',
     weight: 'Weight',
@@ -68,11 +76,11 @@ const translations = {
     thirdParty: '3RD',
     viewDetail: 'Detail',
     andOthers: '& {count} others',
-    clsImport: 'IMP',
-    clsTrans: 'T/S',
-    subReturn: 'RET',
-    subStore: 'STR',
-    subGen: 'GEN',
+    catBait: 'BAIT',
+    catGear: 'GEAR',
+    catNets: 'NETS',
+    catPort: 'EQUIP',
+    catGen: 'GEN',
     stages: {
         A: 'Rcv',
         B: 'Fwd',
@@ -91,8 +99,12 @@ const translations = {
     firstItem: '登记首批货物',
     type: '来源',
     class: '分类',
+    category: '货物类型',
+    vessel: '船舶',
     blNo: '提单/订单号',
     shipper: '发货人',
+    consignee: '收货人',
+    notify: '通知人',
     desc: '货物描述',
     qty: '数量',
     weight: '重量 (KG)',
@@ -104,11 +116,11 @@ const translations = {
     thirdParty: '第三方',
     viewDetail: '查看详情',
     andOthers: '等 {count} 项',
-    clsImport: '进口',
-    clsTrans: '中转',
-    subReturn: '退运',
-    subStore: '船用',
-    subGen: '一般',
+    catBait: '诱饵',
+    catGear: '渔具',
+    catNets: '渔网',
+    catPort: '港口设备',
+    catGen: '一般',
     stages: {
         A: '接收',
         B: '转交',
@@ -121,7 +133,7 @@ const translations = {
   }
 };
 
-type SortKey = 'sourceType' | 'cargoClass' | 'blNumber' | 'shipper' | 'description' | 'quantity' | 'grossWeight' | 'cbm' | 'status';
+type SortKey = 'sourceType' | 'cargoCategory' | 'vesselName' | 'blNumber' | 'shipper' | 'consignee' | 'description' | 'quantity' | 'grossWeight' | 'cbm' | 'status';
 type SortDirection = 'asc' | 'desc';
 
 interface SortConfig {
@@ -194,9 +206,11 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], checklists = {}
       let bValue: any = '';
       switch (sortConfig.key) {
         case 'sourceType': aValue = a.sourceType || ''; bValue = b.sourceType || ''; break;
-        case 'cargoClass': aValue = (a.cargoClass || '') + (a.importSubClass || ''); bValue = (b.cargoClass || '') + (b.importSubClass || ''); break;
+        case 'cargoCategory': aValue = a.cargoCategory || ''; bValue = b.cargoCategory || ''; break;
+        case 'vesselName': aValue = a.vesselName || ''; bValue = b.vesselName || ''; break;
         case 'blNumber': aValue = a.blNumber; bValue = b.blNumber; break;
         case 'shipper': aValue = a.shipper; bValue = b.shipper; break;
+        case 'consignee': aValue = a.consignee; bValue = b.consignee; break;
         case 'description': aValue = a.cargoItems[0]?.description || ''; bValue = b.cargoItems[0]?.description || ''; break;
         case 'quantity': aValue = getQty(a); bValue = getQty(b); break;
         case 'grossWeight': aValue = getWeight(a); bValue = getWeight(b); break;
@@ -219,6 +233,16 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], checklists = {}
     else alert('파일이 없습니다.');
   };
 
+  const getCategoryBadge = (cat?: string) => {
+      switch(cat) {
+          case 'BAIT': return <span className="bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-pink-200 dark:border-pink-800">{t.catBait}</span>;
+          case 'NETS': return <span className="bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-cyan-200 dark:border-cyan-800">{t.catNets}</span>;
+          case 'FISHING_GEAR': return <span className="bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-orange-200 dark:border-orange-800">{t.catGear}</span>;
+          case 'PORT_EQUIPMENT': return <span className="bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-slate-300 dark:border-slate-600">{t.catPort}</span>;
+          default: return <span className="bg-white text-slate-500 dark:bg-transparent dark:text-slate-400 px-2 py-0.5 rounded text-[10px] border border-slate-200 dark:border-slate-700">{cat || t.catGen}</span>;
+      }
+  };
+
   if (data.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 border-dashed animate-fade-in">
@@ -234,9 +258,9 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], checklists = {}
   }
 
   const exportCSV = () => {
-    const allItems = data.flatMap(bl => (bl.cargoItems || []).map(item => ({ ...item, blNumber: bl.blNumber, shipper: bl.shipper, cbm: getCbm(bl) })));
-    const headers = ["B/L Number", "Class", "Shipper", "Description", "Quantity", "Weight", "CBM"];
-    const rows = allItems.map(item => [item.blNumber, item.packageType, item.shipper, item.description, item.quantity, item.grossWeight, item.measurement]);
+    const allItems = data.flatMap(bl => (bl.cargoItems || []).map(item => ({ ...item, blNumber: bl.blNumber, vessel: bl.vesselName, shipper: bl.shipper, consignee: bl.consignee, category: bl.cargoCategory, cbm: getCbm(bl) })));
+    const headers = ["Vessel", "B/L Number", "Category", "Shipper", "Consignee", "Description", "Quantity", "Weight", "CBM"];
+    const rows = allItems.map(item => [item.vessel, item.blNumber, item.category || 'GENERAL', item.shipper, item.consignee, item.description, item.quantity, item.grossWeight, item.measurement]);
     const csvContent = "data:text/csv;charset=utf-8,\ufeff" + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
     const link = document.createElement("a");
     link.setAttribute("href", encodeURI(csvContent));
@@ -247,8 +271,8 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], checklists = {}
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex justify-between items-center">
+    <div className="space-y-4 animate-fade-in w-full">
+      <div className="flex justify-between items-center px-1">
         <div>
            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">{t.title}</h2>
            <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">{t.subtitle.replace('{count}', data.length.toString())}</p>
@@ -258,20 +282,22 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], checklists = {}
         </button>
       </div>
 
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+      <div className="bg-white dark:bg-slate-800 rounded-none shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden w-full">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
+          <table className="w-full text-sm text-left whitespace-nowrap">
             <thead className="bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-600 font-bold uppercase tracking-widest text-[11px]">
               <tr>
-                <th onClick={() => handleSort('sourceType')} className="px-6 py-5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.type} {renderSortIcon('sourceType')}</div></th>
-                <th onClick={() => handleSort('status')} className="px-6 py-5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.status} {renderSortIcon('status')}</div></th>
-                <th onClick={() => handleSort('blNumber')} className="px-6 py-5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.blNo} {renderSortIcon('blNumber')}</div></th>
-                <th onClick={() => handleSort('shipper')} className="px-6 py-5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.shipper} {renderSortIcon('shipper')}</div></th>
-                <th onClick={() => handleSort('description')} className="px-6 py-5 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.desc} {renderSortIcon('description')}</div></th>
-                <th onClick={() => handleSort('quantity')} className="px-6 py-5 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center justify-end gap-1">{t.qty} {renderSortIcon('quantity')}</div></th>
-                <th onClick={() => handleSort('grossWeight')} className="px-6 py-5 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center justify-end gap-1">{t.weight} {renderSortIcon('grossWeight')}</div></th>
-                <th onClick={() => handleSort('cbm')} className="px-6 py-5 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center justify-end gap-1">{t.cbm} {renderSortIcon('cbm')}</div></th>
-                <th className="px-6 py-5 text-center">{t.action}</th>
+                <th onClick={() => handleSort('status')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors w-24"><div className="flex items-center gap-1">{t.status} {renderSortIcon('status')}</div></th>
+                {/* Vessel Name column removed */}
+                <th onClick={() => handleSort('cargoCategory')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.category} {renderSortIcon('cargoCategory')}</div></th>
+                <th onClick={() => handleSort('blNumber')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.blNo} {renderSortIcon('blNumber')}</div></th>
+                <th onClick={() => handleSort('shipper')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.shipper} {renderSortIcon('shipper')}</div></th>
+                <th onClick={() => handleSort('consignee')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.consignee} {renderSortIcon('consignee')}</div></th>
+                <th onClick={() => handleSort('description')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.desc} {renderSortIcon('description')}</div></th>
+                <th onClick={() => handleSort('quantity')} className="px-2 py-3 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center justify-end gap-1">{t.qty} {renderSortIcon('quantity')}</div></th>
+                <th onClick={() => handleSort('grossWeight')} className="px-2 py-3 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center justify-end gap-1">{t.weight} {renderSortIcon('grossWeight')}</div></th>
+                <th onClick={() => handleSort('cbm')} className="px-2 py-3 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center justify-end gap-1">{t.cbm} {renderSortIcon('cbm')}</div></th>
+                <th className="px-2 py-3 text-center">{t.action}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -284,48 +310,50 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], checklists = {}
 
                 return (
                   <tr key={bl.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                    {/* Source Type Badge */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                       {bl.sourceType === 'TRANSIT' && <span className="bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider">{t.transit}</span>}
-                       {bl.sourceType === 'FISCO' && <span className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider">{t.fisco}</span>}
-                       {bl.sourceType === 'THIRD_PARTY' && <span className="bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300 px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider">{t.thirdParty}</span>}
-                    </td>
                     
                     {/* Status Column (ERP Style) */}
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-2 py-2 whitespace-nowrap">
                          {status.percent === 0 && status.label === t.stages.Unassigned ? (
                              <span className="text-slate-400 text-xs">-</span>
                          ) : (
-                             <div className="w-24">
+                             <div className="w-20">
                                 <div className="flex justify-between items-center mb-1">
                                     <span className={`text-[10px] font-bold uppercase ${status.percent === 100 ? 'text-emerald-600' : 'text-blue-600'}`}>{status.label}</span>
                                     <span className="text-[9px] font-mono text-slate-400">{status.percent}%</span>
                                 </div>
-                                <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                <div className="w-full h-1 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                                     <div style={{ width: `${status.percent}%` }} className={`h-full rounded-full ${status.percent === 100 ? 'bg-emerald-500' : 'bg-blue-500'}`}></div>
                                 </div>
                              </div>
                          )}
                     </td>
 
-                    <td className="px-6 py-4 font-bold text-blue-600 dark:text-blue-400 font-mono cursor-pointer hover:underline" onClick={() => handleOpenFile(bl.fileUrl)}>
+                    {/* Vessel column removed */}
+
+                    <td className="px-2 py-2 text-center">
+                        {getCategoryBadge(bl.cargoCategory)}
+                    </td>
+
+                    <td className="px-2 py-2 font-bold text-blue-600 dark:text-blue-400 font-mono cursor-pointer hover:underline" onClick={() => handleOpenFile(bl.fileUrl)}>
                         <div className="flex items-center gap-1.5">
-                            {bl.blNumber} <ExternalLink size={12} className="opacity-50"/>
+                            {bl.blNumber} <ExternalLink size={10} className="opacity-50"/>
                         </div>
                     </td>
-                    <td className="px-6 py-4 text-slate-600 dark:text-slate-400 font-medium truncate max-w-[150px]" title={bl.shipper}>{bl.shipper}</td>
-                    <td className="px-6 py-4 text-slate-600 dark:text-slate-400 truncate max-w-[200px]" title={displayDesc}>{displayDesc}</td>
-                    <td className="px-6 py-4 text-right text-slate-700 dark:text-slate-300 tabular-nums font-bold">{totalQty.toLocaleString()}</td>
-                    <td className="px-6 py-4 text-right text-slate-600 dark:text-slate-400 font-mono tabular-nums">{totalWeight.toLocaleString()}</td>
-                    <td className="px-6 py-4 text-right text-slate-600 dark:text-slate-400 font-mono tabular-nums font-bold">
+                    <td className="px-2 py-2 text-slate-600 dark:text-slate-400 font-medium truncate max-w-[120px]" title={bl.shipper}>{bl.shipper}</td>
+                    <td className="px-2 py-2 text-slate-600 dark:text-slate-400 truncate max-w-[120px]" title={bl.consignee}>{bl.consignee}</td>
+                    
+                    <td className="px-2 py-2 text-slate-600 dark:text-slate-400 truncate max-w-[180px] text-xs" title={displayDesc}>{displayDesc}</td>
+                    <td className="px-2 py-2 text-right text-slate-700 dark:text-slate-300 tabular-nums font-bold">{totalQty.toLocaleString()}</td>
+                    <td className="px-2 py-2 text-right text-slate-600 dark:text-slate-400 font-mono tabular-nums">{totalWeight.toLocaleString()}</td>
+                    <td className="px-2 py-2 text-right text-slate-600 dark:text-slate-400 font-mono tabular-nums font-bold">
                         {totalCbm > 0 ? totalCbm.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 3 }) : '-'}
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-2 py-2 text-center">
                         <button 
                             onClick={() => onViewDetail && onViewDetail(bl.id)}
                             className="text-white bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 mx-auto shadow-sm"
                         >
-                            {t.viewDetail} <ArrowRight size={14} />
+                            {t.viewDetail} <ArrowRight size={12} />
                         </button>
                     </td>
                   </tr>

@@ -1,9 +1,17 @@
+
+
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { BLData, CargoSourceType, DocumentScanType } from "../types";
 
-// Initialize Gemini Client
-// Fixed: Use process.env.API_KEY as per guidelines
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Initialize Gemini Client Lazily
+const getAiClient = () => {
+  const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : undefined;
+  
+  if (!apiKey) {
+    throw new Error("Gemini API Key is missing. Please set process.env.API_KEY in your environment variables.");
+  }
+  return new GoogleGenAI({ apiKey });
+};
 
 const cargoItemSchema: Schema = {
   type: Type.OBJECT,
@@ -14,6 +22,7 @@ const cargoItemSchema: Schema = {
     grossWeight: { type: Type.NUMBER, description: "Gross weight in KG" },
     measurement: { type: Type.NUMBER, description: "Volume in CBM" },
     containerNo: { type: Type.STRING, description: "Container number" },
+    containerType: { type: Type.STRING, description: "Container Type (e.g., 20GP, 40HQ, 40GP, LCL)" },
     sealNo: { type: Type.STRING, description: "Seal number" },
     hsCode: { type: Type.STRING, description: "HS Code if available" },
   },
@@ -27,6 +36,7 @@ const fullDocSchema: Schema = {
     blNumber: { type: Type.STRING, description: "B/L No, Invoice No, or Ref No" },
     shipper: { type: Type.STRING, description: "Shipper or Supplier Name" },
     consignee: { type: Type.STRING, description: "Consignee or Vessel Name" },
+    notifyParty: { type: Type.STRING, description: "Notify Party Name" },
     vesselName: { type: Type.STRING, description: "Vessel Name" },
     voyageNo: { type: Type.STRING, description: "Voyage Number" },
     portOfLoading: { type: Type.STRING, description: "Port of Loading (POL)" },
@@ -35,7 +45,7 @@ const fullDocSchema: Schema = {
     // New Fields
     koreanForwarder: { type: Type.STRING, description: "The 'DELIVERY AGENT' or Forwarder company name. Often found under 'For delivery of goods please apply to'." },
     transporterName: { type: Type.STRING, description: "Trucking or Transport Company Name" },
-    cargoType: { type: Type.STRING, description: "Enum: 'LCL' or 'FCL'. Based on terms like 'CY-CY', 'FCL', 'CFS', 'LCL'." },
+    cargoType: { type: Type.STRING, description: "Enum: 'LCL' or 'FCL'. Rule: If 'CY/CY', 'CY-CY', or 'FCL' is found -> 'FCL'. If 'CFS/CFS', 'CFS-CFS', or 'LCL' is found -> 'LCL'." },
     
     // Classification Fields
     cargoClass: { 
@@ -45,6 +55,10 @@ const fullDocSchema: Schema = {
     importSubClass: { 
       type: Type.STRING, 
       description: "Enum: 'GENERAL', 'RETURN_EXPORT', 'SHIPS_STORES'. Logic: If description/remarks contains 'Ship Stores', 'Spare Parts for Vessel', set to 'SHIPS_STORES'. If 'Return', 'Re-export', set to 'RETURN_EXPORT'." 
+    },
+    cargoCategory: {
+        type: Type.STRING,
+        description: "Enum: 'FISHING_GEAR' (어구), 'BAIT' (베이트/미끼), 'NETS' (그물), 'PORT_EQUIPMENT' (항통장비), 'GENERAL' (기타). Infer from description."
     },
 
     // Cargo List
@@ -65,13 +79,21 @@ const fullDocSchema: Schema = {
 
     // Export Declaration Specific
     declarationNo: { type: Type.STRING, description: "Export Declaration Number (수출신고번호)" },
-    mainHsCode: { type: Type.STRING, description: "Main HS Code from Export Declaration" }
+    mainHsCode: { type: Type.STRING, description: "Main HS Code from Export Declaration" },
+
+    // A/N Specific
+    anEta: { type: Type.STRING, description: "ETA Date from Arrival Notice" },
+    anLocation: { type: Type.STRING, description: "Location name (CY or CFS) where cargo is stored" },
+    anFreightCost: { type: Type.STRING, description: "Total Freight Cost string (e.g. 500 USD)" },
+    anOtherCosts: { type: Type.STRING, description: "Other costs like Demurrage, THC" }
   },
 };
 
 export const parseDocument = async (file: File, docType: DocumentScanType, sourceType: CargoSourceType = 'TRANSIT'): Promise<any> => {
   return new Promise(async (resolve, reject) => {
     try {
+      const ai = getAiClient();
+      
       const base64Data = await fileToGenerativePart(file);
       const mimeType = file.type === 'application/pdf' ? 'application/pdf' : file.type;
 
@@ -80,70 +102,49 @@ export const parseDocument = async (file: File, docType: DocumentScanType, sourc
       switch(docType) {
         case 'PL':
           promptText = `Analyze this PACKING LIST.
-          Extract:
-          1. Total Packages (sum of all quantities).
-          2. Total Gross Weight.
-          3. Total Measurement (CBM).
-          4. Detailed cargo items list (Description, Qty, Weight, CBM per item).
-          Sync description with B/L context if possible.
+          Extract: Total Packages, Total Gross Weight, Total Measurement (CBM), and detailed cargo items.
+          For each item, try to find Container Number and Type if listed.
           `;
           break;
         case 'CI':
           promptText = `Analyze this COMMERCIAL INVOICE.
-          Extract:
-          1. Total Invoice Amount.
-          2. Currency.
-          3. Shipper/Supplier.
-          4. Consignee/Vessel.
+          Extract: Total Invoice Amount, Currency, Shipper, Consignee.
           `;
           break;
         case 'EXPORT_DEC':
           promptText = `Analyze this EXPORT DECLARATION (수출신고필증).
-          Extract:
-          1. Declaration Number (수출신고번호).
-          2. Main HS Code (HS 품목코드).
-          3. Total Weight and Qty.
+          Extract: Declaration Number, Main HS Code.
+          `;
+          break;
+        case 'AN':
+          promptText = `Analyze this ARRIVAL NOTICE (화물도착통지서).
+          Extract: 
+          1. ETA (입항일).
+          2. Location (장치장/CY/CFS Name).
+          3. Freight Charges (Total Cost).
+          4. Other Charges (Demurrage, etc).
           `;
           break;
         case 'BL':
         default:
            if (sourceType === 'TRANSIT') {
             promptText = `Analyze this Bill of Lading (B/L).
-            Extract: B/L Number, Vessel, Shipper, Consignee, Port of Loading.
+            Extract: B/L Number, Vessel, Shipper, Consignee, Notify Party, Port of Loading.
             
-            CRITICAL EXTRACTION FOR CARGO DETAILS:
-            - **Total CBM / Measurement**: Look for "MEASUREMENT", "CBM", "M3", "VOL". Extract the total volume value.
-            - **Total Gross Weight**: Look for "GROSS WEIGHT", "G.W", "KGS", "T.W". Extract the total weight value.
-            - **Total Packages**: Look for "NO. OF PKGS", "PACKAGES", "TOTAL PACKAGES". Extract the numeric count.
-            - **Item Details**: EXTRACT TABLE DATA. Return a list of items.
-              For EACH item, extract:
-              - Description
-              - Quantity
-              - Gross Weight
-              - Measurement (CBM/M3). Look for columns like "MEASUREMENT", "CBM". If individual CBM is listed, capture it.
+            CRITICAL:
+            - **Total CBM / Weight / Packages**
+            - **Item Details**: EXTRACT TABLE DATA.
+              For EACH item, extract: Description, Qty, Weight, CBM, Container No, Seal No, Container Type (e.g. 20GP, 40HC).
             
-            IMPORTANT CLASSIFICATION RULES:
-            1. "IMPORT" vs "TRANSHIPMENT":
-               - If the Consignee Address is in KOREA (e.g., Busan, Seoul, Incheon), set cargoClass to 'IMPORT'.
-               - If the Consignee is "TO ORDER" and Notify Party is in KOREA, set cargoClass to 'IMPORT'.
-               - Otherwise, set to 'TRANSHIPMENT'.
-            
-            2. "SUB CLASS" (Only if Import):
-               - If goods are 'Ship Spares', 'Stores', 'Provisions', set importSubClass to 'SHIPS_STORES'.
-               - If goods are described as 'Return', 'Re-import', 'Defective', set importSubClass to 'RETURN_EXPORT'.
-               - Otherwise 'GENERAL'.
-
-            3. "LCL" vs "FCL": 
-               - If 'CY', 'FCL', 'FULL CONTAINER' found -> 'FCL'.
-               - If 'CFS', 'LCL' found -> 'LCL'.
-
-            4. "Agencies":
-               - Extract 'koreanForwarder' (Delivery Agent).
-               - Extract 'transporterName' (Trucking Co) if present.
+            CLASSIFICATION RULES:
+            - **Cargo Type**: Look for terms 'CY/CY' or 'FCL' -> Set to 'FCL'. Look for 'CFS/CFS' or 'LCL' -> Set to 'LCL'.
+            - **Cargo Class**: If Consignee Address in KOREA -> 'IMPORT'. Else -> 'TRANSHIPMENT'.
+            - **Cargo Category**: Classify as 'FISHING_GEAR', 'BAIT', 'NETS', 'PORT_EQUIPMENT', or 'GENERAL' based on description.
+            - Extract Agencies (Korean Forwarder, Transporter).
             `;
           } else {
             promptText = `Analyze this Supply Document (LOGI1/3rd Party).
-            Extract: Order No, Supplier, Vessel, Items, CBM, Weight, Packages, and classify as Import/Transhipment based on destination.
+            Extract standard logistics data.
             `;
           }
           break;
@@ -168,13 +169,12 @@ export const parseDocument = async (file: File, docType: DocumentScanType, sourc
       if (!text) throw new Error("No response from Gemini");
       const parsed = JSON.parse(text);
       
-      // Post-processing for CBM if main object missing it but items have it
+      // Post-processing
       if (!parsed.totalCbm && parsed.cargoItems && parsed.cargoItems.length > 0) {
           const sumCbm = parsed.cargoItems.reduce((acc: number, item: any) => acc + (item.measurement || 0), 0);
           if (sumCbm > 0) parsed.totalCbm = parseFloat(sumCbm.toFixed(3));
       }
       
-      // Post-processing for Weight if missing
       if (!parsed.totalGrossWeight && parsed.cargoItems && parsed.cargoItems.length > 0) {
           const sumWeight = parsed.cargoItems.reduce((acc: number, item: any) => acc + (item.grossWeight || 0), 0);
           if (sumWeight > 0) parsed.totalGrossWeight = parseFloat(sumWeight.toFixed(2));
@@ -189,7 +189,6 @@ export const parseDocument = async (file: File, docType: DocumentScanType, sourc
   });
 };
 
-// Legacy wrapper for compatibility
 export const parseBLImage = async (file: File, sourceType: CargoSourceType = 'TRANSIT'): Promise<Partial<BLData>> => {
   return parseDocument(file, 'BL', sourceType);
 };

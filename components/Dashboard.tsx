@@ -1,6 +1,8 @@
+
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { VesselJob, BLData, Language, CargoSourceType } from '../types';
-import { Folder, Ship, Calendar as CalendarIcon, FileText, List, ChevronLeft, ChevronRight, Package, ArrowRight, Printer, PieChart, ArrowUpDown, ArrowUp, ArrowDown, ZoomIn, ZoomOut, Save, Layers, Home } from 'lucide-react';
+import { Folder, Ship, Calendar as CalendarIcon, FileText, List, ChevronLeft, ChevronRight, Package, ArrowRight, Printer, PieChart, ArrowUpDown, ArrowUp, ArrowDown, ZoomIn, ZoomOut, Save, Layers, Home, Filter, X } from 'lucide-react';
+import { createPortal } from 'react-dom';
 
 // --- Types ---
 interface DashboardProps {
@@ -31,7 +33,7 @@ const translations = {
     incomingJobs: '입항 예정 선박',
     blCount: '전체 문서 건수',
     calendarTitle: '월별 화물 캘린더',
-    calendarSubtitle: '입항 예정 선박 및 적하 목록을 월별로 확인하세요.',
+    calendarSubtitle: '입항(ETA) 및 출항(ETD) 예정 선박을 확인하세요.',
     noData: '이 기간의 화물 리스트가 없습니다.',
     days: ['일', '월', '화', '수', '목', '금', '토'],
     briefingMode: '브리핑 모드 (Report)',
@@ -49,10 +51,11 @@ const translations = {
     reportHeaderEta: 'ETA',
     reportHeaderVessel: 'VESSEL / VOYAGE',
     reportHeaderShipper: 'SHIPPER',
-    reportHeaderTransporter: 'TRANSPORTER', // New
+    reportHeaderTransporter: 'TRANSPORTER',
+    reportHeaderLocation: 'CY/CFS', // New
     reportHeaderDesc: 'DESCRIPTION',
     reportHeaderRemark: 'REMARKS',
-    reportHeaderNote: 'NOTE', // New
+    reportHeaderNote: 'NOTE',
     reportHeaderQty: 'QTY',
     reportHeaderWeight: 'WEIGHT (KG)',
     reportHeaderType: 'TYPE',
@@ -76,6 +79,10 @@ const translations = {
     legendCompleted: '완료됨',
     bulkScan: 'Multiple B/L Scan (Bulk Upload)',
     bulkScanDesc: '여러 B/L을 한 번에 스캔하여 카고 리스트를 생성합니다.',
+    filterVessel: '선박 필터',
+    allVessels: '모든 선박',
+    moreVessels: '+ {count}척 더보기',
+    scheduleFor: '일정 상세',
   },
   en: {
     title: 'Dashboard',
@@ -84,7 +91,7 @@ const translations = {
     incomingJobs: 'Incoming Vessels',
     blCount: 'Total Documents',
     calendarTitle: 'Monthly Cargo Calendar',
-    calendarSubtitle: 'Check incoming vessels and manifests by month.',
+    calendarSubtitle: 'Check incoming (ETA) and outgoing (ETD) vessels.',
     noData: 'No cargo scheduled for this period.',
     days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
     briefingMode: 'Briefing Mode',
@@ -102,7 +109,8 @@ const translations = {
     reportHeaderEta: 'ETA',
     reportHeaderVessel: 'VESSEL / VOYAGE',
     reportHeaderShipper: 'SHIPPER',
-    reportHeaderTransporter: 'TRANSPORTER', // New
+    reportHeaderTransporter: 'TRANSPORTER',
+    reportHeaderLocation: 'CY/CFS',
     reportHeaderDesc: 'DESCRIPTION',
     reportHeaderRemark: 'REMARKS',
     reportHeaderNote: 'NOTE',
@@ -129,6 +137,10 @@ const translations = {
     legendCompleted: 'Completed',
     bulkScan: 'Multiple B/L Scan',
     bulkScanDesc: 'Scan multiple B/Ls at once to generate cargo lists.',
+    filterVessel: 'Filter Vessel',
+    allVessels: 'All Vessels',
+    moreVessels: '+ {count} More',
+    scheduleFor: 'Schedule for',
   },
   cn: {
     title: '工作台',
@@ -137,7 +149,7 @@ const translations = {
     incomingJobs: '预计抵港船舶',
     blCount: '文档总数',
     calendarTitle: '每月货物日历',
-    calendarSubtitle: '按月查看船舶抵港及载货清单概览。',
+    calendarSubtitle: '按月查看船舶抵港(ETA)及离港(ETD)计划。',
     noData: '本时段无货物计划。',
     days: ['日', '一', '二', '三', '四', '五', '六'],
     briefingMode: '报表模式 (Report)',
@@ -155,7 +167,8 @@ const translations = {
     reportHeaderEta: '预计抵港',
     reportHeaderVessel: '船名 / 航次',
     reportHeaderShipper: '发货人',
-    reportHeaderTransporter: '运输公司', // New
+    reportHeaderTransporter: '运输公司',
+    reportHeaderLocation: '仓库/场站',
     reportHeaderDesc: '货物名称与描述',
     reportHeaderRemark: '备注',
     reportHeaderNote: '笔记',
@@ -182,6 +195,10 @@ const translations = {
     legendCompleted: '已完成',
     bulkScan: '批量扫描 (B/L)',
     bulkScanDesc: '一次扫描多份提单，自动生成货物清单。',
+    filterVessel: '筛选船舶',
+    allVessels: '所有船舶',
+    moreVessels: '+ {count} 更多',
+    scheduleFor: '日程详情',
   }
 };
 
@@ -213,6 +230,7 @@ const AutoResizeTextarea = ({ value, onChange, className, placeholder }: { value
 export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, language, onOpenBriefing }) => {
   const t = translations[language];
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDateForModal, setSelectedDateForModal] = useState<string | null>(null);
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
@@ -235,6 +253,46 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
   const workingJobs = jobs.filter(j => j.status === 'working');
   const incomingJobs = jobs.filter(j => j.status === 'incoming');
 
+  const getDayJobs = (dateStr: string) => {
+      const eta = jobs.filter(j => j.eta === dateStr);
+      const etd = jobs.filter(j => j.etd === dateStr);
+      return { eta, etd };
+  };
+
+  const renderJobItem = (job: VesselJob, type: 'eta' | 'etd') => {
+       const blCount = bls.filter(b => b.vesselJobId === job.id).length;
+       let statusClasses = "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-600";
+       
+       if (type === 'etd') {
+            statusClasses = "bg-purple-50 text-purple-800 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800";
+       } else {
+           if (job.status === 'incoming') statusClasses = "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800";
+           else if (job.status === 'working') statusClasses = "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800";
+       }
+
+       return (
+         <button 
+           key={`${type}-${job.id}`} 
+           onClick={(e) => { e.stopPropagation(); onSelectJob(job.id); setSelectedDateForModal(null); }}
+           className={`block w-full text-left p-1.5 rounded border ${statusClasses} hover:opacity-80 transition-opacity group shadow-sm mb-1.5`}
+           title={`${type.toUpperCase()}: ${job.vesselName}`}
+         >
+           <div className="font-bold text-[10px] truncate leading-tight flex items-center gap-1">
+              <span className="text-[8px] bg-white/50 px-0.5 rounded text-inherit">{type.toUpperCase()}</span>
+              {job.vesselName}
+           </div>
+           <div className="flex justify-between items-center mt-1 text-[9px] opacity-80 font-medium">
+              <span className="truncate max-w-[60%] tracking-tight">{job.voyageNo}</span>
+              {type === 'eta' && (
+                  <span className="font-mono bg-white/50 dark:bg-black/20 px-1 rounded flex items-center gap-0.5">
+                     <FileText size={8} /> {blCount}
+                  </span>
+              )}
+           </div>
+         </button>
+       );
+  };
+
   const renderCalendar = () => {
     const dayCells = [];
     for (let i = 0; i < firstDay; i++) {
@@ -242,38 +300,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
     }
     for (let d = 1; d <= days; d++) {
       const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      const dayJobs = jobs.filter(j => j.eta === dateStr);
+      const { eta, etd } = getDayJobs(dateStr);
+      const allDayJobs = [...eta.map(j => ({...j, _type: 'eta' as const})), ...etd.map(j => ({...j, _type: 'etd' as const}))];
+      const hasJobs = allDayJobs.length > 0;
       
-      dayCells.push(
-        <div key={d} className="min-h-[8rem] bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-2 relative group hover:border-blue-300 transition-colors">
-          <span className={`text-sm font-bold ${dayJobs.length > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}>{d}</span>
-          <div className="mt-2 space-y-1.5 overflow-y-auto max-h-[6.5rem] scrollbar-hide">
-             {dayJobs.map(job => {
-               // Calculate BL Count for this job
-               const blCount = bls.filter(b => b.vesselJobId === job.id).length;
-               
-               // Status Coloring
-               let statusClasses = "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-600";
-               if (job.status === 'incoming') statusClasses = "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800";
-               else if (job.status === 'working') statusClasses = "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800";
+      const MAX_DISPLAY = 2;
+      const displayJobs = allDayJobs.slice(0, MAX_DISPLAY);
+      const remainingCount = allDayJobs.length - MAX_DISPLAY;
 
-               return (
-                 <button 
-                   key={job.id} 
-                   onClick={() => onSelectJob(job.id)}
-                   className={`block w-full text-left p-1.5 rounded border ${statusClasses} hover:opacity-80 transition-opacity group shadow-sm`}
-                   title={`${job.vesselName} (${job.status})`}
-                 >
-                   <div className="font-bold text-[10px] truncate leading-tight">{job.vesselName}</div>
-                   <div className="flex justify-between items-center mt-1 text-[9px] opacity-80 font-medium">
-                      <span className="truncate max-w-[60%] tracking-tight">{job.voyageNo}</span>
-                      <span className="font-mono bg-white/50 dark:bg-black/20 px-1 rounded flex items-center gap-0.5">
-                         <FileText size={8} /> {blCount}
-                      </span>
-                   </div>
-                 </button>
-               );
-             })}
+      dayCells.push(
+        <div 
+            key={d} 
+            onClick={() => hasJobs && setSelectedDateForModal(dateStr)}
+            className={`min-h-[8rem] bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-2 relative group transition-colors ${hasJobs ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50' : ''}`}
+        >
+          <span className={`text-sm font-bold ${eta.length > 0 || etd.length > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}>{d}</span>
+          <div className="mt-2">
+             {displayJobs.map(j => renderJobItem(j, j._type))}
+             
+             {remainingCount > 0 && (
+                 <div className="text-[10px] text-slate-500 font-bold text-center mt-1 bg-slate-100 dark:bg-slate-700 rounded py-1">
+                     {t.moreVessels.replace('{count}', remainingCount.toString())}
+                 </div>
+             )}
           </div>
         </div>
       );
@@ -343,8 +392,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
                       <span className="text-xs font-bold text-slate-600 dark:text-slate-400">{t.legendWorking}</span>
                    </div>
                    <div className="flex items-center gap-1.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
-                      <span className="text-xs font-bold text-slate-600 dark:text-slate-400">{t.legendCompleted}</span>
+                      <span className="w-2.5 h-2.5 rounded-full bg-purple-400"></span>
+                      <span className="text-xs font-bold text-slate-600 dark:text-slate-400">ETD</span>
                    </div>
                 </div>
              </div>
@@ -377,28 +426,68 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
              </div>
           </div>
        </div>
+       
+       {/* Modal for Date Details */}
+       {selectedDateForModal && createPortal(
+         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setSelectedDateForModal(null)}>
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up" onClick={e => e.stopPropagation()}>
+                <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-700/50">
+                    <h3 className="font-bold text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                        <CalendarIcon size={18} className="text-blue-500"/> {selectedDateForModal}
+                    </h3>
+                    <button onClick={() => setSelectedDateForModal(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X size={20} /></button>
+                </div>
+                <div className="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                    {(() => {
+                        const { eta, etd } = getDayJobs(selectedDateForModal);
+                        return (
+                            <div className="space-y-4">
+                                <div>
+                                    <h4 className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">{t.legendIncoming} / {t.legendWorking}</h4>
+                                    {eta.length === 0 ? <p className="text-sm text-slate-400 italic">No incoming vessels</p> : (
+                                        <div className="space-y-2">
+                                            {eta.map(j => renderJobItem(j, 'eta'))}
+                                        </div>
+                                    )}
+                                </div>
+                                <div>
+                                    <h4 className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">ETD</h4>
+                                    {etd.length === 0 ? <p className="text-sm text-slate-400 italic">No departing vessels</p> : (
+                                        <div className="space-y-2">
+                                            {etd.map(j => renderJobItem(j, 'etd'))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })()}
+                </div>
+            </div>
+         </div>,
+         document.body
+       )}
     </div>
   );
 };
 
-// ... BriefingReport Component (unchanged) ...
+// ... BriefingReport Component ...
 export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initialDate, language, logoUrl, onUpdateBL }) => {
-    // ... code kept same as input ...
     const t = translations[language];
   const [currentDate, setCurrentDate] = useState(new Date(initialDate));
   const [briefingPeriod, setBriefingPeriod] = useState<'week' | 'month'>('month');
   const [reportMode, setReportMode] = useState<'general' | 'report'>('general');
   const [zoomLevel, setZoomLevel] = useState(1);
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedVesselId, setSelectedVesselId] = useState<string>('all');
 
   // Editable State
   const [editableDescription, setEditableDescription] = useState<Record<string, string>>({});
   const [editableReportRemarks, setEditableReportRemarks] = useState<Record<string, string>>({});
   const [editableNotes, setEditableNotes] = useState<Record<string, string>>({});
 
-  // Resizable Columns
+  // Resizable Columns - Added 'location' column width
   const [colWidths, setColWidths] = useState({
-    no: 30, type: 50, shipper: 110, transporter: 100, qty: 80, weight: 90, desc: 220, note: 140, remark: 140
+    no: 30, type: 50, shipper: 110, transporter: 100, location: 80, qty: 80, weight: 90, desc: 180, note: 120, remark: 120
   });
   const resizingRef = useRef<{ col: keyof typeof colWidths | null, startX: number, startWidth: number }>({ col: null, startX: 0, startWidth: 0 });
 
@@ -435,12 +524,16 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
     setCurrentDate(d);
   };
 
+  // Get Briefing Jobs (Filtered by Date AND Vessel Selection)
   const getFilteredJobs = () => {
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth();
-
+    
+    let filtered = jobs;
+    
+    // Date Filter
     if (briefingPeriod === 'month') {
-      return jobs.filter(job => {
+      filtered = filtered.filter(job => {
         const jobDate = new Date(job.eta);
         return jobDate.getFullYear() === currentYear && jobDate.getMonth() === currentMonth;
       });
@@ -448,14 +541,44 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
       const start = new Date(currentDate);
       const end = new Date(currentDate);
       end.setDate(end.getDate() + 7);
-      return jobs.filter(job => {
+      filtered = filtered.filter(job => {
         const d = new Date(job.eta);
         return d >= start && d <= end;
       });
     }
+
+    // Vessel Filter
+    if (selectedVesselId !== 'all') {
+        filtered = filtered.filter(job => job.id === selectedVesselId);
+    }
+    
+    return filtered;
   };
 
   const briefingJobs = getFilteredJobs();
+
+  // Alias Helper Function
+  const getTypeAlias = (bl: BLData): string => {
+      // Logic per requirements:
+      // FISCO -> 직납
+      // THIRD_PARTY -> 3RD
+      // TRANSIT -> Check cargoClass/importSubClass
+      // IMPORT -> I
+      // TRANSHIPMENT -> T
+      // SHIPS_STORES -> 선용품
+      // RETURN_EXPORT -> 반송 수출
+      
+      if (bl.sourceType === 'FISCO') return '직납';
+      if (bl.sourceType === 'THIRD_PARTY') return '3RD';
+      
+      if (bl.importSubClass === 'SHIPS_STORES') return '선용품';
+      if (bl.importSubClass === 'RETURN_EXPORT') return '반송 수출';
+      
+      if (bl.cargoClass === 'IMPORT') return 'I';
+      if (bl.cargoClass === 'TRANSHIPMENT') return 'T';
+      
+      return 'T'; // Default fallback
+  };
 
   const getBriefingSummaries = (filteredJobs: VesselJob[]) => {
      return filteredJobs.flatMap(job => {
@@ -463,7 +586,6 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
         return jobBLs.map(bl => {
            const items = bl.cargoItems || [];
            
-           // PRIORITIZE PACKING LIST TOTALS IF AVAILABLE AND > 0 (Standard Data Override)
            let totalQty = 0;
            if (bl.packingList && typeof bl.packingList.totalPackageCount === 'number' && bl.packingList.totalPackageCount > 0) {
                totalQty = bl.packingList.totalPackageCount;
@@ -487,6 +609,9 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
            const existingNote = bl.note || '';
            const displayNote = editableNotes[bl.id] !== undefined ? editableNotes[bl.id] : existingNote;
 
+           // Location Logic (Storage, Warehouse, CY/CFS)
+           const location = bl.storageLocation || bl.arrivalNotice?.location || '';
+
            return {
              blId: bl.id,
              jobId: job.id,
@@ -496,13 +621,15 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
              shipper: bl.shipper || 'Unknown',
              transporter: bl.transporterName || '',
              koreanForwarder: bl.koreanForwarder || '',
+             location, // New
              description: displayDesc,
              reportRemark: displayReportRemark,
              note: displayNote,
              quantity: totalQty,
              packageType: items.length > 0 ? items[0].packageType : 'PKGS',
              grossWeight: totalWeight,
-             sourceType: bl.sourceType || 'TRANSIT'
+             sourceType: bl.sourceType || 'TRANSIT',
+             typeAlias: getTypeAlias(bl) // New
            };
         });
      }).sort((a, b) => new Date(a.eta).getTime() - new Date(b.eta).getTime());
@@ -544,14 +671,13 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
      const _vesselGroups = briefingJobs.map(job => {
         const jobItems = summaryItems.filter(item => item.jobId === job.id);
         jobItems.sort((a, b) => {
-            const typePriority: Record<string, number> = { 'TRANSIT': 1, 'THIRD_PARTY': 2, 'FISCO': 3 };
-            const pA = typePriority[a.sourceType] || 99;
-            const pB = typePriority[b.sourceType] || 99;
+            const typePriority: Record<string, number> = { 'T': 1, 'I': 1, '직납': 2, '3RD': 3 };
+            const pA = typePriority[a.typeAlias] || 99;
+            const pB = typePriority[b.typeAlias] || 99;
             if (pA !== pB) return pA - pB;
             return (a.shipper || '').localeCompare(b.shipper || '');
         });
 
-        // Add index per vessel
         const numberedItems = jobItems.map((item, idx) => ({
           ...item,
           seqNo: idx + 1
@@ -626,11 +752,20 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
               <button onClick={() => setBriefingPeriod('week')} className={`px-3 py-1 text-sm font-medium rounded-md transition-all ${briefingPeriod === 'week' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-300 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}>{t.weekly}</button>
               <button onClick={() => setBriefingPeriod('month')} className={`px-3 py-1 text-sm font-medium rounded-md transition-all ${briefingPeriod === 'month' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-300 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}>{t.monthly}</button>
             </div>
-            {/* Mode Switcher */}
-            <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-2"></div>
-            <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-lg">
-              <button onClick={() => setReportMode('general')} className={`px-3 py-1 text-sm font-medium rounded-md transition-all ${reportMode === 'general' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-300 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}>{t.modeGeneral}</button>
-              <button onClick={() => setReportMode('report')} className={`px-3 py-1 text-sm font-medium rounded-md transition-all ${reportMode === 'report' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-300 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}>{t.modeReport}</button>
+            
+            {/* Vessel Filter */}
+            <div className="ml-4 flex items-center gap-2">
+                <Filter size={16} className="text-slate-400"/>
+                <select 
+                    value={selectedVesselId} 
+                    onChange={(e) => setSelectedVesselId(e.target.value)}
+                    className="bg-slate-100 dark:bg-slate-900 border-none text-sm font-medium rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-blue-500 text-slate-700 dark:text-slate-300"
+                >
+                    <option value="all">{t.allVessels}</option>
+                    {jobs.map(j => (
+                        <option key={j.id} value={j.id}>{j.vesselName}</option>
+                    ))}
+                </select>
             </div>
 
             <div className="flex items-center gap-2 ml-4">
@@ -672,7 +807,7 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
                         marginBottom: pageIndex === pages.length - 1 ? '0' : '20px' 
                     }}
                   >
-                      {/* ... Page Content ... (Same as original) */}
+                      {/* Page Header */}
                       {pageIndex === 0 ? (
                           <div className="flex justify-between items-start border-b-4 border-black pb-4 mb-6">
                             <div className="flex items-center gap-6">
@@ -729,7 +864,7 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
                                                 {t.reportHeaderNo}
                                                 {!group.isContinuation && <div className="resizer no-print" onMouseDown={(e) => handleMouseDown(e, 'no')}></div>}
                                               </th>
-                                              <th className="px-1 py-1 align-bottom text-left bg-gray-100 print:bg-gray-100" style={{ width: colWidths.type }}>
+                                              <th className="px-1 py-1 align-bottom text-center bg-gray-100 print:bg-gray-100" style={{ width: colWidths.type }}>
                                                 {t.reportHeaderType}
                                                 {!group.isContinuation && <div className="resizer no-print" onMouseDown={(e) => handleMouseDown(e, 'type')}></div>}
                                               </th>
@@ -740,6 +875,10 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
                                               <th className="px-1 py-1 align-bottom text-left bg-gray-100 print:bg-gray-100" style={{ width: colWidths.transporter }}>
                                                 {t.reportHeaderTransporter}
                                                 {!group.isContinuation && <div className="resizer no-print" onMouseDown={(e) => handleMouseDown(e, 'transporter')}></div>}
+                                              </th>
+                                               <th className="px-1 py-1 align-bottom text-left bg-gray-100 print:bg-gray-100" style={{ width: colWidths.location }}>
+                                                {t.reportHeaderLocation}
+                                                {!group.isContinuation && <div className="resizer no-print" onMouseDown={(e) => handleMouseDown(e, 'location')}></div>}
                                               </th>
                                               <th className="px-1 py-1 align-bottom text-left bg-gray-100 print:bg-gray-100" style={{ width: colWidths.qty }}>
                                                 {t.reportHeaderQty}
@@ -769,8 +908,8 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
                                                   <td className="px-1 py-1.5 text-[9px] font-bold align-middle text-center">
                                                       {item.seqNo}
                                                   </td>
-                                                  <td className="px-1 py-1.5 text-[9px] font-bold align-middle">
-                                                      <span className="uppercase">{item.sourceType === 'FISCO' ? 'FISCO' : item.sourceType === 'THIRD_PARTY' ? '3RD' : 'TRANSIT'}</span>
+                                                  <td className="px-1 py-1.5 text-[9px] font-bold align-middle text-center">
+                                                      <span className="uppercase border px-1 rounded bg-slate-50">{item.typeAlias}</span>
                                                   </td>
                                                   <td className="px-1 py-1.5 break-words align-middle font-bold text-[10px] leading-tight">{item.shipper}</td>
                                                   <td className="px-1 py-1.5 break-words align-middle text-[10px] leading-tight">
@@ -786,6 +925,9 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
                                                               {item.transporter}
                                                           </div>
                                                       )}
+                                                  </td>
+                                                  <td className="px-1 py-1.5 break-words align-middle text-[10px] leading-tight font-medium text-blue-800">
+                                                      {item.location}
                                                   </td>
                                                   <td className="px-1 py-1.5 align-middle text-left font-mono text-[10px]">{item.quantity} <span className="text-[8px] text-gray-500 uppercase">{item.packageType}</span></td>
                                                   <td className="px-1 py-1.5 align-middle text-left font-mono text-[10px] font-bold">{item.grossWeight.toLocaleString()}</td>
@@ -816,7 +958,7 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
                                           ))}
                                           {group.showSubtotal && (
                                               <tr className="bg-gray-100 font-bold border-t-2 border-black print:bg-gray-100">
-                                                  <td colSpan={4} className="px-2 py-1 text-right align-middle text-[9px] uppercase tracking-wide">Subtotal</td>
+                                                  <td colSpan={5} className="px-2 py-1 text-right align-middle text-[9px] uppercase tracking-wide">Subtotal</td>
                                                   <td className="px-1 py-1 text-left align-middle text-[10px]">{summaryItems.filter(i => i.jobId === group.job.id).reduce((s, x) => s + x.quantity, 0)}</td>
                                                   <td className="px-1 py-1 text-left align-middle text-[10px]">{summaryItems.filter(i => i.jobId === group.job.id).reduce((s, x) => s + x.grossWeight, 0).toLocaleString()}</td>
                                                   <td colSpan={3} className="px-1 py-1"></td>

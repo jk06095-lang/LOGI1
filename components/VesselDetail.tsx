@@ -50,7 +50,8 @@ const translations = {
     typeThird: '타사 공급 (3rd Party)',
     selectType: '화물 구분',
     selectMethod: '등록 방식',
-    itemDetails: '화물 상세 정보'
+    itemDetails: '화물 상세 정보',
+    basicInfo: '기본 정보'
   },
   en: {
     tabs: { cargo: 'Cargo List', checklist: 'Checklist' },
@@ -78,7 +79,8 @@ const translations = {
     typeThird: '3rd Party Supply',
     selectType: 'Cargo Type',
     selectMethod: 'Registration Method',
-    itemDetails: 'Cargo Details'
+    itemDetails: 'Cargo Details',
+    basicInfo: 'Basic Info'
   },
   cn: {
     tabs: { cargo: '货物清单', checklist: '检查表' },
@@ -106,7 +108,8 @@ const translations = {
     typeThird: '第三方供应',
     selectType: '选择货物类型',
     selectMethod: '选择登记方式',
-    itemDetails: '货物详情'
+    itemDetails: '货物详情',
+    basicInfo: '基本信息'
   }
 };
 
@@ -258,6 +261,7 @@ export const VesselDetail: React.FC<VesselDetailProps> = ({
                 initialSelectedBLId={initialBLId} 
                 onUpdateBL={onUpdateBL}
                 onOpenBLDetail={onOpenBLDetail}
+                language={language}
             />
             )}
         </div>
@@ -348,7 +352,7 @@ export const VesselDetail: React.FC<VesselDetailProps> = ({
                        ) : (
                           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
                               <h3 className="text-sm font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-                                <FileText size={16} className="text-blue-500" /> 基本信息 (Basic Info)
+                                <FileText size={16} className="text-blue-500" /> {t.basicInfo}
                               </h3>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
                                   <div>

@@ -1,7 +1,5 @@
-
-
 import React, { useState, useEffect, useRef } from 'react';
-import { BLData, BLChecklist, ChecklistStep, CargoItem } from '../types';
+import { BLData, BLChecklist, ChecklistStep, CargoItem, Language } from '../types';
 import { CheckSquare, FileText, Edit, X, Truck, Building2 } from 'lucide-react';
 
 interface CheckListProps {
@@ -11,14 +9,64 @@ interface CheckListProps {
   onUpdateBL: (blId: string, updates: Partial<BLData>) => Promise<void>;
   initialSelectedBLId?: string;
   onOpenBLDetail?: (blId: string) => void;
+  language?: Language;
 }
 
-const SECTION_TITLES: Record<keyof Omit<BLChecklist, 'blId'>, string> = {
-  sectionA: 'A. 선사 및 포워더 → Agency 전달사항',
-  sectionB: 'B. Agency → 운송사/하역사 전달사항',
-  sectionC: 'C. Agency 업무',
-  sectionD: 'D. 운송사/하역사 업무',
-  sectionE: 'E. 화물 선적 (Loading)'
+const translations = {
+  ko: {
+    sectionA: 'A. 선사 및 포워더 → Agency 전달사항',
+    sectionB: 'B. Agency → 운송사/하역사 전달사항',
+    sectionC: 'C. Agency 업무',
+    sectionD: 'D. 운송사/하역사 업무',
+    sectionE: 'E. 화물 선적 (Loading)',
+    selectBL: 'B/L을 선택해주세요.',
+    blList: 'B/L 목록',
+    transit: '환적',
+    fisco: 'LOGI1',
+    thirdParty: '3RD',
+    import: '수입',
+    forwarder: 'Forwarder:',
+    transporter: 'Transporter:',
+    item: '항목',
+    date: '날짜',
+    remark: '비고'
+  },
+  en: {
+    sectionA: 'A. Carrier/Fwd → Agency',
+    sectionB: 'B. Agency → Transporter',
+    sectionC: 'C. Agency Tasks',
+    sectionD: 'D. Transport Tasks',
+    sectionE: 'E. Loading',
+    selectBL: 'Select a B/L.',
+    blList: 'B/L List',
+    transit: 'TRANSIT',
+    fisco: 'LOGI1',
+    thirdParty: '3RD',
+    import: 'IMP',
+    forwarder: 'Forwarder:',
+    transporter: 'Transporter:',
+    item: 'Item',
+    date: 'Date',
+    remark: 'Remark'
+  },
+  cn: {
+    sectionA: 'A. 船公司/货代 → 代理',
+    sectionB: 'B. 代理 → 运输/装卸',
+    sectionC: 'C. 代理业务',
+    sectionD: 'D. 运输业务',
+    sectionE: 'E. 装船 (Loading)',
+    selectBL: '请选择提单',
+    blList: '提单列表',
+    transit: '中转',
+    fisco: 'LOGI1',
+    thirdParty: '第三方',
+    import: '进口',
+    forwarder: '货代:',
+    transporter: '运输:',
+    item: '项目',
+    date: '日期',
+    remark: '备注'
+  }
 };
 
 const EMPTY_CHECKLIST = (blId: string): BLChecklist => ({
@@ -82,8 +130,17 @@ const RemarkInput = ({
     );
 };
 
-export const CheckList: React.FC<CheckListProps> = ({ bls, checklists, onUpdateChecklist, initialSelectedBLId, onOpenBLDetail }) => {
+export const CheckList: React.FC<CheckListProps> = ({ bls, checklists, onUpdateChecklist, initialSelectedBLId, onOpenBLDetail, language = 'ko' }) => {
   const [selectedBLId, setSelectedBLId] = useState<string | null>(initialSelectedBLId || (bls.length > 0 ? bls[0].id : null));
+  const t = translations[language];
+
+  const SECTION_TITLES: Record<keyof Omit<BLChecklist, 'blId'>, string> = {
+    sectionA: t.sectionA,
+    sectionB: t.sectionB,
+    sectionC: t.sectionC,
+    sectionD: t.sectionD,
+    sectionE: t.sectionE
+  };
 
   useEffect(() => {
     if (initialSelectedBLId) {
@@ -149,7 +206,7 @@ export const CheckList: React.FC<CheckListProps> = ({ bls, checklists, onUpdateC
   };
 
   if (!selectedBLId || !selectedBL) {
-    return <div className="p-4 text-center text-slate-400 text-sm italic">B/L을 선택해주세요.</div>;
+    return <div className="p-4 text-center text-slate-400 text-sm italic">{t.selectBL}</div>;
   }
 
   const activeChecklist = getChecklist(selectedBLId);
@@ -160,7 +217,7 @@ export const CheckList: React.FC<CheckListProps> = ({ bls, checklists, onUpdateC
       <div className="w-80 border-r border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900 overflow-y-auto custom-scrollbar">
         <div className="p-4 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2 sticky top-0 z-10">
            <FileText size={16} className="text-slate-500" />
-           <h3 className="font-bold text-slate-700 dark:text-slate-300 text-sm uppercase tracking-tight">B/L List</h3>
+           <h3 className="font-bold text-slate-700 dark:text-slate-300 text-sm uppercase tracking-tight">{t.blList}</h3>
         </div>
         <ul className="divide-y divide-slate-100 dark:divide-slate-800">
           {bls.map(bl => {
@@ -172,19 +229,19 @@ export const CheckList: React.FC<CheckListProps> = ({ bls, checklists, onUpdateC
 
             // Badge logic
             let badgeClass = "bg-slate-200 text-slate-600";
-            let badgeText = "TRANSIT";
+            let badgeText = t.transit;
             if (bl.sourceType === 'FISCO') {
                 badgeClass = "bg-blue-100 text-blue-700";
-                badgeText = "LOGI1"; // Updated
+                badgeText = t.fisco; // Updated
             } else if (bl.sourceType === 'THIRD_PARTY') {
                 badgeClass = "bg-amber-100 text-amber-700";
-                badgeText = "3RD";
+                badgeText = t.thirdParty;
             }
             
             // Classification Badge
             let classBadge = null;
             if (bl.cargoClass === 'IMPORT') {
-                classBadge = <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200">IMP</span>;
+                classBadge = <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200">{t.import}</span>;
             } else if (bl.cargoClass === 'TRANSHIPMENT') {
                 classBadge = <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">TS</span>;
             }
@@ -253,12 +310,12 @@ export const CheckList: React.FC<CheckListProps> = ({ bls, checklists, onUpdateC
           <div className="mt-4 pt-3 border-t border-slate-200 dark:border-slate-600 grid grid-cols-2 gap-4">
                <div className="flex items-center gap-2">
                    <Building2 size={14} className="text-slate-400" />
-                   <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Forwarder:</span>
+                   <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">{t.forwarder}</span>
                    <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{selectedBL.koreanForwarder || '-'}</span>
                </div>
                <div className="flex items-center gap-2">
                    <Truck size={14} className="text-slate-400" />
-                   <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Transporter:</span>
+                   <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">{t.transporter}</span>
                    <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{selectedBL.transporterName || '-'}</span>
                </div>
           </div>
@@ -275,9 +332,9 @@ export const CheckList: React.FC<CheckListProps> = ({ bls, checklists, onUpdateC
                 <thead>
                   <tr className="border-b border-slate-100 dark:border-slate-700 text-slate-400 text-xs uppercase font-bold">
                     <th className="w-12 py-2"></th>
-                    <th className="text-left py-2 px-4 w-1/2">Item</th>
-                    <th className="text-center py-2 px-4 w-32">Date</th>
-                    <th className="text-left py-2 px-4">Remark</th>
+                    <th className="text-left py-2 px-4 w-1/2">{t.item}</th>
+                    <th className="text-center py-2 px-4 w-32">{t.date}</th>
+                    <th className="text-left py-2 px-4">{t.remark}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-5 dark:divide-slate-700">
