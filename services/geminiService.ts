@@ -1,17 +1,7 @@
 
-
-import { GoogleGenAI, Type, Schema } from "@google/genai";
+import { Type, Schema } from "@google/genai";
 import { BLData, CargoSourceType, DocumentScanType } from "../types";
-
-// Initialize Gemini Client Lazily
-const getAiClient = () => {
-  const apiKey = (typeof process !== 'undefined' && process.env) ? process.env.API_KEY : undefined;
-  
-  if (!apiKey) {
-    throw new Error("Gemini API Key is missing. Please set process.env.API_KEY in your environment variables.");
-  }
-  return new GoogleGenAI({ apiKey });
-};
+import { compressImage } from "./storageService";
 
 const cargoItemSchema: Schema = {
   type: Type.OBJECT,
@@ -92,10 +82,10 @@ const fullDocSchema: Schema = {
 export const parseDocument = async (file: File, docType: DocumentScanType, sourceType: CargoSourceType = 'TRANSIT'): Promise<any> => {
   return new Promise(async (resolve, reject) => {
     try {
-      const ai = getAiClient();
-      
-      const base64Data = await fileToGenerativePart(file);
-      const mimeType = file.type === 'application/pdf' ? 'application/pdf' : file.type;
+      // 1. Compress Image to ensure it fits in Vercel Payload (Max 4.5MB)
+      const compressedFile = await compressImage(file);
+      const base64Data = await fileToGenerativePart(compressedFile);
+      const mimeType = compressedFile.type === 'application/pdf' ? 'application/pdf' : compressedFile.type;
 
       let promptText = "";
 
@@ -150,23 +140,29 @@ export const parseDocument = async (file: File, docType: DocumentScanType, sourc
           break;
       }
 
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: {
-          parts: [
-            { inlineData: { data: base64Data, mimeType: mimeType } },
-            { text: promptText },
-          ],
+      // Call Serverless Function
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: fullDocSchema,
-          temperature: 0.1, 
-        },
+        body: JSON.stringify({
+            prompt: promptText,
+            image: base64Data,
+            mimeType: mimeType,
+            schema: fullDocSchema
+        }),
       });
 
-      const text = response.text;
-      if (!text) throw new Error("No response from Gemini");
+      if (!response.ok) {
+         const errData = await response.json();
+         throw new Error(errData.error || `Server Error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const text = data.result;
+
+      if (!text) throw new Error("No response from AI");
       const parsed = JSON.parse(text);
       
       // Post-processing

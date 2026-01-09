@@ -8,7 +8,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
  * Compresses an image file.
  * Returns the compressed File object.
  */
-const compressImage = async (file: File): Promise<File> => {
+export const compressImage = async (file: File): Promise<File> => {
   // If it's a PDF, we can't easily compress client-side without heavy libs, return as is.
   if (file.type === 'application/pdf') {
     return file;
