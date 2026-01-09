@@ -41,6 +41,14 @@ export interface NotificationLog {
     timestamp: string;
 }
 
+// Concurrency Locking
+export interface ResourceLock {
+  id: string; // The resource ID (e.g., briefing-2023-10)
+  userId: string;
+  userEmail: string;
+  timestamp: number; // Date.now()
+}
+
 // Extended Document Types
 export interface CommercialInvoiceData {
   currency: string;

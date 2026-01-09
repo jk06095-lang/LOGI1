@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect } from 'react';
 import { VesselJob, BLData, BLChecklist, CargoSourceType, Language, CargoItem } from '../types';
 import { ArrowLeft, Upload, FileText, CheckSquare, Download, Calendar, Ship, MapPin, Eye, Container, Package, Truck, Plus, Trash2, Save, Keyboard, Share2, FileImage, X, Link, Check, Anchor, Box, Layers } from 'lucide-react';
@@ -46,7 +48,7 @@ const translations = {
     eta: 'ETA',
     required: '필수 입력 항목(B/L No, Shipper, 품명, 수량)을 확인해주세요.',
     typeTransit: '환적 화물 (Transit)',
-    typeFisco: 'LOGI1 공급',
+    typeFisco: '피스코마린 공급',
     typeThird: '타사 공급 (3rd Party)',
     selectType: '화물 구분',
     selectMethod: '등록 방식',
@@ -75,7 +77,7 @@ const translations = {
     eta: 'ETA',
     required: 'Check required fields (B/L No, Shipper, Desc, Qty).',
     typeTransit: 'Transit Cargo',
-    typeFisco: 'LOGI1 Supply',
+    typeFisco: 'FISCO MARINE Supply',
     typeThird: '3rd Party Supply',
     selectType: 'Cargo Type',
     selectMethod: 'Registration Method',
@@ -104,7 +106,7 @@ const translations = {
     eta: '预计到达',
     required: '请检查必填项。',
     typeTransit: '中转货物',
-    typeFisco: 'LOGI1 供应',
+    typeFisco: 'FISCO MARINE 供应',
     typeThird: '第三方供应',
     selectType: '选择货物类型',
     selectMethod: '选择登记方式',

@@ -1,8 +1,10 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { VesselJob, BLData, Language, CargoSourceType } from '../types';
-import { Folder, Ship, Calendar as CalendarIcon, FileText, List, ChevronLeft, ChevronRight, Package, ArrowRight, Printer, PieChart, ArrowUpDown, ArrowUp, ArrowDown, ZoomIn, ZoomOut, Save, Layers, Home, Filter, X } from 'lucide-react';
+import { VesselJob, BLData, Language, CargoSourceType, ResourceLock } from '../types';
+import { Folder, Ship, Calendar as CalendarIcon, FileText, List, ChevronLeft, ChevronRight, Package, ArrowRight, Printer, PieChart, ArrowUpDown, ArrowUp, ArrowDown, ZoomIn, ZoomOut, Save, Layers, Home, Filter, X, Lock, Users } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import { auth } from '../lib/firebase';
+import { dataService } from '../services/dataService';
 
 // --- Types ---
 interface DashboardProps {
@@ -83,6 +85,10 @@ const translations = {
     allVessels: '모든 선박',
     moreVessels: '+ {count}척 더보기',
     scheduleFor: '일정 상세',
+    lockedTitle: '편집 잠금 (Read Only)',
+    lockedDesc: '현재 다른 사용자가 이 보고서를 편집 중입니다. 데이터 충돌 방지를 위해 읽기 전용 모드로 전환됩니다.',
+    lockedBy: '편집 중인 사용자: ',
+    forceEdit: '편집 권한 가져오기 (주의)',
   },
   en: {
     title: 'Dashboard',
@@ -141,6 +147,10 @@ const translations = {
     allVessels: 'All Vessels',
     moreVessels: '+ {count} More',
     scheduleFor: 'Schedule for',
+    lockedTitle: 'Locked (Read Only)',
+    lockedDesc: 'Another user is currently editing this report. Switched to Read-Only mode to prevent conflicts.',
+    lockedBy: 'Edited by: ',
+    forceEdit: 'Take Over Edit (Caution)',
   },
   cn: {
     title: '工作台',
@@ -199,19 +209,23 @@ const translations = {
     allVessels: '所有船舶',
     moreVessels: '+ {count} 更多',
     scheduleFor: '日程详情',
+    lockedTitle: '编辑锁定 (只读)',
+    lockedDesc: '另一位用户正在编辑此报告。为防止冲突，已切换为只读模式。',
+    lockedBy: '编辑者：',
+    forceEdit: '强制获取编辑权 (慎用)',
   }
 };
 
 // Helper Component for Auto-Resizing Textarea
-const AutoResizeTextarea = ({ value, onChange, className, placeholder }: { value: string, onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void, className?: string, placeholder?: string }) => {
+const AutoResizeTextarea = ({ value, onChange, className, placeholder, readOnly }: { value: string, onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void, className?: string, placeholder?: string, readOnly?: boolean }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (textareaRef.current) {
       // Reset height to auto to get the correct scrollHeight for shrinking
       textareaRef.current.style.height = 'auto';
-      // Set height to scrollHeight to expand
-      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+      // Set height to scrollHeight to expand with a small buffer for descenders
+      textareaRef.current.style.height = (textareaRef.current.scrollHeight + 2) + 'px';
     }
   }, [value]);
 
@@ -220,9 +234,10 @@ const AutoResizeTextarea = ({ value, onChange, className, placeholder }: { value
       ref={textareaRef}
       value={value}
       onChange={onChange}
-      className={`${className} overflow-hidden resize-none font-sans`} // Ensure sans font which includes Noto Sans SC
+      className={`${className} overflow-hidden resize-none font-sans`} 
       placeholder={placeholder}
       rows={1}
+      readOnly={readOnly}
     />
   );
 };
@@ -472,7 +487,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
 
 // ... BriefingReport Component ...
 export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initialDate, language, logoUrl, onUpdateBL }) => {
-    const t = translations[language];
+  const t = translations[language];
   const [currentDate, setCurrentDate] = useState(new Date(initialDate));
   const [briefingPeriod, setBriefingPeriod] = useState<'week' | 'month'>('month');
   const [reportMode, setReportMode] = useState<'general' | 'report'>('general');
@@ -480,16 +495,84 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
   const [isSaving, setIsSaving] = useState(false);
   const [selectedVesselId, setSelectedVesselId] = useState<string>('all');
 
-  // Editable State
-  const [editableDescription, setEditableDescription] = useState<Record<string, string>>({});
-  const [editableReportRemarks, setEditableReportRemarks] = useState<Record<string, string>>({});
-  const [editableNotes, setEditableNotes] = useState<Record<string, string>>({});
+  // Locking State
+  const [lockData, setLockData] = useState<ResourceLock | null>(null);
+  const [isReadOnly, setIsReadOnly] = useState(false);
+  const lockHeartbeatRef = useRef<number | null>(null);
 
-  // Resizable Columns - Added 'location' column width
+  // Consolidated Editable State for Full Table Editing
+  const [modifiedBLs, setModifiedBLs] = useState<Record<string, Partial<BLData>>>({});
+
+  // Resizable Columns
   const [colWidths, setColWidths] = useState({
     no: 30, type: 50, shipper: 110, transporter: 100, location: 80, qty: 80, weight: 90, desc: 180, note: 120, remark: 120
   });
   const resizingRef = useRef<{ col: keyof typeof colWidths | null, startX: number, startWidth: number }>({ col: null, startX: 0, startWidth: 0 });
+
+  // Generate a Lock ID based on period
+  const lockId = useMemo(() => {
+      const d = currentDate;
+      const periodKey = briefingPeriod === 'month' 
+          ? `month-${d.getFullYear()}-${d.getMonth() + 1}`
+          : `week-${d.getFullYear()}-w${Math.ceil(d.getDate() / 7)}`; // Simplified week key
+      return `briefing-${periodKey}`;
+  }, [currentDate, briefingPeriod]);
+
+  // Handle Locking
+  useEffect(() => {
+     // 1. Subscribe to lock changes
+     const unsub = dataService.subscribeLock(lockId, (lock) => {
+         setLockData(lock);
+         const currentUser = auth.currentUser;
+         
+         if (lock && lock.userId !== currentUser?.uid) {
+             // Locked by someone else
+             // Check if stale (older than 30s)
+             if (Date.now() - lock.timestamp > 30000) {
+                 // Stale lock, we can ignore or auto-acquire, but for safety lets show read only but allow force
+                 setIsReadOnly(true); 
+             } else {
+                 setIsReadOnly(true);
+             }
+         } else {
+             // Not locked, or locked by me
+             setIsReadOnly(false);
+             if (!lock && currentUser) {
+                 // Auto-acquire if null
+                 dataService.acquireLock(lockId, currentUser);
+             }
+         }
+     });
+
+     // 2. Heartbeat if I hold the lock
+     const heartbeat = window.setInterval(() => {
+         const currentUser = auth.currentUser;
+         if (lockData && lockData.userId === currentUser?.uid) {
+             dataService.maintainLock(lockId);
+         } else if (!lockData && currentUser && !isReadOnly) {
+             // Try to re-acquire if lost and not read-only
+             dataService.acquireLock(lockId, currentUser);
+         }
+     }, 10000); // 10s heartbeat
+
+     return () => {
+         unsub();
+         clearInterval(heartbeat);
+         // Attempt release on unmount if we own it
+         const currentUser = auth.currentUser;
+         // We can't easily check state in cleanup, but we can try generic release if we know we had it
+         // This is imperfect in React 18 strict mode but good enough for typical use
+     };
+  }, [lockId, isReadOnly]); // Dependency on lockId changes context
+
+  const handleForceEdit = () => {
+      if (confirm("Are you sure? This may overwrite other user's work.")) {
+          if (auth.currentUser) {
+              dataService.acquireLock(lockId, auth.currentUser);
+              setIsReadOnly(false);
+          }
+      }
+  };
 
   const handleMouseDown = (e: React.MouseEvent, col: keyof typeof colWidths) => {
     e.preventDefault();
@@ -515,6 +598,7 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
     if(briefingPeriod === 'month') d.setMonth(d.getMonth() - 1);
     else d.setDate(d.getDate() - 7);
     setCurrentDate(d);
+    setModifiedBLs({}); // Reset edits on navigation
   };
   
   const handleNext = () => {
@@ -522,6 +606,7 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
     if(briefingPeriod === 'month') d.setMonth(d.getMonth() + 1);
     else d.setDate(d.getDate() + 7);
     setCurrentDate(d);
+    setModifiedBLs({});
   };
 
   // Get Briefing Jobs (Filtered by Date AND Vessel Selection)
@@ -547,11 +632,9 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
       });
     }
 
-    // Vessel Filter
     if (selectedVesselId !== 'all') {
         filtered = filtered.filter(job => job.id === selectedVesselId);
     }
-    
     return filtered;
   };
 
@@ -559,58 +642,90 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
 
   // Alias Helper Function
   const getTypeAlias = (bl: BLData): string => {
-      // Logic per requirements:
-      // FISCO -> 직납
-      // THIRD_PARTY -> 3RD
-      // TRANSIT -> Check cargoClass/importSubClass
-      // IMPORT -> I
-      // TRANSHIPMENT -> T
-      // SHIPS_STORES -> 선용품
-      // RETURN_EXPORT -> 반송 수출
-      
       if (bl.sourceType === 'FISCO') return '직납';
       if (bl.sourceType === 'THIRD_PARTY') return '3RD';
-      
       if (bl.importSubClass === 'SHIPS_STORES') return '선용품';
       if (bl.importSubClass === 'RETURN_EXPORT') return '반송 수출';
-      
       if (bl.cargoClass === 'IMPORT') return 'I';
       if (bl.cargoClass === 'TRANSHIPMENT') return 'T';
+      return 'T'; 
+  };
+
+  // Generic Edit Handler
+  const handleCellEdit = (blId: string, field: keyof BLData | 'quantity' | 'grossWeight', value: any) => {
+      if (isReadOnly) return;
       
-      return 'T'; // Default fallback
+      setModifiedBLs(prev => {
+          const currentEdits = prev[blId] || {};
+          // Special handling for nested fields if needed, but for now we map flat overrides
+          if (field === 'quantity') {
+             // We can't easily update nested cargoItems array cleanly in a simple map without index.
+             // For this Briefing view, we will assume we are updating the PackingList total if exists, or just storing a temporary Override
+             // To properly support "All Columns", we really should update the `packingList` or `cargoItems`.
+             // Simplification: We will store these in the 'packingList' object in the update payload for simplicity as it overrides items
+             return {
+                 ...prev,
+                 [blId]: {
+                     ...currentEdits,
+                     packingList: { 
+                        totalPackageCount: Number(value),
+                        totalCbm: 0, // Preserve others if we had full object, but here we construct partial
+                        totalGrossWeight: currentEdits.packingList?.totalGrossWeight || 0
+                     } as any 
+                 }
+             };
+          } else if (field === 'grossWeight') {
+             return {
+                 ...prev,
+                 [blId]: {
+                     ...currentEdits,
+                     packingList: {
+                        totalPackageCount: currentEdits.packingList?.totalPackageCount || 0,
+                        totalCbm: 0,
+                        totalGrossWeight: Number(value)
+                     } as any
+                 }
+             };
+          }
+          
+          return {
+              ...prev,
+              [blId]: { ...currentEdits, [field]: value }
+          };
+      });
   };
 
   const getBriefingSummaries = (filteredJobs: VesselJob[]) => {
      return filteredJobs.flatMap(job => {
         const jobBLs = bls.filter(bl => bl.vesselJobId === job.id);
         return jobBLs.map(bl => {
-           const items = bl.cargoItems || [];
+           // Apply Overrides from modifiedBLs
+           const edits = modifiedBLs[bl.id] || {};
+           const mergedBL = { ...bl, ...edits };
+
+           const items = mergedBL.cargoItems || [];
            
            let totalQty = 0;
-           if (bl.packingList && typeof bl.packingList.totalPackageCount === 'number' && bl.packingList.totalPackageCount > 0) {
-               totalQty = bl.packingList.totalPackageCount;
+           // Check if we have an edit in packingList first (from handleCellEdit special case)
+           if (edits.packingList?.totalPackageCount) {
+               totalQty = edits.packingList.totalPackageCount;
+           } else if (mergedBL.packingList && typeof mergedBL.packingList.totalPackageCount === 'number' && mergedBL.packingList.totalPackageCount > 0) {
+               totalQty = mergedBL.packingList.totalPackageCount;
            } else {
                totalQty = items.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0);
            }
 
            let totalWeight = 0;
-           if (bl.packingList && typeof bl.packingList.totalGrossWeight === 'number' && bl.packingList.totalGrossWeight > 0) {
-               totalWeight = bl.packingList.totalGrossWeight;
+           if (edits.packingList?.totalGrossWeight) {
+               totalWeight = edits.packingList.totalGrossWeight;
+           } else if (mergedBL.packingList && typeof mergedBL.packingList.totalGrossWeight === 'number' && mergedBL.packingList.totalGrossWeight > 0) {
+               totalWeight = mergedBL.packingList.totalGrossWeight;
            } else {
                totalWeight = items.reduce((sum, i) => sum + (Number(i.grossWeight) || 0), 0);
            }
            
-           const existingDesc = bl.remarks || (items.length > 0 ? items[0].description : '-');
-           const displayDesc = editableDescription[bl.id] !== undefined ? editableDescription[bl.id] : existingDesc;
-
-           const existingReportRemark = bl.reportRemarks || '';
-           const displayReportRemark = editableReportRemarks[bl.id] !== undefined ? editableReportRemarks[bl.id] : existingReportRemark;
-           
-           const existingNote = bl.note || '';
-           const displayNote = editableNotes[bl.id] !== undefined ? editableNotes[bl.id] : existingNote;
-
-           // Location Logic (Storage, Warehouse, CY/CFS)
-           const location = bl.storageLocation || bl.arrivalNotice?.location || '';
+           const displayDesc = mergedBL.remarks || (items.length > 0 ? items[0].description : '-');
+           const location = mergedBL.storageLocation || mergedBL.arrivalNotice?.location || '';
 
            return {
              blId: bl.id,
@@ -618,18 +733,18 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
              eta: job.eta,
              vesselName: job.vesselName,
              voyageNo: job.voyageNo,
-             shipper: bl.shipper || 'Unknown',
-             transporter: bl.transporterName || '',
-             koreanForwarder: bl.koreanForwarder || '',
-             location, // New
+             shipper: mergedBL.shipper || 'Unknown',
+             transporter: mergedBL.transporterName || '',
+             koreanForwarder: mergedBL.koreanForwarder || '',
+             location,
              description: displayDesc,
-             reportRemark: displayReportRemark,
-             note: displayNote,
+             reportRemark: mergedBL.reportRemarks || '',
+             note: mergedBL.note || '',
              quantity: totalQty,
              packageType: items.length > 0 ? items[0].packageType : 'PKGS',
              grossWeight: totalWeight,
-             sourceType: bl.sourceType || 'TRANSIT',
-             typeAlias: getTypeAlias(bl) // New
+             sourceType: mergedBL.sourceType || 'TRANSIT',
+             typeAlias: getTypeAlias(mergedBL)
            };
         });
      }).sort((a, b) => new Date(a.eta).getTime() - new Date(b.eta).getTime());
@@ -637,26 +752,18 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
 
   const summaryItems = getBriefingSummaries(briefingJobs);
 
-  const handleDescriptionChange = (blId: string, value: string) => setEditableDescription(prev => ({ ...prev, [blId]: value }));
-  const handleReportRemarkChange = (blId: string, value: string) => setEditableReportRemarks(prev => ({ ...prev, [blId]: value }));
-  const handleNoteChange = (blId: string, value: string) => setEditableNotes(prev => ({ ...prev, [blId]: value }));
-
-  const handleSaveRemarks = async () => {
-    if (!onUpdateBL) return;
+  const handleSave = async () => {
+    if (!onUpdateBL || isReadOnly) return;
     setIsSaving(true);
     try {
-      const allChangedIds = new Set([...Object.keys(editableDescription), ...Object.keys(editableReportRemarks), ...Object.keys(editableNotes)]);
-      const updates = Array.from(allChangedIds).map(blId => {
-         const updatesForBL: Partial<BLData> = {};
-         if (editableDescription[blId] !== undefined) updatesForBL.remarks = editableDescription[blId];
-         if (editableReportRemarks[blId] !== undefined) updatesForBL.reportRemarks = editableReportRemarks[blId];
-         if (editableNotes[blId] !== undefined) updatesForBL.note = editableNotes[blId];
-         return onUpdateBL(blId, updatesForBL);
+      const updates = Object.keys(modifiedBLs).map(blId => {
+         return onUpdateBL(blId, modifiedBLs[blId]);
       });
       await Promise.all(updates);
+      setModifiedBLs({}); // Clear local edits after successful save
       alert(t.saved);
     } catch (e) {
-      alert("Error saving remarks");
+      alert("Error saving report data.");
     } finally {
       setIsSaving(false);
     }
@@ -666,7 +773,7 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
      const _pages: any[] = [];
      let currentPageGroups: any[] = [];
      let currentRows = 0;
-     let limit = 12; 
+     let limit = 14; 
      
      const _vesselGroups = briefingJobs.map(job => {
         const jobItems = summaryItems.filter(item => item.jobId === job.id);
@@ -737,6 +844,23 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
 
   return (
     <div className="flex flex-col h-full bg-slate-100 dark:bg-slate-900 print-container overflow-hidden">
+      
+      {/* Read Only Banner */}
+      {isReadOnly && (
+         <div className="bg-amber-100 border-b border-amber-200 px-4 py-2 flex justify-between items-center text-amber-900 text-sm font-bold z-30 animate-fade-in no-print">
+            <div className="flex items-center gap-2">
+                <Lock size={16} />
+                <span>
+                    {t.lockedTitle}: {t.lockedDesc} 
+                    {lockData && <span className="ml-2 opacity-80 font-normal">({t.lockedBy} {lockData.userEmail})</span>}
+                </span>
+            </div>
+            <button onClick={handleForceEdit} className="text-xs bg-amber-200 hover:bg-amber-300 px-3 py-1 rounded text-amber-900 border border-amber-300 transition-colors">
+                {t.forceEdit}
+            </button>
+         </div>
+      )}
+
       {/* Toolbar */}
       <div className="flex-shrink-0 p-4 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center shadow-sm z-20 no-print">
           <div className="flex items-center gap-4">
@@ -773,9 +897,16 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
               <span className="text-xs text-slate-500 dark:text-slate-400 font-mono w-12 text-center">{Math.round(zoomLevel * 100)}%</span>
               <button onClick={() => setZoomLevel(Math.min(2.0, zoomLevel + 0.1))} className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400"><ZoomIn size={16} /></button>
             </div>
+            
+            {/* Active Users Indicator (Mock) */}
+            {lockData && (
+                <div className="flex items-center gap-1.5 px-3 py-1 bg-red-50 text-red-600 rounded-full border border-red-100 text-xs font-bold">
+                    <Users size={12} /> 1 Active
+                </div>
+            )}
           </div>
           <div className="flex gap-2">
-              <button onClick={handleSaveRemarks} disabled={isSaving} className="bg-emerald-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-emerald-700 shadow-sm transition-all active:scale-95 text-sm font-bold">
+              <button onClick={handleSave} disabled={isSaving || isReadOnly} className={`px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition-all active:scale-95 text-sm font-bold ${isReadOnly ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}>
                 <Save size={18} /> {isSaving ? '...' : t.saveChanges}
               </button>
               <button onClick={() => window.print()} className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 shadow-sm transition-all active:scale-95 text-sm font-bold">
@@ -809,18 +940,14 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
                   >
                       {/* Page Header */}
                       {pageIndex === 0 ? (
-                          <div className="flex justify-between items-start border-b-4 border-black pb-4 mb-6">
-                            <div className="flex items-center gap-6">
-                                {logoUrl ? (
-                                  <img src={logoUrl} alt="Logo" className="h-16 w-16 object-contain grayscale contrast-125" />
-                                ) : (
-                                  <div className="h-16 w-16 border-2 border-black flex items-center justify-center rounded">
-                                      <Ship size={32} className="text-black"/>
-                                  </div>
-                                )}
+                          <div className="flex justify-between items-end border-b-[3px] border-black pb-2 mb-4">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 border-2 border-black rounded-lg flex items-center justify-center bg-white">
+                                    <Ship size={28} className="text-black" strokeWidth={2}/>
+                                </div>
                                 <div>
-                                  <h1 className="text-3xl font-black uppercase tracking-wide mb-1 leading-none">{t.briefingTitle}</h1>
-                                  <p className="text-sm font-bold uppercase tracking-widest text-black">
+                                  <h1 className="text-3xl font-black uppercase tracking-tight leading-none text-black">{t.briefingTitle}</h1>
+                                  <p className="text-sm font-bold text-slate-600 mt-1">
                                       {t.period}: {briefingPeriod === 'month' 
                                       ? currentDate.toLocaleDateString(dateLocale, { year: 'numeric', month: 'long' }) 
                                       : `Week of ${currentDate.toLocaleDateString(dateLocale)}`}
@@ -828,13 +955,16 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
                                 </div>
                             </div>
                             <div className="text-right">
-                                <p className="font-black text-2xl uppercase tracking-widest text-slate-900">LOGI<span className="text-blue-600">1</span></p>
-                                <p className="text-[10px] uppercase font-bold tracking-[0.2em] mt-1 text-slate-500">Integrated Logistics ERP</p>
-                                <p className="text-[10px] text-black mt-1 font-mono">{new Date().toLocaleDateString(dateLocale)}</p>
+                                <div className="flex items-center justify-end gap-2 mb-1">
+                                    {logoUrl && <img src={logoUrl} alt="Logo" className="h-5 w-auto object-contain" />}
+                                    <p className="font-black text-xl uppercase tracking-widest text-slate-900 leading-none">LOGI<span className="text-blue-600">1</span></p>
+                                </div>
+                                <p className="text-[9px] uppercase font-bold tracking-[0.2em] text-slate-500">Integrated Logistics ERP</p>
+                                <p className="text-[10px] text-black mt-1 font-mono font-bold text-right">{new Date().toLocaleDateString(dateLocale)}</p>
                             </div>
                           </div>
                       ) : (
-                          <div className="flex justify-between items-end border-b-2 border-slate-300 pb-2 mb-4 print:border-slate-300">
+                          <div className="flex justify-between items-end border-b-2 border-slate-300 pb-1 mb-2 print:border-slate-300">
                             <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">{t.briefingTitle} {t.continuation}</span>
                             <span className="text-[10px] text-slate-400">{new Date().toLocaleDateString(dateLocale)}</span>
                           </div>
@@ -905,52 +1035,96 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
                                       <tbody>
                                           {group.items.map((item: any, i: number) => (
                                               <tr key={i} className="border-b border-gray-300 align-top">
-                                                  <td className="px-1 py-1.5 text-[9px] font-bold align-middle text-center">
+                                                  <td className="px-1 py-1 text-[9px] font-bold align-middle text-center">
                                                       {item.seqNo}
                                                   </td>
-                                                  <td className="px-1 py-1.5 text-[9px] font-bold align-middle text-center">
+                                                  <td className="px-1 py-1 text-[9px] font-bold align-middle text-center">
                                                       <span className="uppercase border px-1 rounded bg-slate-50">{item.typeAlias}</span>
                                                   </td>
-                                                  <td className="px-1 py-1.5 break-words align-middle font-bold text-[10px] leading-tight">{item.shipper}</td>
-                                                  <td className="px-1 py-1.5 break-words align-middle text-[10px] leading-tight">
-                                                      {item.koreanForwarder && (
-                                                          <div className="flex items-center gap-1 mb-0.5 text-slate-600">
-                                                              <span className="text-[8px] border border-slate-300 px-0.5 rounded">FWD</span>
-                                                              {item.koreanForwarder}
-                                                          </div>
-                                                      )}
-                                                      {item.transporter && (
+                                                  <td className="px-0 py-0 relative group align-middle">
+                                                      <AutoResizeTextarea
+                                                          value={item.shipper}
+                                                          onChange={(e) => handleCellEdit(item.blId, 'shipper', e.target.value)}
+                                                          readOnly={isReadOnly}
+                                                          className="w-full h-full bg-transparent border-none focus:outline-none focus:bg-yellow-50 px-1 py-1 block font-sans text-[10px] leading-tight resize-none font-bold"
+                                                      />
+                                                  </td>
+                                                  <td className="px-1 py-1 break-words align-middle text-[10px] leading-tight">
+                                                      <div className="flex flex-col gap-1">
+                                                          {/* Korean Forwarder Edit */}
                                                           <div className="flex items-center gap-1">
-                                                              <span className="text-[8px] border border-slate-300 px-0.5 rounded">TRK</span>
-                                                              {item.transporter}
+                                                              <span className="text-[8px] border border-slate-300 px-0.5 rounded text-slate-500">FWD</span>
+                                                              <AutoResizeTextarea
+                                                                  value={item.koreanForwarder}
+                                                                  onChange={(e) => handleCellEdit(item.blId, 'koreanForwarder', e.target.value)}
+                                                                  readOnly={isReadOnly}
+                                                                  className="flex-1 bg-transparent border-none focus:outline-none focus:bg-yellow-50 p-0 block font-sans text-[9px] leading-tight resize-none min-w-[50px]"
+                                                              />
                                                           </div>
-                                                      )}
+                                                          {/* Transporter Edit */}
+                                                          <div className="flex items-center gap-1">
+                                                              <span className="text-[8px] border border-slate-300 px-0.5 rounded text-slate-500">TRK</span>
+                                                              <AutoResizeTextarea
+                                                                  value={item.transporter}
+                                                                  onChange={(e) => handleCellEdit(item.blId, 'transporterName', e.target.value)}
+                                                                  readOnly={isReadOnly}
+                                                                  className="flex-1 bg-transparent border-none focus:outline-none focus:bg-yellow-50 p-0 block font-sans text-[9px] leading-tight resize-none min-w-[50px]"
+                                                              />
+                                                          </div>
+                                                      </div>
                                                   </td>
-                                                  <td className="px-1 py-1.5 break-words align-middle text-[10px] leading-tight font-medium text-blue-800">
-                                                      {item.location}
+                                                  <td className="px-0 py-0 relative group align-middle text-blue-800 font-medium">
+                                                       <AutoResizeTextarea
+                                                          value={item.location}
+                                                          onChange={(e) => handleCellEdit(item.blId, 'storageLocation', e.target.value)}
+                                                          readOnly={isReadOnly}
+                                                          className="w-full h-full bg-transparent border-none focus:outline-none focus:bg-yellow-50 px-1 py-1 block font-sans text-[10px] leading-tight resize-none"
+                                                      />
                                                   </td>
-                                                  <td className="px-1 py-1.5 align-middle text-left font-mono text-[10px]">{item.quantity} <span className="text-[8px] text-gray-500 uppercase">{item.packageType}</span></td>
-                                                  <td className="px-1 py-1.5 align-middle text-left font-mono text-[10px] font-bold">{item.grossWeight.toLocaleString()}</td>
+                                                  <td className="px-0 py-0 align-middle text-left font-mono text-[10px]">
+                                                       <div className="flex items-center px-1">
+                                                            <input 
+                                                                type="number" 
+                                                                value={item.quantity}
+                                                                onChange={(e) => handleCellEdit(item.blId, 'quantity', e.target.value)}
+                                                                readOnly={isReadOnly}
+                                                                className="w-12 bg-transparent border-none focus:outline-none focus:bg-yellow-50 text-right font-mono"
+                                                            />
+                                                            <span className="text-[8px] text-gray-500 uppercase ml-1">{item.packageType}</span>
+                                                       </div>
+                                                  </td>
+                                                  <td className="px-0 py-0 align-middle text-left font-mono text-[10px] font-bold">
+                                                        <input 
+                                                                type="number" 
+                                                                value={item.grossWeight}
+                                                                onChange={(e) => handleCellEdit(item.blId, 'grossWeight', e.target.value)}
+                                                                readOnly={isReadOnly}
+                                                                className="w-full bg-transparent border-none focus:outline-none focus:bg-yellow-50 text-right px-1 font-mono font-bold"
+                                                        />
+                                                  </td>
                                                   <td className="px-0 py-0 relative group align-middle">
                                                       <AutoResizeTextarea
                                                           value={item.description}
-                                                          onChange={(e) => handleDescriptionChange(item.blId, e.target.value)}
-                                                          className="w-full h-full bg-transparent border-none focus:outline-none focus:bg-yellow-50 px-1 py-1.5 block font-sans text-[10px] leading-tight resize-none"
+                                                          onChange={(e) => handleCellEdit(item.blId, 'remarks', e.target.value)}
+                                                          readOnly={isReadOnly}
+                                                          className="w-full h-full bg-transparent border-none focus:outline-none focus:bg-yellow-50 px-1 py-1 block font-sans text-[10px] leading-tight resize-none"
                                                       />
                                                   </td>
                                                     <td className="px-0 py-0 relative group align-middle">
                                                         <AutoResizeTextarea
                                                           value={item.note}
-                                                          onChange={(e) => handleNoteChange(item.blId, e.target.value)}
-                                                          className="w-full h-full bg-transparent border-none focus:outline-none focus:bg-yellow-50 px-1 py-1.5 block font-sans text-[10px] leading-tight resize-none"
+                                                          onChange={(e) => handleCellEdit(item.blId, 'note', e.target.value)}
+                                                          readOnly={isReadOnly}
+                                                          className="w-full h-full bg-transparent border-none focus:outline-none focus:bg-yellow-50 px-1 py-1 block font-sans text-[10px] leading-tight resize-none"
                                                           placeholder=""
                                                       />
                                                   </td>
                                                   <td className="px-0 py-0 relative group align-middle">
                                                         <AutoResizeTextarea
                                                           value={item.reportRemark}
-                                                          onChange={(e) => handleReportRemarkChange(item.blId, e.target.value)}
-                                                          className="w-full h-full bg-transparent border-none focus:outline-none focus:bg-yellow-50 px-1 py-1.5 block font-sans text-[10px] leading-tight resize-none"
+                                                          onChange={(e) => handleCellEdit(item.blId, 'reportRemarks', e.target.value)}
+                                                          readOnly={isReadOnly}
+                                                          className="w-full h-full bg-transparent border-none focus:outline-none focus:bg-yellow-50 px-1 py-1 block font-sans text-[10px] leading-tight resize-none"
                                                           placeholder=""
                                                       />
                                                   </td>

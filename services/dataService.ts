@@ -2,7 +2,8 @@
 
 import { db } from "../lib/firebase";
 import { collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy, setDoc, deleteDoc, writeBatch, getDoc, arrayUnion } from "firebase/firestore";
-import { VesselJob, BLData, BLChecklist } from "../types";
+import { VesselJob, BLData, BLChecklist, ResourceLock } from "../types";
+import { User } from "firebase/auth";
 
 // State Containers (In-Memory Cache)
 // NOTE: This acts as a singleton cache. It must be cleared on logout.
@@ -234,5 +235,42 @@ export const dataService = {
     } catch (e) {
         console.error("Add Category Error:", e);
     }
+  },
+
+  // --- Concurrency / Locking Methods ---
+
+  subscribeLock: (lockId: string, callback: (lock: ResourceLock | null) => void) => {
+    if (!db) return () => {};
+    return onSnapshot(doc(db, "locks", lockId), (docSnap) => {
+        if (docSnap.exists()) {
+            callback({ id: docSnap.id, ...docSnap.data() } as ResourceLock);
+        } else {
+            callback(null);
+        }
+    });
+  },
+
+  acquireLock: async (lockId: string, user: User) => {
+      if (!db) return;
+      const lockData: ResourceLock = {
+          id: lockId,
+          userId: user.uid,
+          userEmail: user.email || 'Anonymous',
+          timestamp: Date.now()
+      };
+      await setDoc(doc(db, "locks", lockId), lockData);
+  },
+
+  releaseLock: async (lockId: string) => {
+      if (!db) return;
+      await deleteDoc(doc(db, "locks", lockId));
+  },
+
+  maintainLock: async (lockId: string) => {
+      if (!db) return;
+      // Just update timestamp to show liveliness
+      await updateDoc(doc(db, "locks", lockId), {
+          timestamp: Date.now()
+      });
   }
 };

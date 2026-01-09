@@ -300,7 +300,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdateSettings, 
               </div>
             </div>
             
-            <span className="text-[10px] text-slate-400 font-mono">alpha 0.0.2</span>
+            <span className="text-[10px] text-slate-400 font-mono">alpha 0.0.3</span>
             
             <button 
               onClick={handleLogout}

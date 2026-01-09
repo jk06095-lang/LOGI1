@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { BLData, Language, DocumentScanType, BLChecklist, CargoItem, BackgroundTask, ImportSubClass, VesselJob } from '../types';
-import { Save, Upload, FileText, ExternalLink, X, Trash2, Plus, BrainCircuit, Box, DollarSign, Loader2, Copy, Ship, Truck, CheckCircle2, CircleDashed, ArrowRight } from 'lucide-react';
+import { Save, Upload, FileText, ExternalLink, X, Trash2, Plus, BrainCircuit, Box, DollarSign, Loader2, Copy, Ship, Truck, CheckCircle2, CircleDashed, ArrowRight, MessageSquare } from 'lucide-react';
 import { parseDocument } from '../services/geminiService';
 import { uploadFileToStorage } from '../services/storageService';
 import { dataService } from '../services/dataService';
@@ -85,6 +85,11 @@ const translations = {
         shipStore: '선용품'
     },
     selectCategory: '(Select)',
+    catBait: '베이트',
+    catGear: '어구',
+    catNets: '그물',
+    catPort: '항통장비',
+    catGen: '기타',
     progressTitle: '업무 진행률',
     checklistView: '체크리스트 보기',
     progressStages: {
@@ -174,6 +179,11 @@ const translations = {
         shipStore: 'Ship Store'
     },
     selectCategory: '(Select)',
+    catBait: 'BAIT',
+    catGear: 'GEAR',
+    catNets: 'NETS',
+    catPort: 'EQUIP',
+    catGen: 'GEN',
     progressTitle: 'Work Progress',
     checklistView: 'View Checklist',
     progressStages: {
@@ -263,6 +273,11 @@ const translations = {
         shipStore: '船用品'
     },
     selectCategory: '(请选择)',
+    catBait: '诱饵',
+    catGear: '渔具',
+    catNets: '渔网',
+    catPort: '港口设备',
+    catGen: '一般',
     progressTitle: '作业进度',
     checklistView: '查看检查表',
     progressStages: {
@@ -625,6 +640,19 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
                             {t.house}
                          </button>
                       </div>
+
+                      {/* Source Type Selector */}
+                       <div className="ml-2">
+                         <select
+                            value={formData.sourceType || 'TRANSIT'}
+                            onChange={(e) => handleInputChange('sourceType', e.target.value)}
+                            className="bg-slate-100 dark:bg-slate-700 border-none text-[11px] font-bold rounded-md py-1 pl-2 pr-6 text-slate-700 dark:text-slate-300 focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                         >
+                           <option value="TRANSIT">환적 (Transit)</option>
+                           <option value="FISCO">피스코마린 (FISCO MARINE)</option>
+                           <option value="THIRD_PARTY">타사 (3rd Party)</option>
+                         </select>
+                       </div>
                   </div>
               </div>
           </div>
@@ -926,6 +954,19 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
                               <DetailInput label={t.otherCost} value={formData.arrivalNotice?.otherCosts} onChange={(e: any) => handleNestedChange('arrivalNotice', 'otherCosts', e.target.value)} />
                           </div>
                       </div>
+                  </div>
+
+                  {/* Remarks Field (Restored) */}
+                  <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-5">
+                      <h3 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest mb-4 flex items-center gap-2">
+                         <MessageSquare size={16} /> {t.remarks}
+                      </h3>
+                      <textarea 
+                        className="w-full h-32 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg p-3 text-sm focus:border-blue-500 outline-none resize-none text-slate-800 dark:text-slate-200 placeholder-slate-400"
+                        value={formData.remarks || ''}
+                        onChange={(e) => handleInputChange('remarks', e.target.value)}
+                        placeholder="..."
+                      />
                   </div>
 
               </div>

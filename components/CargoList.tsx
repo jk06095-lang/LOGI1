@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { BLData, Language, BLChecklist } from '../types';
 import { Download, Package, ArrowRight, Layers, ArrowUpDown, ArrowUp, ArrowDown, ExternalLink } from 'lucide-react';
@@ -57,7 +58,7 @@ const translations = {
     download: 'Download Excel',
     noData: 'No cargo registered.',
     firstItem: 'Register Cargo',
-    type: 'Type',
+    type: 'Source',
     class: 'Class',
     category: 'Category',
     vessel: 'Vessel',
@@ -233,6 +234,15 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], checklists = {}
     else alert('파일이 없습니다.');
   };
 
+  const getSourceBadge = (source?: string) => {
+      switch(source) {
+          case 'TRANSIT': return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-600 border border-slate-300">{t.transit}</span>;
+          case 'FISCO': return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200">{t.fisco}</span>;
+          case 'THIRD_PARTY': return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">{t.thirdParty}</span>;
+          default: return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-400 border border-slate-200">-</span>;
+      }
+  };
+
   const getCategoryBadge = (cat?: string) => {
       switch(cat) {
           case 'BAIT': return <span className="bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-pink-200 dark:border-pink-800">{t.catBait}</span>;
@@ -288,7 +298,7 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], checklists = {}
             <thead className="bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-600 font-bold uppercase tracking-widest text-[11px]">
               <tr>
                 <th onClick={() => handleSort('status')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors w-24"><div className="flex items-center gap-1">{t.status} {renderSortIcon('status')}</div></th>
-                {/* Vessel Name column removed */}
+                <th onClick={() => handleSort('sourceType')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors w-24"><div className="flex items-center gap-1">{t.type} {renderSortIcon('sourceType')}</div></th>
                 <th onClick={() => handleSort('cargoCategory')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.category} {renderSortIcon('cargoCategory')}</div></th>
                 <th onClick={() => handleSort('blNumber')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.blNo} {renderSortIcon('blNumber')}</div></th>
                 <th onClick={() => handleSort('shipper')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.shipper} {renderSortIcon('shipper')}</div></th>
@@ -327,8 +337,11 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], checklists = {}
                              </div>
                          )}
                     </td>
-
-                    {/* Vessel column removed */}
+                    
+                    {/* Source Type Column */}
+                    <td className="px-2 py-2 text-center">
+                        {getSourceBadge(bl.sourceType)}
+                    </td>
 
                     <td className="px-2 py-2 text-center">
                         {getCategoryBadge(bl.cargoCategory)}
