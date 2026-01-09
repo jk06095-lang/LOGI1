@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect } from 'react';
 import { BLData, Language, DocumentScanType, BLChecklist, CargoItem, BackgroundTask, ImportSubClass, VesselJob } from '../types';
 import { Save, Upload, FileText, ExternalLink, X, Trash2, Plus, BrainCircuit, Box, DollarSign, Loader2, Copy, Ship, Truck, CheckCircle2, CircleDashed, ArrowRight, MessageSquare } from 'lucide-react';
@@ -653,6 +651,18 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
                            <option value="THIRD_PARTY">타사 (3rd Party)</option>
                          </select>
                        </div>
+                       
+                       {/* UNIPASS Button */}
+                       <a
+                          href="https://unipass.customs.go.kr/csp/index.do"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ml-2 flex items-center gap-1.5 px-3 py-1 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-lg text-[11px] font-bold transition-colors border border-indigo-200 dark:border-indigo-800"
+                          title="관세청 유니패스 (Korea Customs Service)"
+                       >
+                          <ExternalLink size={12} />
+                          UNIPASS
+                       </a>
                   </div>
               </div>
           </div>
