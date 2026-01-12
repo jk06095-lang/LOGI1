@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { BLData, Language, DocumentScanType, BLChecklist, CargoItem, BackgroundTask, ImportSubClass, VesselJob } from '../types';
-import { Save, Upload, FileText, ExternalLink, X, Trash2, Plus, BrainCircuit, Box, DollarSign, Loader2, Copy, Ship, Truck, CheckCircle2, CircleDashed, ArrowRight, MessageSquare } from 'lucide-react';
+import { Save, Upload, FileText, ExternalLink, X, Trash2, Plus, BrainCircuit, Box, DollarSign, Loader2, Copy, Ship, Truck, CheckCircle2, CircleDashed, ArrowRight, MessageSquare, ChevronDown, Pencil, Check } from 'lucide-react';
 import { parseDocument } from '../services/geminiService';
 import { uploadFileToStorage } from '../services/storageService';
 import { dataService } from '../services/dataService';
@@ -380,6 +381,12 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
   const [categories, setCategories] = useState<string[]>([]);
   const [isManualCategory, setIsManualCategory] = useState(false);
 
+  // Category Dropdown State
+  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+  const categoryDropdownRef = useRef<HTMLDivElement>(null);
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  const [newCategoryName, setNewCategoryName] = useState("");
+
   const t = translations[language] || translations.ko;
 
   // Resolve Assigned Job Name
@@ -390,6 +397,18 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
   useEffect(() => {
      const unsub = dataService.subscribeCategories(setCategories);
      return () => unsub();
+  }, []);
+
+  // Click outside handler for dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+        if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target as Node)) {
+            setIsCategoryDropdownOpen(false);
+            setEditingCategory(null);
+        }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const handleInputChange = (field: keyof BLData, value: any) => {
@@ -403,8 +422,7 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
     });
   };
 
-  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-      const category = e.target.value;
+  const handleCategorySelect = (category: string) => {
       handleInputChange('cargoCategory', category);
       
       const currentHS = formData.exportDeclaration?.hsCode;
@@ -413,6 +431,7 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
       if (suggestedHS && (!currentHS || Object.values(HS_CODE_DEFAULTS).includes(currentHS))) {
           handleNestedChange('exportDeclaration', 'hsCode', suggestedHS);
       }
+      setIsCategoryDropdownOpen(false);
   };
 
   const handleItemChange = (index: number, field: keyof CargoItem, value: any) => {
@@ -567,10 +586,34 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
   const handleImportSubChange = (val: ImportSubClass) => {
       handleInputChange('importSubClass', val);
   };
+  
+  // Custom Dropdown Handlers
+  const deleteCategory = async (e: React.MouseEvent, cat: string) => {
+      e.stopPropagation();
+      if(window.confirm(`Delete category '${cat}'?`)) {
+          await dataService.deleteCategory(cat);
+          if (formData.cargoCategory === cat) handleInputChange('cargoCategory', '');
+      }
+  }
+
+  const startEditCategory = (e: React.MouseEvent, cat: string) => {
+      e.stopPropagation();
+      setEditingCategory(cat);
+      setNewCategoryName(cat);
+  }
+
+  const saveEditCategory = async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (editingCategory && newCategoryName.trim()) {
+          await dataService.updateCategory(editingCategory, newCategoryName.trim());
+          if (formData.cargoCategory === editingCategory) handleInputChange('cargoCategory', newCategoryName.trim());
+          setEditingCategory(null);
+      }
+  }
 
   const getCategoryLabel = (cat: string) => {
       switch(cat) {
-          case 'BAIT': return t.catBait || 'BAIT'; // Fallback handled by parent translation usage if passed properly
+          case 'BAIT': return t.catBait || 'BAIT'; 
           case 'FISHING_GEAR': return t.catGear || 'GEAR';
           case 'NETS': return t.catNets || 'NETS';
           case 'PORT_EQUIPMENT': return t.catPort || 'EQUIP';
@@ -769,7 +812,7 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
                                                     </div>
                                                 )}
                                             </div>
-                                            <div>
+                                            <div className="relative">
                                                 <label className="text-xs font-bold text-slate-400 uppercase mb-1 tracking-wide block text-blue-600 dark:text-blue-400">{t.category}</label>
                                                 {isManualCategory ? (
                                                     <div className="flex gap-1">
@@ -790,24 +833,68 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
                                                         </button>
                                                     </div>
                                                 ) : (
-                                                    <select 
-                                                      className="w-full bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-sm rounded-sm px-3 py-2 text-slate-800 dark:text-slate-100 outline-none focus:border-blue-500 font-bold"
-                                                      value={formData.cargoCategory || ''}
-                                                      onChange={(e) => {
-                                                          if(e.target.value === '__NEW__') {
-                                                              setIsManualCategory(true);
-                                                              handleInputChange('cargoCategory', '');
-                                                          } else {
-                                                              handleCategoryChange(e);
-                                                          }
-                                                      }}
-                                                    >
-                                                        <option value="">{t.selectCategory}</option>
-                                                        {categories.map(cat => (
-                                                            <option key={cat} value={cat}>{getCategoryLabel(cat)}</option>
-                                                        ))}
-                                                        <option value="__NEW__" className="text-blue-600 font-bold bg-blue-50 dark:bg-slate-600 dark:text-blue-400">+ {t.directInput}</option>
-                                                    </select>
+                                                    <div ref={categoryDropdownRef} className="relative w-full">
+                                                        <button 
+                                                            type="button"
+                                                            onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
+                                                            className="w-full bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-sm rounded-sm px-3 py-2 text-slate-800 dark:text-slate-100 outline-none focus:border-blue-500 font-bold flex justify-between items-center text-left"
+                                                        >
+                                                            <span className={!formData.cargoCategory ? "text-slate-400 font-normal" : ""}>
+                                                                {formData.cargoCategory ? getCategoryLabel(formData.cargoCategory) : t.selectCategory}
+                                                            </span>
+                                                            <ChevronDown size={14} className="opacity-50" />
+                                                        </button>
+
+                                                        {isCategoryDropdownOpen && (
+                                                            <div className="absolute top-full left-0 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-md shadow-xl z-50 max-h-60 overflow-y-auto custom-scrollbar">
+                                                                {categories.map(cat => (
+                                                                    <div key={cat} className="group flex items-center justify-between px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer border-b border-slate-100 dark:border-slate-700/50 last:border-0" onClick={() => handleCategorySelect(cat)}>
+                                                                        {editingCategory === cat ? (
+                                                                            <div className="flex-1 flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                                                                                <input 
+                                                                                    autoFocus
+                                                                                    type="text" 
+                                                                                    value={newCategoryName}
+                                                                                    onChange={(e) => setNewCategoryName(e.target.value)}
+                                                                                    className="flex-1 border-b border-blue-500 bg-transparent text-sm focus:outline-none"
+                                                                                />
+                                                                                <button onClick={saveEditCategory} className="text-emerald-500 hover:text-emerald-600 p-1"><Check size={14}/></button>
+                                                                                <button onClick={(e) => { e.stopPropagation(); setEditingCategory(null); }} className="text-red-500 hover:text-red-600 p-1"><X size={14}/></button>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <>
+                                                                                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{getCategoryLabel(cat)}</span>
+                                                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                                    <button 
+                                                                                        onClick={(e) => startEditCategory(e, cat)}
+                                                                                        className="p-1 hover:bg-slate-200 dark:hover:bg-slate-600 rounded text-slate-400 hover:text-blue-500"
+                                                                                    >
+                                                                                        <Pencil size={12} />
+                                                                                    </button>
+                                                                                    <button 
+                                                                                        onClick={(e) => deleteCategory(e, cat)}
+                                                                                        className="p-1 hover:bg-slate-200 dark:hover:bg-slate-600 rounded text-slate-400 hover:text-red-500"
+                                                                                    >
+                                                                                        <Trash2 size={12} />
+                                                                                    </button>
+                                                                                </div>
+                                                                            </>
+                                                                        )}
+                                                                    </div>
+                                                                ))}
+                                                                <div 
+                                                                    className="px-3 py-2 hover:bg-blue-50 dark:hover:bg-slate-700 cursor-pointer text-blue-600 dark:text-blue-400 font-bold text-sm border-t border-slate-100 dark:border-slate-700 flex items-center gap-2"
+                                                                    onClick={() => {
+                                                                        setIsManualCategory(true);
+                                                                        handleInputChange('cargoCategory', '');
+                                                                        setIsCategoryDropdownOpen(false);
+                                                                    }}
+                                                                >
+                                                                    <Plus size={14} /> {t.directInput}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>

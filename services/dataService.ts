@@ -1,7 +1,7 @@
 
 
 import { db } from "../lib/firebase";
-import { collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy, setDoc, deleteDoc, writeBatch, getDoc, arrayUnion } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy, setDoc, deleteDoc, writeBatch, getDoc, arrayUnion, arrayRemove, runTransaction } from "firebase/firestore";
 import { VesselJob, BLData, BLChecklist, ResourceLock } from "../types";
 import { User } from "firebase/auth";
 
@@ -235,6 +235,38 @@ export const dataService = {
     } catch (e) {
         console.error("Add Category Error:", e);
     }
+  },
+
+  deleteCategory: async (category: string) => {
+    if (!db || !category) return;
+    try {
+        const docRef = doc(db, "settings", "categories");
+        await updateDoc(docRef, {
+            list: arrayRemove(category)
+        });
+    } catch (e) {
+        console.error("Delete Category Error:", e);
+    }
+  },
+
+  updateCategory: async (oldVal: string, newVal: string) => {
+      if (!db || !oldVal || !newVal) return;
+      try {
+        const docRef = doc(db, "settings", "categories");
+        await runTransaction(db, async (transaction) => {
+            const sfDoc = await transaction.get(docRef);
+            if (!sfDoc.exists()) return;
+            
+            const list = sfDoc.data().list as string[];
+            const index = list.indexOf(oldVal);
+            if (index > -1) {
+                list[index] = newVal;
+                transaction.update(docRef, { list: list });
+            }
+        });
+      } catch (e) {
+          console.error("Update Category Error:", e);
+      }
   },
 
   // --- Concurrency / Locking Methods ---
