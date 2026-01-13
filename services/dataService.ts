@@ -310,6 +310,9 @@ export const dataService = {
   // --- Chat Methods ---
   
   // Updated: Accept limitCount instead of startTime for better pagination
+  // NOTE: Removed orderBy and limit from the Firestore query itself to avoid "Missing Index" errors
+  // which can prevent real-time updates. We now fetch all messages for the channel (using simple equality index)
+  // and sort/slice them in client memory.
   subscribeChatMessages: (channelId: string, limitCount: number, callback: (messages: ChatMessage[]) => void) => {
     if (!db) return () => {};
     
@@ -318,16 +321,22 @@ export const dataService = {
 
     const q = query(
         collection(db, "messages"), 
-        where("channelId", "==", channelId),
-        orderBy("timestamp", "desc"), // Requires index for channelId + timestamp
-        limit(safeLimit)
+        where("channelId", "==", channelId)
     );
     
     return onSnapshot(q, (snapshot) => {
         const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage));
+        
         // Sort in client memory: Oldest first (Ascending timestamp) for display
         msgs.sort((a, b) => a.timestamp - b.timestamp);
-        callback(msgs);
+        
+        // Apply limit logic client-side
+        if (msgs.length > safeLimit) {
+            // Keep the last 'safeLimit' messages (newest ones)
+            callback(msgs.slice(-safeLimit));
+        } else {
+            callback(msgs);
+        }
     }, (error) => {
         console.error("Chat Subscribe Error:", error);
     });
@@ -349,22 +358,21 @@ export const dataService = {
       if (!db || !channelId || !userId) return;
       
       try {
-          // Query recently unread messages in this channel
-          // We limit to 50 recent messages to keep it snappy.
+          // Simplified query to avoid composite index issues. Fetching channel messages to find unread.
           const q = query(
               collection(db, "messages"), 
-              where("channelId", "==", channelId), 
-              orderBy("timestamp", "desc"), 
-              limit(50)
+              where("channelId", "==", channelId)
           );
           
           const snapshot = await getDocs(q);
           const batch = writeBatch(db);
           let updateCount = 0;
 
+          // Note: Logic efficiency depends on chat size, but ensures robustness without custom indexes.
+          // For ERPs, reliability > extreme perf optimization here.
           snapshot.docs.forEach((docSnap) => {
               const data = docSnap.data() as ChatMessage;
-              // If I am NOT the sender AND I haven't read it yet
+              // Strict Check: Only update if I am NOT the sender AND I haven't read it yet
               if (data.senderId !== userId && (!data.readBy || !data.readBy.includes(userId))) {
                   batch.update(docSnap.ref, { readBy: arrayUnion(userId) });
                   updateCount++;
@@ -373,7 +381,7 @@ export const dataService = {
 
           if (updateCount > 0) {
               await batch.commit();
-              console.log(`Marked ${updateCount} messages read in ${channelId}`);
+              // console.log(`Marked ${updateCount} messages read in ${channelId}`);
           }
       } catch (e) {
           console.error("Error marking channel read:", e);
@@ -382,10 +390,11 @@ export const dataService = {
 
   // Check for ANY unread messages for the Red Dot indicator
   // UPDATED: Now returns the timestamp of the latest unread message instead of boolean
+  // INCREASED LIMIT to 500 to match markChannelRead scope
   subscribeUnreadStatus: (userId: string, callback: (latestUnreadTs: number) => void) => {
       if (!db) return () => {};
-      // Listen to the latest 50 messages globally.
-      const q = query(collection(db, "messages"), orderBy("timestamp", "desc"), limit(50));
+      // Listen to the latest 500 messages globally.
+      const q = query(collection(db, "messages"), orderBy("timestamp", "desc"), limit(500));
       return onSnapshot(q, (snapshot) => {
           let maxTs = 0;
           for (const doc of snapshot.docs) {
@@ -405,10 +414,11 @@ export const dataService = {
 
   // DETAILED UNREAD MAP: Returns a Set of Channel IDs that have unread messages
   // This allows putting dots on specific DMs.
+  // INCREASED LIMIT to 500 to catch older persistent notifications
   subscribeUnreadMap: (userId: string, callback: (unreadChannels: Set<string>) => void) => {
       if (!db) return () => {};
       
-      const q = query(collection(db, "messages"), orderBy("timestamp", "desc"), limit(100));
+      const q = query(collection(db, "messages"), orderBy("timestamp", "desc"), limit(500));
       
       return onSnapshot(q, (snapshot) => {
           const unreadSet = new Set<string>();
@@ -431,6 +441,9 @@ export const dataService = {
   getMessagesInTimeRange: async (startDate: number, endDate: number) => {
      if (!db) return [];
      
+     // Note: If this fails due to index, remove orderBy or create index.
+     // Assuming index exists for timestamp ranges or falls back to scan.
+     // For export, performance hit is acceptable if index missing.
      const q = query(
          collection(db, "messages"),
          where("timestamp", ">=", startDate),

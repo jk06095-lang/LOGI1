@@ -60,12 +60,13 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   }, []);
 
   // Read Logic for Mobile: Immediately mark channel read when entering view 'room'
+  // AND whenever new messages arrive
   useEffect(() => {
       if (view === 'room' && activeChannel.id && user) {
-          // Trigger read logic immediately
+          // Trigger read logic
           dataService.markChannelRead(activeChannel.id, user.uid);
       }
-  }, [view, activeChannel, user]);
+  }, [view, activeChannel, user, messages.length]); // Added messages.length
 
   // Fetch messages for room view with limit
   useEffect(() => {
@@ -385,7 +386,13 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                       placeholder="Type a message..."
                       className="flex-1 bg-slate-100 border-none rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                   />
-                  <button type="submit" disabled={!inputText.trim()} className="p-2 bg-blue-600 text-white rounded-full disabled:opacity-50">
+                  {/* PreventDefault on MouseDown prevents focus loss from input */}
+                  <button 
+                    type="submit" 
+                    disabled={!inputText.trim()} 
+                    onMouseDown={(e) => e.preventDefault()}
+                    className="p-2 bg-blue-600 text-white rounded-full disabled:opacity-50"
+                  >
                       <Send size={18} />
                   </button>
               </form>

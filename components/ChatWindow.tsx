@@ -62,19 +62,27 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       return () => unsub();
   }, [currentUser]);
 
-  // FORCE MARK READ ON OPEN / SWITCH
+  // REAL-TIME READ MARKING:
+  // Trigger whenever isOpen, channelId changes OR messages update.
+  // This ensures that as soon as a new message arrives (and we are looking at it), it is marked read.
   useEffect(() => {
      if (isOpen && channelId && currentUser) {
-         // Optimistically remove from local unread map to hide dot instantly
+         // 1. Optimistically remove from local unread map to hide dot instantly
          setUnreadMap(prev => {
              const newMap = new Set(prev);
              newMap.delete(channelId);
              return newMap;
          });
-         // Update Backend
-         dataService.markChannelRead(channelId, currentUser.uid);
+
+         // 2. Check if there are any unread messages for me in the current list
+         // This prevents unnecessary DB calls if everything is already read.
+         const hasUnread = messages.some(m => m.senderId !== currentUser.uid && (!m.readBy || !m.readBy.includes(currentUser.uid)));
+         
+         if (hasUnread) {
+             dataService.markChannelRead(channelId, currentUser.uid);
+         }
      }
-  }, [isOpen, channelId, currentUser]);
+  }, [isOpen, channelId, currentUser, messages]); // Dependent on 'messages' for real-time ack
 
   // Subscribe to Messages with Limit logic
   useEffect(() => {
@@ -239,6 +247,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
           newMap.delete(dmId);
           return newMap;
       });
+      // Force server mark read for the new channel immediately
+      if (currentUser) {
+          dataService.markChannelRead(dmId, currentUser.uid);
+      }
 
       setSelectedUser(user);
   };
@@ -251,6 +263,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
               newMap.delete('global');
               return newMap;
           });
+          // Force server mark read for global
+          if (currentUser) {
+              dataService.markChannelRead('global', currentUser.uid);
+          }
       }
       setActiveTab(tab);
   };
