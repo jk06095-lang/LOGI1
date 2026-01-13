@@ -4,11 +4,10 @@ import { BLData, VesselJob, AppSettings, ChatMessage, ChatUser, CargoSourceType,
 import { 
     Search, Download, FileText, MessageCircle, Settings, LogOut, 
     Monitor, X, Menu, Filter, ArrowLeft, Send, User as UserIcon, 
-    Check, CheckCheck, Grid, List as ListIcon, Ship, Anchor, Box, Home, ExternalLink, ChevronDown
+    Check, CheckCheck, Grid, List as ListIcon, Ship, Anchor, Box, Home, ExternalLink, ChevronDown, Truck
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { User } from 'firebase/auth';
-import { ShipmentDetail } from './ShipmentDetail';
 
 interface MobileLayoutProps {
   user: User | null;
@@ -23,34 +22,6 @@ interface MobileLayoutProps {
   onAddTask: (task: BackgroundTask) => void;
   onUpdateTask: (id: string, updates: Partial<BackgroundTask>) => void;
 }
-
-// Helper Component for Document Row
-const DocRow = ({ title, url }: { title: string, url?: string }) => (
-    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
-        <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-lg flex items-center justify-center ${url ? 'bg-white text-emerald-500 shadow-sm border border-slate-100' : 'bg-slate-100 text-slate-300'}`}>
-                <FileText size={18} />
-            </div>
-            <div className="flex flex-col">
-                <span className={`text-sm font-bold ${url ? 'text-slate-700' : 'text-slate-400'}`}>{title}</span>
-                <span className={`text-[10px] font-medium ${url ? 'text-emerald-600' : 'text-slate-400'}`}>
-                    {url ? 'Available' : 'Not Uploaded'}
-                </span>
-            </div>
-        </div>
-        {url && (
-            <div className="flex gap-2">
-                <button 
-                    onClick={(e) => { e.stopPropagation(); window.open(url, '_blank'); }}
-                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-white rounded-full transition-colors"
-                    title="Open Document"
-                >
-                    <ExternalLink size={18} />
-                </button>
-            </div>
-        )}
-    </div>
-);
 
 // Mobile Chat View Component
 interface MobileChatViewProps {
@@ -253,6 +224,136 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   );
 };
 
+// Dedicated Read-Only Mobile Detail View
+const MobileShipmentDetail = ({ bl, onClose }: { bl: BLData, onClose: () => void }) => {
+  const docs = [
+    { label: 'Bill of Lading', fileUrl: bl.fileUrl },
+    { label: 'Arrival Notice', fileUrl: bl.arrivalNotice?.fileUrl },
+    { label: 'Commercial Invoice', fileUrl: bl.commercialInvoice?.fileUrl },
+    { label: 'Packing List', fileUrl: bl.packingList?.fileUrl },
+    { label: 'Manifest', fileUrl: bl.manifest?.fileUrl },
+    { label: 'Export Dec', fileUrl: bl.exportDeclaration?.fileUrl },
+  ];
+
+  return (
+    <div className="flex flex-col h-full bg-slate-50 animate-fade-in fixed inset-0 z-[60]">
+      {/* Header */}
+      <div className="bg-white px-4 py-3 shadow-sm border-b border-slate-200 flex items-center justify-between shrink-0">
+         <div className="flex items-center gap-3">
+             <button 
+                onClick={onClose} 
+                className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+             >
+                <ArrowLeft size={20} />
+             </button>
+             <div className="overflow-hidden">
+                <h2 className="font-bold text-slate-800 text-lg leading-none truncate max-w-[200px]">{bl.blNumber}</h2>
+                <p className="text-[10px] text-slate-500 font-medium mt-0.5 truncate max-w-[200px]">{bl.shipper}</p>
+             </div>
+         </div>
+         <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase whitespace-nowrap ${bl.sourceType === 'TRANSIT' ? 'bg-slate-100 text-slate-600' : 'bg-blue-100 text-blue-600'}`}>
+            {bl.sourceType}
+         </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar pb-20">
+         
+         {/* 1. DOCUMENTS SECTION (Top Priority) */}
+         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
+                <FileText size={16} className="text-slate-500"/>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Attached Documents</span>
+            </div>
+            <div className="divide-y divide-slate-50">
+               {docs.map((doc, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 hover:bg-slate-50 transition-colors">
+                     <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${doc.fileUrl ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-300'}`}>
+                           <FileText size={16} />
+                        </div>
+                        <span className={`text-sm font-bold ${doc.fileUrl ? 'text-slate-700' : 'text-slate-400'}`}>
+                            {doc.label}
+                        </span>
+                     </div>
+                     
+                     {doc.fileUrl ? (
+                        <button 
+                            onClick={() => window.open(doc.fileUrl, '_blank')}
+                            className="p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                        >
+                            <ExternalLink size={16} />
+                        </button>
+                     ) : (
+                        <span className="text-[10px] text-slate-300 italic px-2">Empty</span>
+                     )}
+                  </div>
+               ))}
+            </div>
+         </div>
+
+         {/* 2. LOGISTICS INFO */}
+         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+             <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
+                <Truck size={16} className="text-slate-500"/>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Logistics Info</span>
+            </div>
+            <div className="p-4 grid grid-cols-2 gap-y-4 gap-x-2 text-sm">
+                 <div>
+                    <p className="text-[10px] text-slate-400 uppercase font-bold mb-0.5">Vessel</p>
+                    <p className="font-bold text-slate-800 truncate">{bl.vesselName || '-'}</p>
+                 </div>
+                 <div>
+                    <p className="text-[10px] text-slate-400 uppercase font-bold mb-0.5">Voyage</p>
+                    <p className="font-bold text-slate-800 truncate">{bl.voyageNo || '-'}</p>
+                 </div>
+                 <div>
+                    <p className="text-[10px] text-slate-400 uppercase font-bold mb-0.5">POL</p>
+                    <p className="font-medium text-slate-700 truncate">{bl.portOfLoading || '-'}</p>
+                 </div>
+                 <div>
+                    <p className="text-[10px] text-slate-400 uppercase font-bold mb-0.5">POD</p>
+                    <p className="font-medium text-slate-700 truncate">{bl.portOfDischarge || '-'}</p>
+                 </div>
+                 <div className="col-span-2">
+                    <p className="text-[10px] text-slate-400 uppercase font-bold mb-0.5">Consignee</p>
+                    <p className="font-medium text-slate-700 truncate">{bl.consignee || '-'}</p>
+                 </div>
+            </div>
+         </div>
+
+         {/* 3. CARGO ITEMS */}
+         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+             <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
+                <Box size={16} className="text-slate-500"/>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Cargo Items</span>
+            </div>
+            <div className="divide-y divide-slate-100">
+               {bl.cargoItems.map((item, i) => (
+                   <div key={i} className="p-4">
+                       <div className="flex justify-between items-start mb-1">
+                           <span className="font-bold text-slate-800 text-sm line-clamp-2">{item.description}</span>
+                           <span className="font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-xs whitespace-nowrap ml-2">
+                               {item.quantity} {item.packageType}
+                           </span>
+                       </div>
+                       <div className="flex items-center gap-3 text-xs text-slate-500 mt-2 flex-wrap">
+                           {item.containerNo && <span className="bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-mono">{item.containerNo}</span>}
+                           <span>Weight: <strong className="text-slate-700">{item.grossWeight}</strong> kg</span>
+                           <span>Vol: <strong className="text-slate-700">{item.measurement}</strong> CBM</span>
+                       </div>
+                   </div>
+               ))}
+               {bl.cargoItems.length === 0 && (
+                   <div className="p-6 text-center text-slate-400 text-sm italic">No items listed.</div>
+               )}
+            </div>
+         </div>
+
+      </div>
+    </div>
+  );
+};
+
 export const MobileLayout: React.FC<MobileLayoutProps> = ({
   user,
   settings,
@@ -308,21 +409,12 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
     if (selectedBLId) {
         const selectedBL = bls.find(b => b.id === selectedBLId);
         if (selectedBL) {
+            // Use dedicated read-only MobileShipmentDetail
             return (
-                <div className="h-full bg-slate-50 z-50 absolute inset-0 overflow-hidden">
-                    <ShipmentDetail 
-                        bl={selectedBL}
-                        jobs={jobs}
-                        language={settings.language}
-                        onUpdateBL={onUpdateBL}
-                        onClose={() => setSelectedBLId(null)}
-                        onNavigateToChecklist={() => alert("Checklist view coming soon on mobile")} // Placeholder
-                        checklist={checklists[selectedBL.id]}
-                        onDelete={async (id) => { await onDeleteBL(id); setSelectedBLId(null); }}
-                        onAddTask={onAddTask}
-                        onUpdateTask={onUpdateTask}
-                    />
-                </div>
+                <MobileShipmentDetail 
+                    bl={selectedBL}
+                    onClose={() => setSelectedBLId(null)}
+                />
             );
         } else {
             // Cleanup if BL deleted
