@@ -6,7 +6,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { 
-  ChatMessage, ChatUser, ResourceLock, BLChecklist 
+  ChatMessage, ChatUser, ResourceLock
 } from "../types";
 
 export const dataService = {
@@ -108,12 +108,28 @@ export const dataService = {
 
       try {
           if (!db) return false;
-          const q = query(collection(db, "secret_codes"), where("code", "==", code));
-          const snap = await getDocs(q);
-          return !snap.empty;
+          
+          // NOTE: 
+          // 1. Security Rules disable 'list' (query), so we cannot use query().
+          // 2. The Code is the Document ID itself (e.g., FISC04422).
+          // We must fetch the document directly by ID.
+          
+          // Try exact match
+          const docRef = doc(db, "secret_codes", code);
+          const docSnap = await getDoc(docRef);
+          
+          if (docSnap.exists()) return true;
+
+          // Try uppercase match (in case user typed lowercase)
+          if (code !== code.toUpperCase()) {
+              const docRefUpper = doc(db, "secret_codes", code.toUpperCase());
+              const docSnapUpper = await getDoc(docRefUpper);
+              return docSnapUpper.exists();
+          }
+
+          return false;
       } catch (error) {
           console.error("Firestore access code verification failed:", error);
-          // Return false if DB check fails, forcing use of fallback or proper setup
           return false;
       }
   },
