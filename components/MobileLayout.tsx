@@ -59,6 +59,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [inputText, setInputText] = useState('');
+  const [unreadChannels, setUnreadChannels] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   
   // Fetch users for list view
@@ -66,6 +67,26 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
     const unsub = dataService.subscribeChatUsers(setUsers);
     return () => unsub();
   }, []);
+
+  // Fetch unread channels
+  useEffect(() => {
+     if (!user) return;
+     const unsub = dataService.subscribeUnreadChannels(user.uid, setUnreadChannels);
+     return () => unsub();
+  }, [user]);
+
+  // Read Logic for Mobile: Check loaded messages and mark read
+  useEffect(() => {
+      if (view !== 'room' || !activeChannel.id || !user || messages.length === 0) return;
+      
+      const unreadIds = messages
+        .filter(msg => msg.senderId !== user.uid && (!msg.readBy || !msg.readBy.includes(user.uid)))
+        .map(msg => msg.id);
+
+      if (unreadIds.length > 0) {
+          dataService.markMessagesAsRead(unreadIds, user.uid);
+      }
+  }, [view, activeChannel, user, messages]);
 
   // Fetch messages for room view
   useEffect(() => {
@@ -121,6 +142,8 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   }, [users, user]);
 
   if (view === 'list') {
+      const hasGlobalUnread = unreadChannels.includes('global');
+
       return (
           <div className="h-full overflow-y-auto p-4 custom-scrollbar">
               <h2 className="font-bold text-slate-800 mb-4 text-lg">Messages</h2>
@@ -130,7 +153,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                     setActiveChannel({ id: 'global', name: 'Global Chat', type: 'global' });
                     setView('room');
                 }}
-                className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 mb-6 cursor-pointer active:scale-95 transition-transform"
+                className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 mb-6 cursor-pointer active:scale-95 transition-transform relative"
               >
                   <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center">
                       <MessageCircle size={24} />
@@ -139,6 +162,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                       <h3 className="font-bold text-slate-800">Global Chat</h3>
                       <p className="text-xs text-slate-500">Public Team Channel</p>
                   </div>
+                  {hasGlobalUnread && <div className="absolute top-4 right-4 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>}
               </div>
 
               <h3 className="font-bold text-slate-400 text-xs uppercase tracking-widest mb-3">Direct Messages</h3>
@@ -146,30 +170,35 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                   {myFriends.length === 0 ? (
                       <p className="text-slate-400 text-sm italic">No contacts added. Use PC to add friends.</p>
                   ) : (
-                      myFriends.map(friend => (
-                          <div 
-                            key={friend.uid}
-                            onClick={() => {
-                                const cid = getDmChannelId(friend.uid);
-                                setActiveChannel({ id: cid, name: friend.displayName, type: 'dm' });
-                                setView('room');
-                            }}
-                            className="bg-white p-3 rounded-xl border border-slate-100 flex items-center gap-3 cursor-pointer active:scale-95 transition-transform"
-                          >
-                              <div className="relative">
-                                  <div className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden">
-                                      {friend.photoURL ? <img src={friend.photoURL} alt={friend.displayName} className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-2 text-slate-400"/>}
+                      myFriends.map(friend => {
+                          const dmId = getDmChannelId(friend.uid);
+                          const hasUnread = unreadChannels.includes(dmId);
+
+                          return (
+                              <div 
+                                key={friend.uid}
+                                onClick={() => {
+                                    setActiveChannel({ id: dmId, name: friend.displayName, type: 'dm' });
+                                    setView('room');
+                                }}
+                                className="bg-white p-3 rounded-xl border border-slate-100 flex items-center gap-3 cursor-pointer active:scale-95 transition-transform relative"
+                              >
+                                  <div className="relative">
+                                      <div className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden">
+                                          {friend.photoURL ? <img src={friend.photoURL} alt={friend.displayName} className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-2 text-slate-400"/>}
+                                      </div>
+                                      <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
+                                          friend.status === 'online' ? 'bg-emerald-500' : friend.status === 'away' ? 'bg-amber-500' : 'bg-slate-300'
+                                      }`}></div>
                                   </div>
-                                  <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
-                                      friend.status === 'online' ? 'bg-emerald-500' : friend.status === 'away' ? 'bg-amber-500' : 'bg-slate-300'
-                                  }`}></div>
+                                  <div>
+                                      <p className="font-bold text-sm text-slate-800">{friend.displayName}</p>
+                                      <p className="text-xs text-slate-500">{friend.status}</p>
+                                  </div>
+                                  {hasUnread && <div className="absolute right-4 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></div>}
                               </div>
-                              <div>
-                                  <p className="font-bold text-sm text-slate-800">{friend.displayName}</p>
-                                  <p className="text-xs text-slate-500">{friend.status}</p>
-                              </div>
-                          </div>
-                      ))
+                          )
+                      })
                   )}
               </div>
           </div>
@@ -232,347 +261,238 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
 };
 
 export const MobileLayout: React.FC<MobileLayoutProps> = ({
-  user, settings, onUpdateSettings, onLogout, bls, jobs
+  user,
+  settings,
+  onUpdateSettings,
+  onLogout,
+  bls,
+  jobs
 }) => {
-  const [activeTab, setActiveTab] = useState<'home' | 'docs' | 'chat' | 'menu'>('home');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('ALL');
-  const [categories, setCategories] = useState<string[]>([]); // Dynamic Categories
-  const [selectedDoc, setSelectedDoc] = useState<BLData | null>(null);
-  
-  // Chat State
+  const [currentView, setCurrentView] = useState<'home' | 'cargo' | 'chat' | 'settings'>('home');
   const [chatView, setChatView] = useState<'list' | 'room'>('list');
-  const [activeChannel, setActiveChannel] = useState<{id: string, name: string, type: 'global' | 'dm'}>({id: 'global', name: 'Global Chat', type: 'global'});
+  const [activeChannel, setActiveChannel] = useState<{ id: string; name: string; type: 'global' | 'dm' }>({ id: 'global', name: 'Global Chat', type: 'global' });
+  const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    const unsub = dataService.subscribeCategories(setCategories);
-    return () => unsub();
-  }, []);
+  // Search logic for Cargo
+  const filteredBLs = useMemo(() => {
+    if (!searchTerm) return bls;
+    const lower = searchTerm.toLowerCase();
+    return bls.filter(b => 
+      b.blNumber.toLowerCase().includes(lower) || 
+      b.shipper.toLowerCase().includes(lower) ||
+      (b.vesselName || '').toLowerCase().includes(lower)
+    );
+  }, [bls, searchTerm]);
 
-  // Active Vessels for Home Tab
-  const workingJobs = jobs.filter(j => j.status === 'working');
-  const incomingJobs = jobs.filter(j => j.status === 'incoming');
+  // Home Screen Stats
+  const incomingCount = jobs.filter(j => j.status === 'incoming').length;
+  const workingCount = jobs.filter(j => j.status === 'working').length;
+  
+  const renderContent = () => {
+    switch(currentView) {
+      case 'home':
+        return (
+          <div className="p-4 space-y-4 overflow-y-auto h-full pb-20 custom-scrollbar">
+            <div className="flex justify-between items-center mb-2">
+               <div>
+                   <h1 className="text-2xl font-black text-slate-800">LOGI<span className="text-blue-600">1</span></h1>
+                   <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Mobile ERP</p>
+               </div>
+               <div className="w-10 h-10 bg-slate-200 rounded-full overflow-hidden">
+                   {user?.photoURL ? <img src={user.photoURL} alt="U" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-2 text-slate-400" />}
+               </div>
+            </div>
 
-  // -- DOCS VIEW LOGIC --
-  const filteredDocs = useMemo(() => {
-    return bls.filter(bl => {
-        const matchesSearch = 
-            bl.blNumber.toLowerCase().includes(searchTerm.toLowerCase()) || 
-            bl.shipper.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (bl.vesselName || '').toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesCat = selectedCategory === 'ALL' || (selectedCategory === 'GENERAL' ? (!bl.cargoCategory || bl.cargoCategory === 'GENERAL') : bl.cargoCategory === selectedCategory);
-        return matchesSearch && matchesCat;
-    }).sort((a,b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime());
-  }, [bls, searchTerm, selectedCategory]);
+            <div className="grid grid-cols-2 gap-3">
+               <div className="bg-blue-600 text-white p-4 rounded-xl shadow-lg shadow-blue-500/30">
+                  <p className="text-xs font-bold opacity-80 uppercase">Active Vessels</p>
+                  <p className="text-3xl font-black">{workingCount}</p>
+               </div>
+               <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+                   <p className="text-xs font-bold text-slate-400 uppercase">Incoming</p>
+                   <p className="text-3xl font-black text-slate-800">{incomingCount}</p>
+               </div>
+               <div className="col-span-2 bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
+                   <div>
+                       <p className="text-xs font-bold text-slate-400 uppercase">Total Docs</p>
+                       <p className="text-2xl font-black text-slate-800">{bls.length}</p>
+                   </div>
+                   <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
+                       <FileText size={24} />
+                   </div>
+               </div>
+            </div>
 
-  const categoryList = useMemo(() => ['ALL', ...categories], [categories]);
-
-  // Determine if bottom navigation should be hidden (when in a chat room)
-  // This prevents layout gap issues when keyboard opens in mobile chat
-  const shouldHideBottomNav = activeTab === 'chat' && chatView === 'room';
-
-  return (
-    <div className="flex flex-col h-[100dvh] bg-slate-50 text-slate-900 font-sans overflow-hidden">
-        {/* Header */}
-        <div className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 flex-shrink-0 z-20 shadow-sm">
-            <h1 className="text-lg font-black tracking-tight flex items-center gap-1 text-slate-800">
-                LOGI<span className="text-blue-600">1</span> <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded ml-1 font-bold">MOBILE</span>
-            </h1>
-            <div className="flex items-center gap-2">
-                {activeTab === 'docs' && (
-                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs">
-                        {filteredDocs.length}
-                    </div>
-                )}
-                {activeTab === 'chat' && chatView === 'room' && (
-                    <button onClick={() => setChatView('list')} className="p-2 bg-slate-100 rounded-full">
-                        <ArrowLeft size={18} />
+            <div>
+                <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                    <Ship size={16} className="text-blue-500" /> Recent Vessels
+                </h3>
+                <div className="space-y-3">
+                    {jobs.slice(0, 3).map(job => (
+                        <div key={job.id} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+                            <div className="flex justify-between items-start mb-1">
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${job.status === 'working' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
+                                    {job.status.toUpperCase()}
+                                </span>
+                                <span className="text-xs text-slate-400 font-medium">ETA: {job.eta}</span>
+                            </div>
+                            <h4 className="font-bold text-slate-800">{job.vesselName}</h4>
+                            <p className="text-xs text-slate-500">Voy. {job.voyageNo}</p>
+                        </div>
+                    ))}
+                </div>
+            </div>
+          </div>
+        );
+      case 'cargo':
+        return (
+          <div className="flex flex-col h-full">
+              <div className="p-4 bg-white border-b border-slate-200">
+                  <h2 className="font-bold text-lg text-slate-800 mb-3">Cargo List</h2>
+                  <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                      <input 
+                        type="text" 
+                        placeholder="Search B/L, Vessel..." 
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 bg-slate-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                  </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-20 custom-scrollbar">
+                  {filteredBLs.length === 0 ? (
+                      <div className="text-center text-slate-400 mt-10">No documents found.</div>
+                  ) : (
+                      filteredBLs.map(bl => (
+                          <div key={bl.id} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+                              <div className="flex justify-between items-start mb-2">
+                                  <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
+                                      {bl.blNumber}
+                                  </span>
+                                  {bl.fileUrl && <ExternalLink size={14} className="text-blue-500" onClick={() => window.open(bl.fileUrl, '_blank')} />}
+                              </div>
+                              <h4 className="font-bold text-sm text-slate-800 mb-1 line-clamp-1">{bl.shipper}</h4>
+                              <p className="text-xs text-slate-500 mb-3 line-clamp-1">{bl.vesselName}</p>
+                              
+                              <div className="flex gap-2">
+                                  {bl.fileUrl && <div className="w-2 h-2 rounded-full bg-blue-500" title="B/L"></div>}
+                                  {bl.commercialInvoice?.fileUrl && <div className="w-2 h-2 rounded-full bg-emerald-500" title="C/I"></div>}
+                                  {bl.packingList?.fileUrl && <div className="w-2 h-2 rounded-full bg-purple-500" title="P/L"></div>}
+                              </div>
+                          </div>
+                      ))
+                  )}
+              </div>
+          </div>
+        );
+      case 'chat':
+          // If in chat room view, we render it full height without bottom nav in some designs, 
+          // but here we keep navigation for simplicity unless in room.
+          // Let's hide navigation if in room view to give space.
+          return (
+             <div className="h-full flex flex-col relative">
+                {chatView === 'room' && (
+                    <button 
+                        onClick={() => setChatView('list')} 
+                        className="absolute top-3 left-3 z-20 p-2 bg-white/80 backdrop-blur rounded-full shadow-sm"
+                    >
+                        <ArrowLeft size={20} className="text-slate-700"/>
                     </button>
                 )}
-            </div>
-        </div>
-
-        {/* Main Content Area */}
-        <div className="flex-1 overflow-hidden relative w-full flex flex-col">
-            
-            {/* HOME TAB */}
-            {activeTab === 'home' && (
-                <div className="h-full overflow-y-auto p-4 bg-slate-50 custom-scrollbar">
-                    <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                        <Ship size={20} className="text-blue-600"/> Active Vessels
-                    </h2>
-                    <div className="space-y-3 pb-20">
-                        {workingJobs.concat(incomingJobs).map(job => (
-                            <div key={job.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                                <div className="flex justify-between items-start mb-2">
-                                    <h3 className="font-bold text-slate-800">{job.vesselName}</h3>
-                                    <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${job.status === 'working' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
-                                        {job.status}
-                                    </span>
-                                </div>
-                                <p className="text-xs text-slate-500 mb-2 font-medium">Voy: {job.voyageNo} | ETA: {job.eta}</p>
-                                <div className="flex gap-2">
-                                     <span className="text-[10px] bg-slate-100 px-2 py-1 rounded text-slate-600 font-bold flex items-center gap-1">
-                                        <FileText size={10} /> {bls.filter(b => b.vesselJobId === job.id).length} Docs
-                                     </span>
-                                </div>
-                            </div>
-                        ))}
-                        {workingJobs.length === 0 && incomingJobs.length === 0 && (
-                            <p className="text-slate-400 text-center text-sm italic py-4">No active vessels</p>
-                        )}
-                    </div>
-                    
-                    {bls.length > 0 && (
-                        <div className="p-4 bg-blue-600 rounded-2xl text-white shadow-lg shadow-blue-500/30 mb-6">
-                            <h3 className="font-bold text-lg mb-1">Total Cargo</h3>
-                            <div className="flex justify-between items-end">
-                                <span className="text-3xl font-black">{bls.length}</span>
-                                <span className="text-sm opacity-80 mb-1">Documents</span>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* DOCS TAB */}
-            {activeTab === 'docs' && (
-                <div className="h-full flex flex-col">
-                    {/* Search & Filter Bar */}
-                    <div className="p-4 bg-white border-b border-slate-100 flex flex-col gap-3">
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                            <input 
-                                type="text" 
-                                placeholder="Search B/L, Shipper, Vessel..." 
-                                className="w-full pl-10 pr-4 py-2.5 bg-slate-100 border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
-                                value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                            />
-                        </div>
-                        <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
-                            {categoryList.map(cat => (
-                                <button
-                                    key={cat}
-                                    onClick={() => setSelectedCategory(cat)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-colors ${selectedCategory === cat ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30' : 'bg-slate-100 text-slate-500'}`}
-                                >
-                                    {cat.replace('_', ' ')}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Content Grid (Album View) */}
-                    <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                        {filteredDocs.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center h-48 text-slate-400">
-                                <Grid size={48} className="mb-2 opacity-20" />
-                                <p className="text-sm font-medium">No documents found</p>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-2 gap-4 pb-20">
-                                {filteredDocs.map(bl => (
-                                    <div 
-                                        key={bl.id} 
-                                        onClick={() => setSelectedDoc(bl)}
-                                        className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden active:scale-95 transition-transform flex flex-col h-48"
-                                    >
-                                        <div className="h-28 bg-slate-100 relative flex items-center justify-center overflow-hidden">
-                                            {/* Simulate Thumbnail if image */}
-                                            {bl.fileUrl && (bl.fileUrl.includes('.jpg') || bl.fileUrl.includes('.png')) ? (
-                                                <img src={bl.fileUrl} alt="Preview" className="w-full h-full object-cover" />
-                                            ) : (
-                                                <div className="text-slate-300 flex flex-col items-center">
-                                                    <FileText size={32} />
-                                                    <span className="text-[10px] mt-1 font-bold uppercase">{bl.fileName.split('.').pop()}</span>
-                                                </div>
-                                            )}
-                                            {/* Type Badge */}
-                                            <div className="absolute top-2 left-2">
-                                                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm ${
-                                                    bl.sourceType === 'FISCO' ? 'bg-blue-500 text-white' : 
-                                                    bl.sourceType === 'THIRD_PARTY' ? 'bg-amber-500 text-white' : 'bg-slate-600 text-white'
-                                                }`}>
-                                                    {bl.sourceType === 'FISCO' ? 'FISCO' : bl.sourceType === 'THIRD_PARTY' ? '3RD' : 'TRNS'}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div className="p-3 flex-1 flex flex-col justify-between">
-                                            <div>
-                                                <h3 className="text-xs font-bold text-slate-800 truncate leading-tight mb-0.5">{bl.blNumber}</h3>
-                                                <p className="text-[10px] text-slate-500 truncate">{bl.vesselName || 'No Vessel'}</p>
-                                            </div>
-                                            <div className="flex justify-between items-end mt-2">
-                                                <span className="text-[9px] font-mono text-slate-400">{new Date(bl.uploadDate).toLocaleDateString()}</span>
-                                                <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
-                                                    {bl.cargoItems.length} Items
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* CHAT TAB */}
-            {activeTab === 'chat' && (
                 <MobileChatView 
                     user={user} 
                     view={chatView} 
                     setView={setChatView} 
-                    activeChannel={activeChannel} 
-                    setActiveChannel={setActiveChannel} 
+                    activeChannel={activeChannel}
+                    setActiveChannel={setActiveChannel}
                 />
-            )}
-
-            {/* MENU TAB */}
-            {activeTab === 'menu' && (
-                <div className="p-6">
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 text-center mb-6">
-                        <div className="w-20 h-20 bg-slate-100 rounded-full mx-auto mb-4 flex items-center justify-center overflow-hidden border-4 border-slate-50">
-                            {user?.photoURL ? <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover"/> : <UserIcon size={32} className="text-slate-400"/>}
-                        </div>
-                        <h2 className="text-lg font-bold text-slate-800">{user?.displayName || 'Operator'}</h2>
-                        <p className="text-sm text-slate-500">{user?.email}</p>
+             </div>
+          );
+      case 'settings':
+        return (
+            <div className="p-6">
+                <h2 className="font-bold text-xl text-slate-800 mb-6">Settings</h2>
+                
+                <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden mb-6">
+                    <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                        <span className="text-sm font-medium text-slate-700">Dark Mode</span>
+                        <button 
+                            onClick={() => onUpdateSettings({...settings, theme: settings.theme === 'dark' ? 'light' : 'dark'})}
+                            className={`w-12 h-6 rounded-full transition-colors relative ${settings.theme === 'dark' ? 'bg-blue-600' : 'bg-slate-200'}`}
+                        >
+                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.theme === 'dark' ? 'left-7' : 'left-1'}`}></div>
+                        </button>
                     </div>
-
-                    <div className="space-y-3">
-                         <button 
-                            onClick={() => onUpdateSettings({...settings, viewMode: 'pc'})}
-                            className="w-full bg-white border border-slate-200 p-4 rounded-xl flex items-center gap-4 text-slate-700 font-bold hover:bg-slate-50 active:scale-95 transition-all shadow-sm"
-                         >
-                             <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Monitor size={20}/></div>
-                             <div className="text-left flex-1">
-                                 <p>Switch to PC Mode</p>
-                                 <p className="text-[10px] text-slate-400 font-normal">Use desktop dashboard view</p>
-                             </div>
-                         </button>
-
-                         <button 
-                            onClick={onLogout}
-                            className="w-full bg-white border border-red-100 p-4 rounded-xl flex items-center gap-4 text-red-600 font-bold hover:bg-red-50 active:scale-95 transition-all shadow-sm"
-                         >
-                             <div className="p-2 bg-red-50 text-red-500 rounded-lg"><LogOut size={20}/></div>
-                             <div className="text-left flex-1">
-                                 <p>Sign Out</p>
-                             </div>
-                         </button>
-                    </div>
-
-                    <div className="mt-8 text-center">
-                        <p className="text-xs text-slate-300 font-bold tracking-widest uppercase">LOGI1 Mobile v1.4</p>
+                    <div className="p-4 flex items-center justify-between">
+                        <span className="text-sm font-medium text-slate-700">Language</span>
+                        <select 
+                            value={settings.language}
+                            onChange={(e) => onUpdateSettings({...settings, language: e.target.value as any})}
+                            className="bg-slate-50 text-sm border-none rounded-lg p-2"
+                        >
+                            <option value="ko">한국어</option>
+                            <option value="en">English</option>
+                            <option value="cn">中文</option>
+                        </select>
                     </div>
                 </div>
-            )}
-        </div>
 
-        {/* Bottom Navigation - Hidden when inside a specific Chat Room to avoid keyboard gaps */}
-        {!shouldHideBottomNav && (
-            <div className="min-h-[4rem] bg-white border-t border-slate-200 flex items-center justify-around pb-[env(safe-area-inset-bottom)] z-30 flex-shrink-0">
                 <button 
-                    onClick={() => setActiveTab('home')}
-                    className={`flex flex-col items-center gap-1 p-2 w-16 ${activeTab === 'home' ? 'text-blue-600' : 'text-slate-400'}`}
+                    onClick={onLogout}
+                    className="w-full py-3 bg-red-50 text-red-600 font-bold rounded-xl flex items-center justify-center gap-2"
                 >
-                    <Home size={22} strokeWidth={activeTab === 'home' ? 2.5 : 2} />
+                    <LogOut size={18} /> Log Out
+                </button>
+
+                <p className="text-center text-xs text-slate-400 mt-8">
+                    LOGI1 Mobile v1.0.0
+                </p>
+            </div>
+        );
+    }
+  };
+
+  return (
+    <div className="h-screen flex flex-col bg-slate-50 text-slate-900">
+        <div className="flex-1 overflow-hidden relative">
+            {renderContent()}
+        </div>
+        
+        {/* Bottom Navigation */}
+        {!(currentView === 'chat' && chatView === 'room') && (
+            <div className="bg-white border-t border-slate-200 px-6 py-3 flex justify-between items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] safe-area-pb">
+                <button 
+                    onClick={() => setCurrentView('home')}
+                    className={`flex flex-col items-center gap-1 ${currentView === 'home' ? 'text-blue-600' : 'text-slate-400'}`}
+                >
+                    <Home size={24} strokeWidth={currentView === 'home' ? 2.5 : 2} />
                     <span className="text-[10px] font-bold">Home</span>
                 </button>
                 <button 
-                    onClick={() => setActiveTab('docs')}
-                    className={`flex flex-col items-center gap-1 p-2 w-16 ${activeTab === 'docs' ? 'text-blue-600' : 'text-slate-400'}`}
+                    onClick={() => setCurrentView('cargo')}
+                    className={`flex flex-col items-center gap-1 ${currentView === 'cargo' ? 'text-blue-600' : 'text-slate-400'}`}
                 >
-                    <Grid size={22} strokeWidth={activeTab === 'docs' ? 2.5 : 2} />
-                    <span className="text-[10px] font-bold">Docs</span>
+                    <ListIcon size={24} strokeWidth={currentView === 'cargo' ? 2.5 : 2} />
+                    <span className="text-[10px] font-bold">Cargo</span>
                 </button>
                 <button 
-                    onClick={() => setActiveTab('chat')}
-                    className={`flex flex-col items-center gap-1 p-2 w-16 ${activeTab === 'chat' ? 'text-blue-600' : 'text-slate-400'}`}
+                    onClick={() => setCurrentView('chat')}
+                    className={`flex flex-col items-center gap-1 relative ${currentView === 'chat' ? 'text-blue-600' : 'text-slate-400'}`}
                 >
-                    <MessageCircle size={22} strokeWidth={activeTab === 'chat' ? 2.5 : 2} />
+                    <div className="relative">
+                        <MessageCircle size={24} strokeWidth={currentView === 'chat' ? 2.5 : 2} />
+                        {/* Dot indicator logic could be added here if needed */}
+                    </div>
                     <span className="text-[10px] font-bold">Chat</span>
                 </button>
                 <button 
-                    onClick={() => setActiveTab('menu')}
-                    className={`flex flex-col items-center gap-1 p-2 w-16 ${activeTab === 'menu' ? 'text-blue-600' : 'text-slate-400'}`}
+                    onClick={() => setCurrentView('settings')}
+                    className={`flex flex-col items-center gap-1 ${currentView === 'settings' ? 'text-blue-600' : 'text-slate-400'}`}
                 >
-                    <Settings size={22} strokeWidth={activeTab === 'menu' ? 2.5 : 2} />
+                    <Settings size={24} strokeWidth={currentView === 'settings' ? 2.5 : 2} />
                     <span className="text-[10px] font-bold">Menu</span>
                 </button>
-            </div>
-        )}
-
-        {/* Document Detail Overlay (Read Only) */}
-        {selectedDoc && (
-            <div className="fixed inset-0 z-50 bg-white flex flex-col animate-fade-in">
-                {/* Header */}
-                <div className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 flex-shrink-0">
-                    <button onClick={() => setSelectedDoc(null)} className="p-2 -ml-2 text-slate-500">
-                        <X size={24} />
-                    </button>
-                    <h2 className="font-bold text-slate-800 truncate max-w-[200px]">{selectedDoc.blNumber}</h2>
-                    <div className="w-10"></div> {/* Placeholder to keep title centered */}
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 overflow-y-auto bg-slate-50 p-4 pb-10">
-                    {/* Attached Documents List - Moved to top as the primary interaction area */}
-                    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm mb-6">
-                        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                            <FileText size={14} /> Attached Documents
-                        </h3>
-                        <div className="space-y-3">
-                            <DocRow title="Bill of Lading" url={selectedDoc.fileUrl} />
-                            <DocRow title="Arrival Notice" url={selectedDoc.arrivalNotice?.fileUrl} />
-                            <DocRow title="Commercial Invoice" url={selectedDoc.commercialInvoice?.fileUrl} />
-                            <DocRow title="Packing List" url={selectedDoc.packingList?.fileUrl} />
-                            <DocRow title="Manifest" url={selectedDoc.manifest?.fileUrl} />
-                            <DocRow title="Export Declaration" url={selectedDoc.exportDeclaration?.fileUrl} />
-                        </div>
-                    </div>
-
-                    {/* Metadata Cards */}
-                    <div className="space-y-4">
-                        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Basic Info</h3>
-                            <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div>
-                                    <p className="text-slate-500 text-xs">Vessel</p>
-                                    <p className="font-bold text-slate-800">{selectedDoc.vesselName || '-'}</p>
-                                </div>
-                                <div>
-                                    <p className="text-slate-500 text-xs">Category</p>
-                                    <p className="font-bold text-slate-800">{selectedDoc.cargoCategory || '-'}</p>
-                                </div>
-                                <div>
-                                    <p className="text-slate-500 text-xs">Shipper</p>
-                                    <p className="font-bold text-slate-800">{selectedDoc.shipper || '-'}</p>
-                                </div>
-                                <div>
-                                    <p className="text-slate-500 text-xs">Consignee</p>
-                                    <p className="font-bold text-slate-800">{selectedDoc.consignee || '-'}</p>
-                                </div>
-                            </div>
-                        </div>
-
-                         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Cargo Items</h3>
-                            <div className="divide-y divide-slate-100">
-                                {selectedDoc.cargoItems.map((item, i) => (
-                                    <div key={i} className="py-2 first:pt-0 last:pb-0">
-                                        <p className="font-bold text-sm text-slate-800">{item.description}</p>
-                                        <div className="flex gap-3 text-xs text-slate-500 mt-1">
-                                            <span>Qty: <b className="text-slate-700">{item.quantity}</b></span>
-                                            <span>Weight: <b className="text-slate-700">{item.grossWeight} kg</b></span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
         )}
     </div>

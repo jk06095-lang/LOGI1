@@ -3,6 +3,7 @@ import React from 'react';
 import { Anchor, Settings, Ship, ChevronLeft, ChevronRight, Home, FolderOpen, MessageCircle } from 'lucide-react';
 import { ViewState, Language } from '../types';
 import { User } from 'firebase/auth';
+import { dataService } from '../services/dataService';
 
 interface SidebarProps {
   currentView: ViewState;
@@ -14,6 +15,7 @@ interface SidebarProps {
   logoUrl?: string;
   isChatOpen: boolean;
   onToggleChat: () => void;
+  hasUnreadMessages?: boolean;
 }
 
 const translations = {
@@ -46,7 +48,7 @@ const translations = {
   }
 };
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCollapsed, onToggleCollapse, language, user, logoUrl, isChatOpen, onToggleChat }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCollapsed, onToggleCollapse, language, user, logoUrl, isChatOpen, onToggleChat, hasUnreadMessages }) => {
   const t = translations[language];
 
   const menuItems = [
@@ -54,6 +56,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
     { id: 'vessel-list', label: t.vesselMgmt, icon: Ship },
     { id: 'bl-list', label: t.blMgmt, icon: FolderOpen },
   ];
+
+  // Handler for failsafe clearing
+  const handleDotClick = async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      
+      // 1. Trigger failsafe clear logic in background
+      if (user) {
+          dataService.markAllRecentAsRead(user.uid);
+      }
+      
+      // 2. Open chat if not open
+      if (!isChatOpen) {
+          onToggleChat();
+      }
+  };
 
   return (
     <div 
@@ -130,7 +148,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
          <button
             onClick={onToggleChat}
             title={isCollapsed ? t.message : ''}
-            className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium relative ${
+            className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium relative group ${
                 isChatOpen 
                 ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 shadow-sm' 
                 : 'text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 hover:text-indigo-600 dark:hover:text-indigo-300'
@@ -138,10 +156,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
          >
             <div className="relative">
                 <MessageCircle size={18} className={isChatOpen ? 'fill-current' : ''} />
+                {/* Red Dot Alert with Manual Clear Logic */}
+                {hasUnreadMessages && (
+                   <span 
+                      onClick={handleDotClick}
+                      className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-900 animate-pulse z-10 cursor-pointer hover:bg-red-600 transition-transform active:scale-90"
+                      title="Click to clear notifications"
+                   ></span>
+                )}
             </div>
             {!isCollapsed && (
               <div className="flex-1 flex justify-between items-center">
                  <span>{t.message}</span>
+                 {hasUnreadMessages && <span className="w-2 h-2 rounded-full bg-red-500"></span>}
               </div>
             )}
          </button>

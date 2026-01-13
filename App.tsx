@@ -37,6 +37,7 @@ const App: React.FC = () => {
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false); // Chat State
+  const [hasUnreadMessages, setHasUnreadMessages] = useState(false); // Global Unread State
 
   const [tabs, setTabs] = useState<Tab[]>([{ id: 'dashboard', type: 'dashboard', title: 'Dashboard' }]);
   const [activeTabId, setActiveTabId] = useState('dashboard');
@@ -121,8 +122,10 @@ const App: React.FC = () => {
         checkExpiration(data);
     });
     const unsubChecklists = dataService.subscribeChecklists(setChecklists);
+    // Subscribe to Global Unread Status
+    const unsubUnread = dataService.subscribeUnreadStatus(user.uid, setHasUnreadMessages);
     
-    return () => { unsubJobs(); unsubBLs(); unsubChecklists(); };
+    return () => { unsubJobs(); unsubBLs(); unsubChecklists(); unsubUnread(); };
   }, [user]);
 
   // Check for files older than 3 months
@@ -466,6 +469,7 @@ const App: React.FC = () => {
         isChatOpen={isChatOpen}
         onToggleChat={() => setIsChatOpen(!isChatOpen)}
         logoUrl={settings.logoUrl}
+        hasUnreadMessages={hasUnreadMessages}
       />
       
       {/* Chat Window Component */}

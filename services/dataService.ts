@@ -368,6 +368,67 @@ export const dataService = {
       }
   },
 
+  // Helper: Mark all unread messages in a channel as read for the user
+  // Updated to support aggressive clearing based on failsafe requirements
+  markChannelAsRead: async (channelId: string, userId: string) => {
+      if (!db) return;
+      
+      const q = query(
+          collection(db, "messages"), 
+          where("channelId", "==", channelId),
+          orderBy("timestamp", "desc"),
+          limit(100) // Increase limit to catch more potential unreads
+      );
+      
+      try {
+          const snapshot = await getDocs(q);
+          const unreadIds: string[] = [];
+          
+          snapshot.forEach(doc => {
+              const data = doc.data() as ChatMessage;
+              if (data.senderId !== userId && (!data.readBy || !data.readBy.includes(userId))) {
+                  unreadIds.push(doc.id);
+              }
+          });
+          
+          if (unreadIds.length > 0) {
+              await dataService.markMessagesAsRead(unreadIds, userId);
+          }
+      } catch (e) {
+          console.error("Mark Channel Read Error:", e);
+      }
+  },
+
+  // Failsafe: Clear ALL recent notifications for a user (Global + known DMs)
+  // Designed to be attached to the red dot click
+  markAllRecentAsRead: async (userId: string) => {
+      if (!db) return;
+      // We can't query "all messages not read by me". 
+      // We will grab the latest 100 messages GLOBALLY and mark them read if needed.
+      const q = query(collection(db, "messages"), orderBy("timestamp", "desc"), limit(100));
+      
+      try {
+          const snapshot = await getDocs(q);
+          const unreadIds: string[] = [];
+          
+          snapshot.forEach(doc => {
+              const data = doc.data() as ChatMessage;
+              // Check Global OR DMs involving me
+              const isRelevant = data.channelId === 'global' || data.channelId.includes(userId);
+              
+              if (isRelevant && data.senderId !== userId && (!data.readBy || !data.readBy.includes(userId))) {
+                  unreadIds.push(doc.id);
+              }
+          });
+          
+          if (unreadIds.length > 0) {
+              await dataService.markMessagesAsRead(unreadIds, userId);
+          }
+      } catch(e) {
+          console.error("Failsafe Clear Error:", e);
+      }
+  },
+
   // Track global unread status for the current user (boolean only)
   subscribeUnreadStatus: (userId: string, callback: (hasUnread: boolean) => void) => {
       if (!db) return () => {};
@@ -377,7 +438,10 @@ export const dataService = {
           let hasUnread = false;
           for (const doc of snapshot.docs) {
               const data = doc.data() as ChatMessage;
-              if (data.senderId !== userId && (!data.readBy || !data.readBy.includes(userId))) {
+              // Must check if message is relevant (Global or My DM)
+              const isRelevant = data.channelId === 'global' || data.channelId.includes(userId);
+              
+              if (isRelevant && data.senderId !== userId && (!data.readBy || !data.readBy.includes(userId))) {
                   hasUnread = true;
                   break;
               }
@@ -395,8 +459,10 @@ export const dataService = {
           const unreadChannelSet = new Set<string>();
           for (const doc of snapshot.docs) {
               const data = doc.data() as ChatMessage;
+              const isRelevant = data.channelId === 'global' || data.channelId.includes(userId);
+
               // If I am NOT the sender, AND my ID is NOT in readBy list
-              if (data.senderId !== userId && (!data.readBy || !data.readBy.includes(userId))) {
+              if (isRelevant && data.senderId !== userId && (!data.readBy || !data.readBy.includes(userId))) {
                   unreadChannelSet.add(data.channelId);
               }
           }
