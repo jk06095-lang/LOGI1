@@ -454,14 +454,17 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
   };
 
   return (
-    <div className="h-screen flex flex-col bg-slate-50 text-slate-900">
-        <div className="flex-1 overflow-hidden relative">
+    <div className="fixed inset-0 flex flex-col bg-slate-50 text-slate-900 overflow-hidden z-[100]">
+        <div className="flex-1 overflow-hidden relative w-full">
             {renderContent()}
         </div>
         
         {/* Bottom Navigation */}
         {!(currentView === 'chat' && chatView === 'room') && (
-            <div className="bg-white border-t border-slate-200 px-6 py-3 flex justify-between items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] safe-area-pb">
+            <div 
+                className="bg-white border-t border-slate-200 px-6 pt-3 flex justify-between items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-50 shrink-0"
+                style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
+            >
                 <button 
                     onClick={() => setCurrentView('home')}
                     className={`flex flex-col items-center gap-1 ${currentView === 'home' ? 'text-blue-600' : 'text-slate-400'}`}
