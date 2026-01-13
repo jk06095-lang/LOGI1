@@ -4,7 +4,7 @@ import { BLData, VesselJob, AppSettings, ChatMessage, ChatUser, CargoSourceType 
 import { 
     Search, Download, FileText, MessageCircle, Settings, LogOut, 
     Monitor, X, Menu, Filter, ArrowLeft, Send, User as UserIcon, 
-    Check, CheckCheck, Grid, List as ListIcon, Ship, Anchor, Box, Home, ExternalLink
+    Check, CheckCheck, Grid, List as ListIcon, Ship, Anchor, Box, Home, ExternalLink, ChevronDown
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { User } from 'firebase/auth';
@@ -272,17 +272,33 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
   const [chatView, setChatView] = useState<'list' | 'room'>('list');
   const [activeChannel, setActiveChannel] = useState<{ id: string; name: string; type: 'global' | 'dm' }>({ id: 'global', name: 'Global Chat', type: 'global' });
   const [searchTerm, setSearchTerm] = useState('');
+  const [vesselFilter, setVesselFilter] = useState('all');
 
   // Search logic for Cargo
   const filteredBLs = useMemo(() => {
-    if (!searchTerm) return bls;
-    const lower = searchTerm.toLowerCase();
-    return bls.filter(b => 
-      b.blNumber.toLowerCase().includes(lower) || 
-      b.shipper.toLowerCase().includes(lower) ||
-      (b.vesselName || '').toLowerCase().includes(lower)
-    );
-  }, [bls, searchTerm]);
+    let result = bls;
+
+    // Filter by Vessel
+    if (vesselFilter !== 'all') {
+        if (vesselFilter === 'unassigned') {
+            result = result.filter(b => !b.vesselJobId);
+        } else {
+            result = result.filter(b => b.vesselJobId === vesselFilter);
+        }
+    }
+
+    // Filter by Search
+    if (searchTerm) {
+        const lower = searchTerm.toLowerCase();
+        result = result.filter(b => 
+            b.blNumber.toLowerCase().includes(lower) || 
+            b.shipper.toLowerCase().includes(lower) ||
+            (b.vesselName || '').toLowerCase().includes(lower)
+        );
+    }
+    
+    return result;
+  }, [bls, searchTerm, vesselFilter]);
 
   // Home Screen Stats
   const incomingCount = jobs.filter(j => j.status === 'incoming').length;
@@ -348,12 +364,35 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
         return (
           <div className="flex flex-col h-full">
               <div className="p-4 bg-white border-b border-slate-200">
-                  <h2 className="font-bold text-lg text-slate-800 mb-3">Cargo List</h2>
+                  <div className="flex justify-between items-center mb-3">
+                      <h2 className="font-bold text-lg text-slate-800">Cargo List</h2>
+                      
+                      {/* Vessel Filter Dropdown */}
+                      <div className="relative">
+                          <Filter size={20} className="text-slate-500 absolute left-0 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <select 
+                              value={vesselFilter}
+                              onChange={(e) => setVesselFilter(e.target.value)}
+                              className="pl-6 pr-6 py-1.5 bg-slate-50 text-xs font-bold border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none max-w-[150px] truncate"
+                              style={{ backgroundImage: 'none' }} 
+                          >
+                              <option value="all">All Vessels</option>
+                              <option value="unassigned">Unassigned</option>
+                              {jobs.map(j => (
+                                  <option key={j.id} value={j.id}>{j.vesselName}</option>
+                              ))}
+                          </select>
+                           <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                              <ChevronDown size={12} className="text-slate-400" />
+                           </div>
+                      </div>
+                  </div>
+
                   <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                       <input 
                         type="text" 
-                        placeholder="Search B/L, Vessel..." 
+                        placeholder="Search B/L, Shipper..." 
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
                         className="w-full pl-10 pr-4 py-2.5 bg-slate-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
