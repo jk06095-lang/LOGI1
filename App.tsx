@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard, BriefingReport } from './components/Dashboard';
@@ -37,7 +38,6 @@ const App: React.FC = () => {
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false); // Chat State
-  const [hasUnreadMessages, setHasUnreadMessages] = useState(false); // Global Unread State
 
   const [tabs, setTabs] = useState<Tab[]>([{ id: 'dashboard', type: 'dashboard', title: 'Dashboard' }]);
   const [activeTabId, setActiveTabId] = useState('dashboard');
@@ -77,9 +77,10 @@ const App: React.FC = () => {
       setUser(currentUser);
       setAuthLoading(false);
       
-      // Update User Presence for Chat
+      // Update User Presence for Chat & Setup Notifications
       if (currentUser) {
           dataService.updateUserPresence(currentUser);
+          dataService.setupNotifications(currentUser); // <--- Setup Notifications
       }
     });
     return () => unsubscribe();
@@ -122,10 +123,8 @@ const App: React.FC = () => {
         checkExpiration(data);
     });
     const unsubChecklists = dataService.subscribeChecklists(setChecklists);
-    // Subscribe to Global Unread Status
-    const unsubUnread = dataService.subscribeUnreadStatus(user.uid, setHasUnreadMessages);
     
-    return () => { unsubJobs(); unsubBLs(); unsubChecklists(); unsubUnread(); };
+    return () => { unsubJobs(); unsubBLs(); unsubChecklists(); };
   }, [user]);
 
   // Check for files older than 3 months
@@ -452,6 +451,11 @@ const App: React.FC = () => {
               onLogout={() => { if (user) signOut(auth); }}
               bls={blData}
               jobs={vesselJobs}
+              checklists={checklists}
+              onUpdateBL={dataService.updateBL}
+              onDeleteBL={dataService.deleteBL}
+              onAddTask={addTask}
+              onUpdateTask={updateTask}
           />
       );
   }
@@ -469,7 +473,6 @@ const App: React.FC = () => {
         isChatOpen={isChatOpen}
         onToggleChat={() => setIsChatOpen(!isChatOpen)}
         logoUrl={settings.logoUrl}
-        hasUnreadMessages={hasUnreadMessages}
       />
       
       {/* Chat Window Component */}
@@ -483,7 +486,7 @@ const App: React.FC = () => {
         <div className="flex justify-between items-end bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 pr-4 print:hidden">
             <TabNavigation tabs={tabs} activeTabId={activeTabId} onTabClick={activateTab} onTabClose={closeTab} />
             
-            {/* Notification Bell (No Red Dot logic anymore) */}
+            {/* Notification Bell */}
             <div className="relative mb-1" ref={notifRef}>
                 <button 
                   onClick={() => setShowNotifications(!showNotifications)}

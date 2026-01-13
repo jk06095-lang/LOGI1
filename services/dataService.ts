@@ -1,6 +1,7 @@
-
-import { db } from "../lib/firebase";
+import { db, messaging, functions } from "../lib/firebase";
 import { collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy, setDoc, deleteDoc, writeBatch, getDoc, arrayUnion, arrayRemove, runTransaction, where, limit, getDocs, Timestamp } from "firebase/firestore";
+import { getToken } from "firebase/messaging";
+import { httpsCallable } from "firebase/functions";
 import { VesselJob, BLData, BLChecklist, ResourceLock, ChatMessage, ChatUser } from "../types";
 import { User } from "firebase/auth";
 
@@ -613,5 +614,45 @@ export const dataService = {
       });
       
       return contactUser;
+  },
+
+  // --- Notifications Setup ---
+  setupNotifications: async (user: User) => {
+    if (!messaging || !db) {
+        console.warn("Notifications not supported in this environment");
+        return;
+    }
+
+    try {
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+            console.log('Notification permission denied');
+            return;
+        }
+
+        // REPLACE THIS WITH YOUR ACTUAL VAPID KEY FROM FIREBASE CONSOLE
+        const vapidKey = "BGHuWZuil2RC5hdb7ZECk416MgjIhGT-MxRbmjJAcXNGJppfYORP2mAYJ2JU-HCyVPA3FglkVHPDPS1eeeEiQA8"; 
+        
+        const currentToken = await getToken(messaging, { vapidKey });
+        
+        if (currentToken) {
+            console.log("FCM Token obtained:", currentToken);
+            
+            // 1. Save token to Firestore
+            const userRef = doc(db, "users", user.uid);
+            await updateDoc(userRef, {
+                fcmTokens: arrayUnion(currentToken)
+            });
+
+            // 2. Subscribe to Global Chat via Cloud Function (if deployed)
+            if (functions) {
+                const subscribeFn = httpsCallable(functions, 'subscribeToGlobalChat');
+                await subscribeFn({ token: currentToken });
+                console.log("Subscribed to global chat topic");
+            }
+        }
+    } catch (e) {
+        console.error("Notification setup failed:", e);
+    }
   }
 };

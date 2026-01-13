@@ -3,6 +3,8 @@ import { getFirestore, Firestore } from "firebase/firestore";
 import { getAnalytics, Analytics } from "firebase/analytics";
 import { getStorage, FirebaseStorage } from "firebase/storage";
 import { getAuth, GoogleAuthProvider, Auth } from "firebase/auth";
+import { getMessaging, Messaging } from "firebase/messaging";
+import { getFunctions, Functions } from "firebase/functions";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBLnVbFSz2jpXIVCG0D_P57S4qlzDCKi0E",
@@ -15,9 +17,6 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-// We remove the try-catch block to ensure that if configuration fails, 
-// the app reports it immediately rather than crashing on undefined variables later.
-
 const app: FirebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const analytics: Analytics = getAnalytics(app);
 const db: Firestore = getFirestore(app);
@@ -25,6 +24,20 @@ const storage: FirebaseStorage = getStorage(app);
 const auth: Auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 
+// Initialize Messaging and Functions
+// Check if window is defined to avoid SSR/build errors
+let messaging: Messaging | undefined;
+let functions: Functions | undefined;
+
+if (typeof window !== "undefined") {
+  try {
+    messaging = getMessaging(app);
+    functions = getFunctions(app);
+  } catch (err) {
+    console.warn("Firebase Messaging/Functions initialization failed (probably unsupported env):", err);
+  }
+}
+
 console.log("Firebase initialized successfully");
 
-export { db, app, analytics, storage, auth, googleProvider };
+export { db, app, analytics, storage, auth, googleProvider, messaging, functions };

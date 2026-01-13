@@ -19,7 +19,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [inputText, setInputText] = useState('');
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
-  const [unreadChannels, setUnreadChannels] = useState<string[]>([]);
   
   // Add Friend State
   const [showAddFriend, setShowAddFriend] = useState(false);
@@ -39,13 +38,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
     }
     return null;
   }, [activeTab, selectedUser, currentUser?.uid]);
-
-  // Subscribe to Unread Channels
-  useEffect(() => {
-     if (!currentUser) return;
-     const unsub = dataService.subscribeUnreadChannels(currentUser.uid, setUnreadChannels);
-     return () => unsub();
-  }, [currentUser]);
 
   // Optimized Mark Read Logic: Filter currently loaded messages and mark read if needed
   useEffect(() => {
@@ -220,10 +212,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       }
   };
 
-  // Unread Checks
-  const hasGlobalUnread = unreadChannels.includes('global');
-  const hasDmUnread = unreadChannels.some(cid => cid !== 'global');
-
   return (
     <div 
         className={`fixed top-0 bottom-0 z-30 bg-white dark:bg-slate-900 shadow-2xl transition-transform duration-300 ease-in-out border-r border-slate-200 dark:border-slate-800 flex flex-col w-80 md:w-96`}
@@ -263,14 +251,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                         className={`pb-2 text-sm font-bold border-b-2 transition-colors relative ${activeTab === 'global' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                     >
                         Global
-                        {hasGlobalUnread && <span className="absolute top-0 -right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
                     </button>
                     <button 
                         onClick={() => setActiveTab('dm')}
                         className={`pb-2 text-sm font-bold border-b-2 transition-colors relative ${activeTab === 'dm' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                     >
                         Direct Messages
-                        {hasDmUnread && <span className="absolute top-0 -right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
                     </button>
                 </div>
              )}
@@ -372,9 +358,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                      ) : (
                         <div className="space-y-1">
                             {myFriends.map(user => {
-                                const dmChannelId = [currentUser?.uid, user.uid].sort().join('_');
-                                const hasUnread = unreadChannels.includes(dmChannelId);
-
                                 return (
                                 <div 
                                     key={user.uid} 
@@ -396,7 +379,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                                         </p>
                                         <p className="text-xs text-slate-500 truncate">{user.email}</p>
                                     </div>
-                                    {hasUnread && <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></div>}
                                     <ChevronLeft size={16} className="text-slate-300 rotate-180" />
                                 </div>
                                 )

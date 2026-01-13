@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { BLData, VesselJob, AppSettings, ChatMessage, ChatUser, CargoSourceType } from '../types';
+import { BLData, VesselJob, AppSettings, ChatMessage, ChatUser, CargoSourceType, BLChecklist, BackgroundTask } from '../types';
 import { 
     Search, Download, FileText, MessageCircle, Settings, LogOut, 
     Monitor, X, Menu, Filter, ArrowLeft, Send, User as UserIcon, 
@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { User } from 'firebase/auth';
+import { ShipmentDetail } from './ShipmentDetail';
 
 interface MobileLayoutProps {
   user: User | null;
@@ -16,6 +17,11 @@ interface MobileLayoutProps {
   onLogout: () => void;
   bls: BLData[];
   jobs: VesselJob[];
+  checklists: Record<string, BLChecklist>;
+  onUpdateBL: (id: string, updates: Partial<BLData>) => Promise<void>;
+  onDeleteBL: (id: string) => Promise<void>;
+  onAddTask: (task: BackgroundTask) => void;
+  onUpdateTask: (id: string, updates: Partial<BackgroundTask>) => void;
 }
 
 // Helper Component for Document Row
@@ -59,7 +65,6 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [inputText, setInputText] = useState('');
-  const [unreadChannels, setUnreadChannels] = useState<string[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   
   // Fetch users for list view
@@ -67,13 +72,6 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
     const unsub = dataService.subscribeChatUsers(setUsers);
     return () => unsub();
   }, []);
-
-  // Fetch unread channels
-  useEffect(() => {
-     if (!user) return;
-     const unsub = dataService.subscribeUnreadChannels(user.uid, setUnreadChannels);
-     return () => unsub();
-  }, [user]);
 
   // Read Logic for Mobile: Check loaded messages and mark read
   useEffect(() => {
@@ -142,8 +140,6 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   }, [users, user]);
 
   if (view === 'list') {
-      const hasGlobalUnread = unreadChannels.includes('global');
-
       return (
           <div className="h-full overflow-y-auto p-4 custom-scrollbar">
               <h2 className="font-bold text-slate-800 mb-4 text-lg">Messages</h2>
@@ -162,7 +158,6 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                       <h3 className="font-bold text-slate-800">Global Chat</h3>
                       <p className="text-xs text-slate-500">Public Team Channel</p>
                   </div>
-                  {hasGlobalUnread && <div className="absolute top-4 right-4 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>}
               </div>
 
               <h3 className="font-bold text-slate-400 text-xs uppercase tracking-widest mb-3">Direct Messages</h3>
@@ -172,7 +167,6 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                   ) : (
                       myFriends.map(friend => {
                           const dmId = getDmChannelId(friend.uid);
-                          const hasUnread = unreadChannels.includes(dmId);
 
                           return (
                               <div 
@@ -195,7 +189,6 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                                       <p className="font-bold text-sm text-slate-800">{friend.displayName}</p>
                                       <p className="text-xs text-slate-500">{friend.status}</p>
                                   </div>
-                                  {hasUnread && <div className="absolute right-4 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></div>}
                               </div>
                           )
                       })
@@ -266,13 +259,19 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
   onUpdateSettings,
   onLogout,
   bls,
-  jobs
+  jobs,
+  checklists,
+  onUpdateBL,
+  onDeleteBL,
+  onAddTask,
+  onUpdateTask
 }) => {
   const [currentView, setCurrentView] = useState<'home' | 'cargo' | 'chat' | 'settings'>('home');
   const [chatView, setChatView] = useState<'list' | 'room'>('list');
   const [activeChannel, setActiveChannel] = useState<{ id: string; name: string; type: 'global' | 'dm' }>({ id: 'global', name: 'Global Chat', type: 'global' });
   const [searchTerm, setSearchTerm] = useState('');
   const [vesselFilter, setVesselFilter] = useState('all');
+  const [selectedBLId, setSelectedBLId] = useState<string | null>(null);
 
   // Search logic for Cargo
   const filteredBLs = useMemo(() => {
@@ -305,6 +304,32 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
   const workingCount = jobs.filter(j => j.status === 'working').length;
   
   const renderContent = () => {
+    // 1. Detail View Check
+    if (selectedBLId) {
+        const selectedBL = bls.find(b => b.id === selectedBLId);
+        if (selectedBL) {
+            return (
+                <div className="h-full bg-slate-50 z-50 absolute inset-0 overflow-hidden">
+                    <ShipmentDetail 
+                        bl={selectedBL}
+                        jobs={jobs}
+                        language={settings.language}
+                        onUpdateBL={onUpdateBL}
+                        onClose={() => setSelectedBLId(null)}
+                        onNavigateToChecklist={() => alert("Checklist view coming soon on mobile")} // Placeholder
+                        checklist={checklists[selectedBL.id]}
+                        onDelete={async (id) => { await onDeleteBL(id); setSelectedBLId(null); }}
+                        onAddTask={onAddTask}
+                        onUpdateTask={onUpdateTask}
+                    />
+                </div>
+            );
+        } else {
+            // Cleanup if BL deleted
+            setSelectedBLId(null);
+        }
+    }
+
     switch(currentView) {
       case 'home':
         return (
@@ -367,13 +392,12 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                   <div className="flex justify-between items-center mb-3">
                       <h2 className="font-bold text-lg text-slate-800">Cargo List</h2>
                       
-                      {/* Vessel Filter Dropdown */}
+                      {/* Vessel Filter Dropdown - Icon Removed */}
                       <div className="relative">
-                          <Filter size={20} className="text-slate-500 absolute left-0 top-1/2 -translate-y-1/2 pointer-events-none" />
                           <select 
                               value={vesselFilter}
                               onChange={(e) => setVesselFilter(e.target.value)}
-                              className="pl-6 pr-6 py-1.5 bg-slate-50 text-xs font-bold border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none max-w-[150px] truncate"
+                              className="pl-3 pr-6 py-1.5 bg-slate-50 text-xs font-bold border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none max-w-[200px] truncate"
                               style={{ backgroundImage: 'none' }} 
                           >
                               <option value="all">All Vessels</option>
@@ -404,12 +428,16 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                       <div className="text-center text-slate-400 mt-10">No documents found.</div>
                   ) : (
                       filteredBLs.map(bl => (
-                          <div key={bl.id} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+                          <div 
+                            key={bl.id} 
+                            onClick={() => setSelectedBLId(bl.id)}
+                            className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm active:scale-95 transition-transform"
+                          >
                               <div className="flex justify-between items-start mb-2">
                                   <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
                                       {bl.blNumber}
                                   </span>
-                                  {bl.fileUrl && <ExternalLink size={14} className="text-blue-500" onClick={() => window.open(bl.fileUrl, '_blank')} />}
+                                  {bl.fileUrl && <ExternalLink size={14} className="text-blue-500" onClick={(e) => { e.stopPropagation(); window.open(bl.fileUrl, '_blank'); }} />}
                               </div>
                               <h4 className="font-bold text-sm text-slate-800 mb-1 line-clamp-1">{bl.shipper}</h4>
                               <p className="text-xs text-slate-500 mb-3 line-clamp-1">{bl.vesselName}</p>
@@ -498,8 +526,8 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
             {renderContent()}
         </div>
         
-        {/* Bottom Navigation */}
-        {!(currentView === 'chat' && chatView === 'room') && (
+        {/* Bottom Navigation - Hide if in detail view or chat room */}
+        {!selectedBLId && !(currentView === 'chat' && chatView === 'room') && (
             <div 
                 className="bg-white border-t border-slate-200 px-6 pt-3 flex justify-between items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-50 shrink-0"
                 style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
@@ -524,7 +552,6 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                 >
                     <div className="relative">
                         <MessageCircle size={24} strokeWidth={currentView === 'chat' ? 2.5 : 2} />
-                        {/* Dot indicator logic could be added here if needed */}
                     </div>
                     <span className="text-[10px] font-bold">Chat</span>
                 </button>
