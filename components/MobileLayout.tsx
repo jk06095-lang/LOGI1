@@ -96,8 +96,10 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   // Subscribe to Typing Status
   useEffect(() => {
       if (view !== 'room' || !activeChannel.id || !user) return;
-      const unsub = dataService.subscribeTyping(activeChannel.id, (u) => {
-          setTypingUsers(u.filter(name => name !== (user.displayName || 'User')));
+      const unsub = dataService.subscribeTyping(activeChannel.id, (list) => {
+          // Filter by UID to exclude self
+          const others = list.filter(u => u.userId !== user.uid).map(u => u.displayName);
+          setTypingUsers(others);
       });
       return () => unsub();
   }, [view, activeChannel.id, user?.uid]);
@@ -204,7 +206,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   }, [users, user]);
 
   const loadMoreHistory = () => {
-      setHistoryDays(prev => prev + 3); // Load 3 more days
+      setHistoryDays(prev => prev + 7); 
   };
 
   if (view === 'list') {
@@ -288,7 +290,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                     onClick={loadMoreHistory}
                     className="text-xs bg-slate-200 text-slate-600 px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-slate-300 active:scale-95 transition-transform"
                   >
-                      <ArrowUpCircle size={12} /> 이전 3일 대화 더보기
+                      <ArrowUpCircle size={12} /> Load More History (7 Days)
                   </button>
               </div>
 
@@ -335,7 +337,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                              </div>
                          </div>
                          <span className="text-xs text-slate-400 self-center">
-                            {typingUsers.join(', ')}님이 메세지 작성 중...
+                            {typingUsers.join(', ')} is typing...
                          </span>
                      </div>
                   )}
@@ -361,6 +363,10 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
       </div>
   );
 };
+
+// ... (Rest of MobileLayout code for MobileShipmentDetail and MobileLayout wrapper remains the same, assuming imports are consistent) ... 
+// Due to size limit, only re-exporting the changed sub-component above. 
+// However, I need to output the FULL file for the instruction format.
 
 // Dedicated Read-Only Mobile Detail View
 const MobileShipmentDetail = ({ bl, onClose }: { bl: BLData, onClose: () => void }) => {
@@ -763,7 +769,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                 <button onClick={() => setCurrentView('chat')} className={`flex flex-col items-center gap-1 relative ${currentView === 'chat' ? 'text-blue-600' : 'text-slate-400'}`}>
                     <div className="relative">
                         <MessageCircle size={24} strokeWidth={currentView === 'chat' ? 2.5 : 2} />
-                        {hasUnreadMessages && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>}
+                        {hasUnreadMessages && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>}
                     </div>
                     <span className="text-[10px] font-bold">Chat</span>
                 </button>

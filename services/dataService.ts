@@ -343,43 +343,13 @@ export const dataService = {
     }
   },
 
-  markMessageRead: async (messageId: string, userId: string) => {
-      if (!db) return;
-      try {
-          const msgRef = doc(db, "messages", messageId);
-          await updateDoc(msgRef, {
-              readBy: arrayUnion(userId)
-          });
-      } catch(e) {
-          // Ignore, message might have been deleted or user offline
-      }
-  },
-
-  markMessagesAsRead: async (messageIds: string[], userId: string) => {
-      if (!db || messageIds.length === 0) return;
-      const batch = writeBatch(db);
-      // Firestore batch limit is 500, safe limit to 490
-      const idsToMark = messageIds.slice(0, 490);
-      
-      idsToMark.forEach(id => {
-          const ref = doc(db, "messages", id);
-          batch.update(ref, { readBy: arrayUnion(userId) });
-      });
-      
-      try {
-          await batch.commit();
-          console.log(`Marked ${idsToMark.length} messages as read.`);
-      } catch(e) {
-          console.error("Batch mark read failed", e);
-      }
-  },
-
-  // NEW FUNCTION: Aggressively mark channel as read by querying latest messages
+  // Batch mark read logic
   markChannelRead: async (channelId: string, userId: string) => {
       if (!db || !channelId || !userId) return;
       
       try {
-          // Query the last 50 messages of this channel (matching the unread listener limit)
+          // Query recently unread messages in this channel
+          // We limit to 50 recent messages to keep it snappy.
           const q = query(
               collection(db, "messages"), 
               where("channelId", "==", channelId), 
@@ -402,7 +372,7 @@ export const dataService = {
 
           if (updateCount > 0) {
               await batch.commit();
-              console.log(`Aggressively marked ${updateCount} messages as read in channel ${channelId}`);
+              console.log(`Marked ${updateCount} messages read in ${channelId}`);
           }
       } catch (e) {
           console.error("Error marking channel read:", e);
@@ -412,17 +382,14 @@ export const dataService = {
   // Check for ANY unread messages for the Red Dot indicator
   subscribeUnreadStatus: (userId: string, callback: (hasUnread: boolean) => void) => {
       if (!db) return () => {};
-      // Listen to the latest 50 messages globally. If any are NOT read by me and NOT sent by me, flag true.
-      // This is an optimization to avoid reading the entire collection.
+      // Listen to the latest 50 messages globally.
       const q = query(collection(db, "messages"), orderBy("timestamp", "desc"), limit(50));
       return onSnapshot(q, (snapshot) => {
           let hasUnread = false;
           for (const doc of snapshot.docs) {
               const data = doc.data() as ChatMessage;
-              // Must check if message is relevant (Global or My DM)
               const isRelevant = data.channelId === 'global' || data.channelId.includes(userId);
               
-              // Key change: Check unread AND not self
               if (isRelevant && data.senderId !== userId && (!data.readBy || !data.readBy.includes(userId))) {
                   hasUnread = true;
                   break;
@@ -432,9 +399,31 @@ export const dataService = {
       });
   },
 
+  // DETAILED UNREAD MAP: Returns a Set of Channel IDs that have unread messages
+  // This allows putting dots on specific DMs.
+  subscribeUnreadMap: (userId: string, callback: (unreadChannels: Set<string>) => void) => {
+      if (!db) return () => {};
+      
+      const q = query(collection(db, "messages"), orderBy("timestamp", "desc"), limit(100));
+      
+      return onSnapshot(q, (snapshot) => {
+          const unreadSet = new Set<string>();
+          
+          snapshot.docs.forEach(doc => {
+              const data = doc.data() as ChatMessage;
+              const isRelevant = data.channelId === 'global' || data.channelId.includes(userId);
+              
+              if (isRelevant && data.senderId !== userId && (!data.readBy || !data.readBy.includes(userId))) {
+                  unreadSet.add(data.channelId);
+              }
+          });
+          
+          callback(unreadSet);
+      });
+  },
+
   // --- Chat Data Management (Export & Delete) ---
 
-  // Fetch messages within a timeframe for export. 
   getMessagesInTimeRange: async (startDate: number, endDate: number) => {
      if (!db) return [];
      
@@ -456,8 +445,7 @@ export const dataService = {
 
   deleteOldChatMessages: async (beforeDate: number) => {
       if (!db) return 0;
-      // Fetch messages older than date
-      const q = query(collection(db, "messages"), where("timestamp", "<", beforeDate), limit(400)); // Batch limit
+      const q = query(collection(db, "messages"), where("timestamp", "<", beforeDate), limit(400));
       
       const snapshot = await getDocs(q);
       if (snapshot.empty) return 0;
@@ -468,7 +456,7 @@ export const dataService = {
       });
 
       await batch.commit();
-      return snapshot.size; // Return count so caller can loop if needed
+      return snapshot.size;
   },
 
   // --- Typing Indicator ---
@@ -494,41 +482,23 @@ export const dataService = {
       } catch(e) {}
   },
 
-  subscribeTyping: (channelId: string, callback: (typingUsers: string[]) => void) => {
+  subscribeTyping: (channelId: string, callback: (typingUsers: { displayName: string, userId: string }[]) => void) => {
       if (!db) return () => {};
       const q = query(collection(db, "typing"), where("channelId", "==", channelId));
       
-      let rawData: { timestamp: number; displayName: string }[] = [];
-
-      // Function to filter stale users locally (every second)
-      const updateCallback = () => {
+      return onSnapshot(q, (snapshot) => {
           const now = Date.now();
-          // Filter out users who haven't updated in 4 seconds
-          const activeUsers = rawData
-              .filter(d => now - d.timestamp < 4000)
-              .map(d => d.displayName);
+          const active = snapshot.docs
+              .map(d => d.data() as { timestamp: number; displayName: string, userId: string })
+              .filter(d => now - d.timestamp < 5000); // Filter stale > 5s
           
-          callback([...new Set(activeUsers)]);
-      };
-
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-          rawData = snapshot.docs.map(d => d.data() as { timestamp: number; displayName: string });
-          updateCallback();
+          callback(active);
       });
-
-      // Set internal interval to prune stale users even if no DB update happens
-      const intervalId = setInterval(updateCallback, 1000);
-
-      return () => {
-          unsubscribe();
-          clearInterval(intervalId);
-      };
   },
 
   updateUserPresence: async (user: User) => {
     if (!db) return;
     try {
-        // First get existing data to preserve contacts & authorization
         const userRef = doc(db, "users", user.uid);
         const snapshot = await getDoc(userRef);
         const existingData = snapshot.exists() ? snapshot.data() : {};
@@ -540,8 +510,8 @@ export const dataService = {
             photoURL: user.photoURL || '',
             lastSeen: Date.now(),
             status: 'online',
-            contacts: existingData.contacts || [], // Preserve contacts
-            authorized: existingData.authorized || false // Preserve authorization
+            contacts: existingData.contacts || [], 
+            authorized: existingData.authorized || false
         };
         
         await setDoc(userRef, chatUser, { merge: true });
@@ -557,9 +527,7 @@ export const dataService = {
               status: status,
               lastSeen: Date.now()
           });
-      } catch (e) {
-          // Ignore if user doc not found
-      }
+      } catch (e) { }
   },
 
   subscribeChatUsers: (callback: (users: ChatUser[]) => void) => {
@@ -574,7 +542,6 @@ export const dataService = {
   addContactByEmail: async (currentUserUid: string, contactEmail: string) => {
       if (!db) throw new Error("Database not connected");
       
-      // 1. Find the user with this email
       const q = query(collection(db, "users"), where("email", "==", contactEmail));
       const querySnapshot = await getDocs(q);
       
@@ -583,8 +550,6 @@ export const dataService = {
       }
       
       const contactUser = querySnapshot.docs[0].data() as ChatUser;
-      
-      // 2. Add to current user's contact list
       const currentUserRef = doc(db, "users", currentUserUid);
       await updateDoc(currentUserRef, {
           contacts: arrayUnion(contactUser.uid)
@@ -607,25 +572,18 @@ export const dataService = {
             return;
         }
 
-        // REPLACE THIS WITH YOUR ACTUAL VAPID KEY FROM FIREBASE CONSOLE
         const vapidKey = "BGHuWZuil2RC5hdb7ZECk416MgjIhGT-MxRbmjJAcXNGJppfYORP2mAYJ2JU-HCyVPA3FglkVHPDPS1eeeEiQA8"; 
-        
         const currentToken = await getToken(messaging, { vapidKey });
         
         if (currentToken) {
-            console.log("FCM Token obtained:", currentToken);
-            
-            // 1. Save token to Firestore
             const userRef = doc(db, "users", user.uid);
             await updateDoc(userRef, {
                 fcmTokens: arrayUnion(currentToken)
             });
 
-            // 2. Subscribe to Global Chat via Cloud Function (if deployed)
             if (functions) {
                 const subscribeFn = httpsCallable(functions, 'subscribeToGlobalChat');
                 await subscribeFn({ token: currentToken });
-                console.log("Subscribed to global chat topic");
             }
         }
     } catch (e) {
@@ -633,7 +591,7 @@ export const dataService = {
     }
   },
 
-  // --- Access Control / Access Code Strategy ---
+  // --- Access Control ---
   
   checkUserAuthorization: async (uid: string): Promise<boolean> => {
       if (!db) return false;
@@ -646,23 +604,17 @@ export const dataService = {
           }
           return false;
       } catch(e) {
-          console.error("Auth Check Error:", e);
           return false;
       }
   },
 
   verifyAccessCode: async (code: string): Promise<boolean> => {
       if (!db) return false;
-      // Strategy: "Document name is the password"
-      // Attempt to GET the document with ID `code` from `secret_codes` collection.
-      // Firestore Rule: allow get: if request.auth != null; allow list: false;
-      // If doc exists -> Success. If not exists -> Fail.
       try {
           const codeRef = doc(db, "secret_codes", code);
           const snap = await getDoc(codeRef);
           return snap.exists();
       } catch(e) {
-          console.error("Verify Code Error:", e);
           return false;
       }
   },
@@ -673,7 +625,6 @@ export const dataService = {
           const userRef = doc(db, "users", uid);
           await setDoc(userRef, { authorized: true }, { merge: true });
       } catch(e) {
-          console.error("Grant Auth Error:", e);
           throw e;
       }
   }

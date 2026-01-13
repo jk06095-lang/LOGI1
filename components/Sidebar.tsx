@@ -1,9 +1,9 @@
 
-
 import React from 'react';
 import { Anchor, Settings, Ship, ChevronLeft, ChevronRight, Home, FolderOpen, MessageCircle } from 'lucide-react';
 import { ViewState, Language } from '../types';
 import { User } from 'firebase/auth';
+import { dataService } from '../services/dataService';
 
 interface SidebarProps {
   currentView: ViewState;
@@ -56,6 +56,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
     { id: 'vessel-list', label: t.vesselMgmt, icon: Ship },
     { id: 'bl-list', label: t.blMgmt, icon: FolderOpen },
   ];
+
+  const handleChatClick = () => {
+      onToggleChat();
+      // If opening chat, clear global notification immediately
+      if (!isChatOpen && user) {
+          dataService.markChannelRead('global', user.uid);
+      }
+  };
 
   return (
     <div 
@@ -130,7 +138,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
       {/* Message Button Area */}
       <div className="px-2 mb-2">
          <button
-            onClick={onToggleChat}
+            onClick={handleChatClick}
             title={isCollapsed ? t.message : ''}
             className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium relative group ${
                 isChatOpen 
@@ -141,13 +149,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
             <div className="relative">
                 <MessageCircle size={18} className={isChatOpen ? 'fill-current' : ''} />
                 {hasUnreadMessages && (
-                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-800"></span>
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-800 animate-pulse"></span>
                 )}
             </div>
             {!isCollapsed && (
               <div className="flex-1 flex justify-between items-center">
                  <span>{t.message}</span>
-                 {hasUnreadMessages && <span className="w-2 h-2 bg-red-500 rounded-full"></span>}
+                 {hasUnreadMessages && <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
               </div>
             )}
          </button>

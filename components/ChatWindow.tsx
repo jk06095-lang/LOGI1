@@ -19,6 +19,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [inputText, setInputText] = useState('');
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [unreadMap, setUnreadMap] = useState<Set<string>>(new Set()); // Tracks Channel IDs with unread messages
   
   // History
   const [historyDays, setHistoryDays] = useState(3);
@@ -46,8 +47,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
     return null;
   }, [activeTab, selectedUser, currentUser?.uid]);
 
+  const getDmChannelId = (partnerId: string) => {
+      if (!currentUser) return '';
+      return [currentUser.uid, partnerId].sort().join('_');
+  };
+
+  // Subscribe to Unread Map to show dots on DM List
+  useEffect(() => {
+      if (!currentUser) return;
+      const unsub = dataService.subscribeUnreadMap(currentUser.uid, setUnreadMap);
+      return () => unsub();
+  }, [currentUser]);
+
   // FORCE MARK READ ON OPEN / SWITCH
-  // Triggers immediate DB update to clear Sidebar notification
   useEffect(() => {
      if (isOpen && channelId && currentUser) {
          dataService.markChannelRead(channelId, currentUser.uid);
@@ -63,10 +75,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       const unsub = dataService.subscribeChatMessages(channelId, startTime, (newMessages) => {
           setMessages(newMessages);
           
-          // Auto-scroll logic
-          if (historyDays === 3 && scrollRef.current && scrollRef.current.scrollTop === 0) {
+          // Auto-scroll logic: If viewing default history and near top/empty, scroll to bottom
+          if (historyDays === 3 && scrollRef.current) {
              setTimeout(() => {
-                 if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+                 if(scrollRef.current && scrollRef.current.scrollTop < 50) {
+                     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+                 }
              }, 100);
           }
       });
@@ -83,8 +97,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
   // Subscribe to Typing Status
   useEffect(() => {
       if (!isOpen || !channelId || !currentUser) return;
-      const unsub = dataService.subscribeTyping(channelId, (u) => {
-          setTypingUsers(u.filter(name => name !== currentUser.displayName));
+      const unsub = dataService.subscribeTyping(channelId, (list) => {
+          // Filter out self by UID
+          const others = list.filter(u => u.userId !== currentUser.uid).map(u => u.displayName);
+          setTypingUsers(others);
       });
       return () => unsub();
   }, [isOpen, channelId, currentUser?.uid]);
@@ -92,7 +108,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
   // Auto-scroll on tab change
   useEffect(() => {
       if (scrollRef.current) {
-          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+          setTimeout(() => {
+             if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+          }, 50);
       }
       setHistoryDays(3); // Reset history when changing context
   }, [activeTab, selectedUser]);
@@ -264,12 +282,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                         className={`pb-2 text-sm font-bold border-b-2 transition-colors relative ${activeTab === 'global' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                     >
                         Global
+                        {unreadMap.has('global') && <span className="absolute -top-1 -right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
                     </button>
                     <button 
                         onClick={() => setActiveTab('dm')}
                         className={`pb-2 text-sm font-bold border-b-2 transition-colors relative ${activeTab === 'dm' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                     >
                         Direct Messages
+                        {/* Check if any DM channel has unread */}
+                        {Array.from(unreadMap).some(id => id !== 'global') && <span className="absolute -top-1 -right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
                     </button>
                 </div>
              )}
@@ -304,10 +325,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                      
                      <div className="flex justify-center">
                         <button 
-                            onClick={() => setHistoryDays(prev => prev + 3)}
+                            onClick={() => setHistoryDays(prev => prev + 7)} 
                             className="text-xs bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
                         >
-                            <ArrowUpCircle size={12} /> Load More History
+                            <ArrowUpCircle size={12} /> Load More History (7 Days)
                         </button>
                      </div>
 
@@ -357,7 +378,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                                  </div>
                              </div>
                              <span className="text-xs text-slate-400 dark:text-slate-500 self-center">
-                                {typingUsers.join(', ')}님이 메세지 작성 중...
+                                {typingUsers.join(', ')} is typing...
                              </span>
                          </div>
                      )}
@@ -380,6 +401,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                      ) : (
                         <div className="space-y-1">
                             {myFriends.map(user => {
+                                const dmId = getDmChannelId(user.uid);
+                                const hasUnread = unreadMap.has(dmId);
+
                                 return (
                                 <div 
                                     key={user.uid} 
@@ -394,6 +418,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                                             user.status === 'away' ? 'bg-amber-500' : 
                                             user.status === 'offline' ? 'bg-slate-400' : 'bg-emerald-500'
                                         }`}></div>
+                                        
+                                        {/* UNREAD RED DOT ON USER */}
+                                        {hasUnread && (
+                                            <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-900 animate-pulse"></div>
+                                        )}
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-bold text-slate-800 dark:text-white truncate flex items-center gap-2">
