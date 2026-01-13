@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard, BriefingReport } from './components/Dashboard';
@@ -7,6 +8,8 @@ import { Settings } from './components/Settings';
 import { BLManagement } from './components/BLManagement';
 import { ShipmentDetail } from './components/ShipmentDetail';
 import { TabNavigation, Tab } from './components/TabNavigation';
+import { ChatWindow } from './components/ChatWindow'; 
+import { MobileLayout } from './components/MobileLayout'; 
 import { VesselJob, BLData, ViewState, BLChecklist, AppSettings, CargoSourceType, BackgroundTask, NotificationLog } from './types';
 import { parseBLImage } from './services/geminiService';
 import { dataService } from './services/dataService';
@@ -19,11 +22,23 @@ import { AlertCircle, Loader2, X, Ship as ShipIcon, Clock, Archive, CheckCircle,
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [settings, setSettings] = useState<AppSettings>({
-    language: 'ko', theme: 'light', fontSize: 'medium', fontStyle: 'sans', viewMode: 'pc'
+  
+  // Initialize settings with auto-detection for mobile devices
+  const [settings, setSettings] = useState<AppSettings>(() => {
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+    return {
+      language: 'ko', 
+      theme: 'light', 
+      fontSize: 'medium', 
+      fontStyle: 'sans', 
+      viewMode: isMobile ? 'mobile' : 'pc'
+    };
   });
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false); // Chat State
+  const [hasUnreadMessages, setHasUnreadMessages] = useState(false); // Unread Chat State
+
   const [tabs, setTabs] = useState<Tab[]>([{ id: 'dashboard', type: 'dashboard', title: 'Dashboard' }]);
   const [activeTabId, setActiveTabId] = useState('dashboard');
   const [vesselJobs, setVesselJobs] = useState<VesselJob[]>([]);
@@ -61,9 +76,30 @@ const App: React.FC = () => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setAuthLoading(false);
+      
+      // Update User Presence for Chat
+      if (currentUser) {
+          dataService.updateUserPresence(currentUser);
+      }
     });
     return () => unsubscribe();
   }, []);
+
+  // Presence & Status Logic
+  useEffect(() => {
+      if (!user) return;
+
+      const handleVisibilityChange = () => {
+          const status = document.hidden ? 'away' : 'online';
+          dataService.updateUserStatus(user.uid, status);
+      };
+
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      
+      return () => {
+          document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
+  }, [user]);
 
   // Click outside listener for notifications
   useEffect(() => {
@@ -86,8 +122,10 @@ const App: React.FC = () => {
         checkExpiration(data);
     });
     const unsubChecklists = dataService.subscribeChecklists(setChecklists);
+    // Subscribe to unread messages status
+    const unsubUnread = dataService.subscribeUnreadStatus(user.uid, setHasUnreadMessages);
     
-    return () => { unsubJobs(); unsubBLs(); unsubChecklists(); };
+    return () => { unsubJobs(); unsubBLs(); unsubChecklists(); unsubUnread(); };
   }, [user]);
 
   // Check for files older than 3 months
@@ -299,7 +337,7 @@ const App: React.FC = () => {
     addToHistory('Bulk Upload Completed', `Processed ${files.length} files.`, 'success');
 
     // Auto navigate to list if multiple files were uploaded to review them
-    if (files.length > 0) {
+    if (files.length > 0 && settings.viewMode !== 'mobile') {
        handleSidebarNavigation('bl-list');
     }
   };
@@ -404,6 +442,21 @@ const App: React.FC = () => {
   if (authLoading) return <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-slate-400 font-bold tracking-widest uppercase">Initializing LOGI1...</div>;
   if (!user) return <Login />;
 
+  // MOBILE VIEW CHECK - Renders full screen mobile layout without Sidebar
+  if (settings.viewMode === 'mobile') {
+      return (
+          <MobileLayout 
+              user={user}
+              settings={settings}
+              onUpdateSettings={setSettings}
+              onLogout={() => { if (user) signOut(auth); }}
+              bls={blData}
+              jobs={vesselJobs}
+          />
+      );
+  }
+
+  // PC VIEW
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 print:h-auto print:overflow-visible relative">
       <Sidebar 
@@ -413,7 +466,22 @@ const App: React.FC = () => {
         onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)} 
         language={settings.language} 
         user={user} 
+        isChatOpen={isChatOpen}
+        onToggleChat={() => {
+           setIsChatOpen(!isChatOpen);
+           if (!isChatOpen) setHasUnreadMessages(false); // Clear notification on open
+        }}
+        logoUrl={settings.logoUrl}
+        hasUnreadMessages={hasUnreadMessages}
       />
+      
+      {/* Chat Window Component */}
+      <ChatWindow 
+         isOpen={isChatOpen} 
+         onClose={() => setIsChatOpen(false)} 
+         sidebarWidth={isSidebarCollapsed ? 64 : 224} 
+      />
+
       <main className="flex-1 flex flex-col overflow-hidden relative print:overflow-visible print:h-auto print:block">
         <div className="flex justify-between items-end bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 pr-4 print:hidden">
             <TabNavigation tabs={tabs} activeTabId={activeTabId} onTabClick={activateTab} onTabClose={closeTab} />

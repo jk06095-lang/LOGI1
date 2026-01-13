@@ -1,7 +1,5 @@
-
-
 import React, { useRef, useState } from 'react';
-import { Moon, Sun, Monitor, Globe, Type, LogOut, Upload, Image as ImageIcon, X, Database, Download, Trash2, AlertTriangle, CheckCircle, Loader2, Settings as SettingsIcon } from 'lucide-react';
+import { Moon, Sun, Monitor, Globe, Type, LogOut, Upload, Image as ImageIcon, X, Database, Download, Trash2, AlertTriangle, CheckCircle, Loader2, Settings as SettingsIcon, MessageSquare, Calendar } from 'lucide-react';
 import { AppSettings, Language, Theme, FontSize, FontStyle, BLData, VesselJob } from '../types';
 import { User } from 'firebase/auth';
 import { dataService } from '../services/dataService';
@@ -48,7 +46,18 @@ const translations = {
     backupLoading: '다운로드 중... ({current}/{total})',
     deleteConfirm: '정말 만료된 파일을 삭제하시겠습니까? 복구할 수 없습니다.',
     noExpired: '만료된 파일이 없습니다.',
-    backupTip: '선박별로 폴더가 정리되어 다운로드됩니다.'
+    backupTip: '선박별로 폴더가 정리되어 다운로드됩니다.',
+    chatBackupTitle: '채팅 기록 관리',
+    chatBackupDesc: '월별 채팅 기록을 다운로드하거나 오래된 대화를 삭제합니다.',
+    chatRetention: '1년 보관 정책',
+    downloadChat: '채팅 백업',
+    globalChat: '글로벌 채팅 (Global)',
+    dmChat: '내 DM 전체 (All DMs)',
+    selectMonth: '날짜 선택',
+    deleteOldChats: '1년 이상 된 대화 삭제',
+    deleting: '삭제 중...',
+    deleteChatConfirm: '1년 이상 지난 채팅 기록을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.',
+    noChatsFound: '해당 기간의 채팅 기록이 없습니다.'
   },
   en: {
     title: 'Settings',
@@ -79,7 +88,18 @@ const translations = {
     backupLoading: 'Processing... ({current}/{total})',
     deleteConfirm: 'Are you sure? Deleted files cannot be recovered.',
     noExpired: 'No expired files.',
-    backupTip: 'Files will be organized by Vessel Name.'
+    backupTip: 'Files will be organized by Vessel Name.',
+    chatBackupTitle: 'Chat History & Backup',
+    chatBackupDesc: 'Download monthly chat logs or clean up old messages.',
+    chatRetention: '1-Year Retention Policy',
+    downloadChat: 'Download Chat Log',
+    globalChat: 'Global Chat',
+    dmChat: 'My DMs (All)',
+    selectMonth: 'Select Date',
+    deleteOldChats: 'Delete Chats > 1 Year',
+    deleting: 'Deleting...',
+    deleteChatConfirm: 'Delete messages older than 1 year? This cannot be undone.',
+    noChatsFound: 'No chat history found for this period.'
   },
   cn: {
     title: '系统设置',
@@ -110,7 +130,18 @@ const translations = {
     backupLoading: '处理中... ({current}/{total})',
     deleteConfirm: '确定要删除吗？文件删除后无法恢复。',
     noExpired: '无过期文件。',
-    backupTip: '文件将按船名自动分类下载。'
+    backupTip: '文件将按船名自动分类下载。',
+    chatBackupTitle: '聊天记录管理',
+    chatBackupDesc: '下载每月聊天记录或清理旧对话。',
+    chatRetention: '1年保留政策',
+    downloadChat: '下载聊天记录',
+    globalChat: '全局聊天 (Global)',
+    dmChat: '我的私信 (DMs)',
+    selectMonth: '选择日期',
+    deleteOldChats: '删除1年前的对话',
+    deleting: '删除中...',
+    deleteChatConfirm: '确定要删除1年前的聊天记录吗？无法恢复。',
+    noChatsFound: '此时段无聊天记录。'
   }
 };
 
@@ -120,6 +151,12 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdateSettings, 
   const [isZipping, setIsZipping] = useState(false);
   const [zipProgress, setZipProgress] = useState({ current: 0, total: 0 });
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // Chat Export State
+  const [chatExportDate, setChatExportDate] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+  const [chatExportType, setChatExportType] = useState<'global' | 'dm'>('global');
+  const [isChatExporting, setIsChatExporting] = useState(false);
+  const [isChatDeleting, setIsChatDeleting] = useState(false);
 
   // Expiration Logic
   const threeMonthsAgo = new Date();
@@ -183,67 +220,50 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdateSettings, 
          if (!bl.fileUrl) continue;
 
          try {
-           // Direct Fetch using the stored URL.
-           // mode: 'cors' is critical. cache: 'no-store' ensures we don't hit stale browser caches.
            const response = await fetch(bl.fileUrl, { 
              method: 'GET',
              mode: 'cors', 
              cache: 'no-store',
-             headers: {
-               // Hint to server, though Firebase ignores this for public downloads usually
-               'Accept': '*/*'
-             }
+             headers: { 'Accept': '*/*' }
            });
 
            if (!response.ok) throw new Error(`HTTP ${response.status}`);
            
            const blob = await response.blob();
            
-           // Robust Naming: Don't let missing names break the zip
+           // Robust Naming
            let folderName = 'Unassigned';
            if (bl.vesselName && bl.vesselName.trim().length > 0) {
-              // Replace any invalid zip characters
               folderName = bl.vesselName.trim().replace(/[/\\?%*:|"<>]/g, '_');
            }
            
-           // Determine Extension from Blob first (most accurate), then filename
            let ext = 'pdf'; // default
            if (blob.type === 'image/jpeg') ext = 'jpg';
            else if (blob.type === 'image/png') ext = 'png';
            else if (blob.type === 'application/pdf') ext = 'pdf';
            else {
-             // Fallback to filename extension
              const parts = bl.fileName.split('.');
              if (parts.length > 1) ext = parts.pop() || 'dat';
            }
 
-           // Robust File Name
            const safeBLNumber = (bl.blNumber || `Doc_${i}`).trim().replace(/[/\\?%*:|"<>]/g, '_');
            const fileName = `${safeBLNumber}.${ext}`;
            
-           // Save to zip
            zip.folder(folderName)?.file(fileName, blob);
            successCount++;
 
          } catch (e: any) {
            console.error(`Failed to download ${bl.fileName}`, e);
            failCount++;
-           
-           // Log detailed error
            const isCorsError = e.message === 'Failed to fetch' || e.name === 'TypeError';
            const errorMsg = isCorsError ? "CORS Error (Check Firebase Console)" : e.message;
-           
            errorLog.push(`[FAILED] ${bl.blNumber}: ${errorMsg} | URL: ${bl.fileUrl}`);
-           
-           // Add error placeholder to zip
-           const folderName = (bl.vesselName || 'Unassigned').trim().replace(/[/\\?%*:|"<>]/g, '_');
-           zip.folder(folderName)?.file(`${bl.blNumber}_ERROR.txt`, `Download Failed.\nURL: ${bl.fileUrl}\nError: ${errorMsg}\n\nNote: 'Failed to fetch' usually means the Firebase Storage bucket is blocking downloads via ZIP. Please configure CORS in Google Cloud Console.`);
          }
       }
 
       if (failCount > 0) {
         zip.file("error_log.txt", errorLog.join("\n"));
-        alert(`${successCount}개의 파일 백업 성공.\n${failCount}개의 파일 다운로드 실패 (상세 내용은 zip 파일 내 error_log.txt 확인).\n\nNOTE: 다운로드 실패시 Firebase CORS 설정이 필요할 수 있습니다.`);
+        alert(`${successCount} files success.\n${failCount} files failed (Check error_log.txt).`);
       }
 
       const content = await zip.generateAsync({ type: "blob" });
@@ -252,7 +272,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdateSettings, 
 
     } catch (error) {
       console.error("Backup failed", error);
-      alert("백업 생성 중 치명적 오류가 발생했습니다.");
+      alert("Error creating backup.");
     } finally {
       setIsZipping(false);
       setZipProgress({ current: 0, total: 0 });
@@ -278,6 +298,94 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdateSettings, 
     }
   };
 
+  const handleChatExport = async () => {
+      if (!user) return;
+      setIsChatExporting(true);
+      
+      const [year, month] = chatExportDate.split('-').map(Number);
+      const start = new Date(year, month - 1, 1).getTime();
+      const end = new Date(year, month, 0, 23, 59, 59).getTime();
+
+      try {
+          const messages = await dataService.getMessagesInTimeRange(start, end);
+          
+          // Filter based on type
+          const filtered = messages.filter(msg => {
+              if (chatExportType === 'global') return msg.channelId === 'global';
+              // For DM: Include if I am sender OR I am a participant (in channelId or readBy, but robust check is tough)
+              // Assumption: DM Channel ID format is uid1_uid2 (sorted). 
+              // Security: We filter client side.
+              if (msg.channelId === 'global') return false;
+              const participants = msg.channelId.split('_');
+              return participants.includes(user.uid);
+          });
+
+          if (filtered.length === 0) {
+              alert(t.noChatsFound);
+              setIsChatExporting(false);
+              return;
+          }
+
+          if (chatExportType === 'global') {
+              // Simple JSON download
+              const blob = new Blob([JSON.stringify(filtered, null, 2)], {type: "application/json"});
+              saveAs(blob, `Global_Chat_${chatExportDate}.json`);
+          } else {
+              // Group by Chat Partner for DMs and ZIP
+              const zip = new JSZip();
+              const groups: Record<string, typeof filtered> = {};
+              
+              filtered.forEach(msg => {
+                  let partnerId = 'unknown';
+                  const parts = msg.channelId.split('_');
+                  if (parts.length === 2) {
+                      partnerId = parts[0] === user.uid ? parts[1] : parts[0];
+                  }
+                  if (!groups[partnerId]) groups[partnerId] = [];
+                  groups[partnerId].push(msg);
+              });
+
+              Object.keys(groups).forEach(partnerId => {
+                 zip.file(`DM_${partnerId}.json`, JSON.stringify(groups[partnerId], null, 2));
+              });
+
+              const content = await zip.generateAsync({ type: "blob" });
+              saveAs(content, `My_DMs_${chatExportDate}.zip`);
+          }
+
+      } catch (e) {
+          console.error("Chat Export Error", e);
+          alert("Failed to export chat history.");
+      } finally {
+          setIsChatExporting(false);
+      }
+  };
+
+  const handleDeleteOldChats = async () => {
+      if (window.confirm(t.deleteChatConfirm)) {
+          setIsChatDeleting(true);
+          try {
+              const oneYearAgo = new Date();
+              oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+              
+              // Recursive deletion via service logic is implicit, here we call service
+              let deletedCount = 0;
+              let batchCount = 0;
+              do {
+                  batchCount = await dataService.deleteOldChatMessages(oneYearAgo.getTime());
+                  deletedCount += batchCount;
+              } while (batchCount >= 400); // 400 matches batch limit in service
+
+              alert(`Deleted ${deletedCount} old messages.`);
+          } catch(e) {
+              console.error(e);
+              alert("Error deleting messages.");
+          } finally {
+              setIsChatDeleting(false);
+          }
+      }
+  };
+
   return (
     <div className="h-full overflow-y-auto custom-scrollbar p-8 animate-fade-in dark:text-slate-200">
       <div className="max-w-7xl mx-auto">
@@ -292,16 +400,6 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdateSettings, 
           </div>
           
           <div className="flex items-center gap-4">
-            <div className="text-right">
-              <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{user?.email || 'operator@logi1.com'}</p>
-              <div className="flex items-center justify-end gap-2 mt-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                <span className="text-xs text-emerald-600 dark:text-emerald-400 font-bold tracking-wide">{t.syncActive}</span>
-              </div>
-            </div>
-            
-            <span className="text-[10px] text-slate-400 font-mono">alpha 0.0.3</span>
-            
             <button 
               onClick={handleLogout}
               className="flex items-center gap-2 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-200 transition-colors"
@@ -314,74 +412,6 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdateSettings, 
 
         <div className="space-y-6">
           
-          {/* Data Management Section (NEW) */}
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm relative overflow-hidden">
-             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 dark:bg-blue-900/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl"></div>
-             
-             <div className="flex items-center gap-3 mb-6 relative z-10">
-                <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg">
-                  <Database size={20} />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-bold text-slate-800 dark:text-white">
-                    {t.dataTitle}
-                  </h3>
-                  <p className="text-xs text-slate-400">{t.dataDesc}</p>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
-               {/* Status Visualization */}
-               <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-lg border border-slate-100 dark:border-slate-600">
-                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">{t.retentionPolicy}</h4>
-                  
-                  <div className="flex items-center gap-2 mb-2">
-                     <div className="w-full h-3 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden flex">
-                        <div style={{ width: `${(activeFiles.length / bls.length) * 100}%` }} className="bg-emerald-500 h-full"></div>
-                        <div style={{ width: `${(expiredFiles.length / bls.length) * 100}%` }} className="bg-red-500 h-full"></div>
-                     </div>
-                  </div>
-                  
-                  <div className="flex justify-between text-xs mt-3">
-                     <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
-                        <CheckCircle size={12} />
-                        {t.safeCount.replace('{count}', activeFiles.length.toString())}
-                     </div>
-                     <div className="flex items-center gap-1.5 text-red-500 font-bold">
-                        <AlertTriangle size={12} />
-                        {t.expiredCount.replace('{count}', expiredFiles.length.toString())}
-                     </div>
-                  </div>
-               </div>
-
-               {/* Actions */}
-               <div className="flex flex-col gap-3 justify-center">
-                  <button 
-                    onClick={handleBackup}
-                    disabled={isZipping || bls.length === 0}
-                    className="flex items-center justify-center gap-2 w-full py-3 bg-blue-600 text-white rounded-lg font-bold shadow-md hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                     {isZipping ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
-                     {isZipping 
-                       ? t.backupLoading.replace('{current}', zipProgress.current.toString()).replace('{total}', zipProgress.total.toString()) 
-                       : t.backupBtn}
-                  </button>
-                  <p className="text-[10px] text-center text-slate-400">{t.backupTip}</p>
-
-                  {expiredFiles.length > 0 && (
-                    <button 
-                      onClick={handleCleanup}
-                      disabled={isDeleting}
-                      className="flex items-center justify-center gap-2 w-full py-3 border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg font-bold hover:bg-red-100 dark:hover:bg-red-900/40 transition-all mt-1"
-                    >
-                      {isDeleting ? <Loader2 className="animate-spin" size={18} /> : <Trash2 size={18} />}
-                      {t.deleteBtn}
-                    </button>
-                  )}
-               </div>
-            </div>
-          </div>
-
           {/* Company Logo Section */}
           <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
             <div className="flex items-center gap-3 mb-4">
@@ -574,6 +604,140 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdateSettings, 
                   <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
                 </div>
               </div>
+            </div>
+          </div>
+          
+          {/* Chat Backup Section (Moved to Bottom) */}
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+             <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg">
+                  <MessageSquare size={20} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-slate-800 dark:text-white">
+                    {t.chatBackupTitle}
+                  </h3>
+                  <p className="text-xs text-slate-400">{t.chatBackupDesc}</p>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+                 <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-lg border border-slate-100 dark:border-slate-600">
+                     <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                         <Download size={12}/> {t.downloadChat}
+                     </h4>
+                     <div className="flex flex-col gap-3">
+                         <div className="flex gap-2">
+                             <input 
+                                type="month" 
+                                value={chatExportDate}
+                                onChange={(e) => setChatExportDate(e.target.value)}
+                                className="flex-1 px-3 py-2 bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 rounded-lg text-sm font-medium"
+                             />
+                             <select 
+                                value={chatExportType}
+                                onChange={(e) => setChatExportType(e.target.value as 'global' | 'dm')}
+                                className="flex-1 px-3 py-2 bg-white dark:bg-slate-600 border border-slate-200 dark:border-slate-500 rounded-lg text-sm font-medium"
+                             >
+                                 <option value="global">{t.globalChat}</option>
+                                 <option value="dm">{t.dmChat}</option>
+                             </select>
+                         </div>
+                         <button 
+                             onClick={handleChatExport}
+                             disabled={isChatExporting}
+                             className="w-full py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
+                         >
+                             {isChatExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                             {t.downloadChat}
+                         </button>
+                     </div>
+                 </div>
+
+                 <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-lg border border-slate-100 dark:border-slate-600">
+                     <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                         <Calendar size={12}/> {t.chatRetention}
+                     </h4>
+                     <p className="text-xs text-slate-400 mb-4">
+                         Chat messages older than 1 year can be permanently deleted to save space and maintain privacy.
+                     </p>
+                     <button 
+                         onClick={handleDeleteOldChats}
+                         disabled={isChatDeleting}
+                         className="w-full py-2 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-300 border border-red-200 dark:border-red-800 rounded-lg font-bold hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors flex items-center justify-center gap-2"
+                     >
+                         {isChatDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                         {isChatDeleting ? t.deleting : t.deleteOldChats}
+                     </button>
+                 </div>
+            </div>
+          </div>
+          
+          {/* Data Management Section (Moved to Bottom) */}
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm relative overflow-hidden">
+             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 dark:bg-blue-900/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl"></div>
+             
+             <div className="flex items-center gap-3 mb-6 relative z-10">
+                <div className="p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg">
+                  <Database size={20} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-slate-800 dark:text-white">
+                    {t.dataTitle}
+                  </h3>
+                  <p className="text-xs text-slate-400">{t.dataDesc}</p>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+               {/* Status Visualization */}
+               <div className="bg-slate-50 dark:bg-slate-700/50 p-4 rounded-lg border border-slate-100 dark:border-slate-600">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">{t.retentionPolicy}</h4>
+                  
+                  <div className="flex items-center gap-2 mb-2">
+                     <div className="w-full h-3 bg-slate-200 dark:bg-slate-600 rounded-full overflow-hidden flex">
+                        <div style={{ width: `${(activeFiles.length / Math.max(1, bls.length)) * 100}%` }} className="bg-emerald-500 h-full"></div>
+                        <div style={{ width: `${(expiredFiles.length / Math.max(1, bls.length)) * 100}%` }} className="bg-red-500 h-full"></div>
+                     </div>
+                  </div>
+                  
+                  <div className="flex justify-between text-xs mt-3">
+                     <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
+                        <CheckCircle size={12} />
+                        {t.safeCount.replace('{count}', activeFiles.length.toString())}
+                     </div>
+                     <div className="flex items-center gap-1.5 text-red-500 font-bold">
+                        <AlertTriangle size={12} />
+                        {t.expiredCount.replace('{count}', expiredFiles.length.toString())}
+                     </div>
+                  </div>
+               </div>
+
+               {/* Actions */}
+               <div className="flex flex-col gap-3 justify-center">
+                  <button 
+                    onClick={handleBackup}
+                    disabled={isZipping || bls.length === 0}
+                    className="flex items-center justify-center gap-2 w-full py-3 bg-blue-600 text-white rounded-lg font-bold shadow-md hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                     {isZipping ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
+                     {isZipping 
+                       ? t.backupLoading.replace('{current}', zipProgress.current.toString()).replace('{total}', zipProgress.total.toString()) 
+                       : t.backupBtn}
+                  </button>
+                  <p className="text-[10px] text-center text-slate-400">{t.backupTip}</p>
+
+                  {expiredFiles.length > 0 && (
+                    <button 
+                      onClick={handleCleanup}
+                      disabled={isDeleting}
+                      className="flex items-center justify-center gap-2 w-full py-3 border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg font-bold hover:bg-red-100 dark:hover:bg-red-900/40 transition-all mt-1"
+                    >
+                      {isDeleting ? <Loader2 className="animate-spin" size={18} /> : <Trash2 size={18} />}
+                      {t.deleteBtn}
+                    </button>
+                  )}
+               </div>
             </div>
           </div>
 

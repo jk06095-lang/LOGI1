@@ -207,3 +207,25 @@ export interface AppSettings {
   viewMode: 'mobile' | 'pc';
   logoUrl?: string; // Custom Company Logo
 }
+
+// Chat Types
+export interface ChatMessage {
+  id: string;
+  text: string;
+  senderId: string;
+  senderName: string;
+  senderPhoto?: string;
+  timestamp: number;
+  channelId: string; // 'global' or 'uidA_uidB'
+  readBy: string[]; // List of user IDs who have read the message
+  pending?: boolean; // Optimistic UI state
+}
+
+export interface ChatUser {
+  uid: string;
+  displayName: string;
+  email: string;
+  photoURL?: string;
+  lastSeen: number;
+  status: 'online' | 'offline' | 'away';
+}

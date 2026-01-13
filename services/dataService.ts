@@ -1,8 +1,6 @@
-
-
 import { db } from "../lib/firebase";
-import { collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy, setDoc, deleteDoc, writeBatch, getDoc, arrayUnion, arrayRemove, runTransaction } from "firebase/firestore";
-import { VesselJob, BLData, BLChecklist, ResourceLock } from "../types";
+import { collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy, setDoc, deleteDoc, writeBatch, getDoc, arrayUnion, arrayRemove, runTransaction, where, limit, getDocs, Timestamp } from "firebase/firestore";
+import { VesselJob, BLData, BLChecklist, ResourceLock, ChatMessage, ChatUser } from "../types";
 import { User } from "firebase/auth";
 
 // State Containers (In-Memory Cache)
@@ -303,6 +301,187 @@ export const dataService = {
       // Just update timestamp to show liveliness
       await updateDoc(doc(db, "locks", lockId), {
           timestamp: Date.now()
+      });
+  },
+
+  // --- Chat Methods ---
+  
+  subscribeChatMessages: (channelId: string, callback: (messages: ChatMessage[]) => void) => {
+    if (!db) return () => {};
+    
+    // MODIFIED: Removed orderBy and limit to avoid needing a Firestore composite index for 'channelId' + 'timestamp'.
+    // This allows the query to work immediately for real-time updates.
+    const q = query(
+        collection(db, "messages"), 
+        where("channelId", "==", channelId)
+    );
+    
+    return onSnapshot(q, (snapshot) => {
+        const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage));
+        // Sort in client memory: Oldest first (Ascending timestamp)
+        msgs.sort((a, b) => a.timestamp - b.timestamp);
+        callback(msgs);
+    }, (error) => {
+        console.error("Chat Subscribe Error:", error);
+    });
+  },
+
+  sendChatMessage: async (message: Omit<ChatMessage, 'id'>) => {
+    if (!db) return;
+    try {
+        // Initialize readBy with sender so they don't see it as unread
+        const msgWithRead = { ...message, readBy: [message.senderId] };
+        await addDoc(collection(db, "messages"), msgWithRead);
+    } catch (e) {
+        console.error("Send Message Error:", e);
+    }
+  },
+
+  markMessageRead: async (messageId: string, userId: string) => {
+      if (!db) return;
+      try {
+          const msgRef = doc(db, "messages", messageId);
+          await updateDoc(msgRef, {
+              readBy: arrayUnion(userId)
+          });
+      } catch(e) {
+          // Ignore, message might have been deleted or user offline
+      }
+  },
+
+  // Track global unread status for the current user
+  subscribeUnreadStatus: (userId: string, callback: (hasUnread: boolean) => void) => {
+      if (!db) return () => {};
+      // Optimization: Limit to latest 30 messages globally to check for unread.
+      const q = query(collection(db, "messages"), orderBy("timestamp", "desc"), limit(30));
+      return onSnapshot(q, (snapshot) => {
+          let hasUnread = false;
+          for (const doc of snapshot.docs) {
+              const data = doc.data() as ChatMessage;
+              // If I am NOT the sender, AND my ID is NOT in readBy list
+              if (data.senderId !== userId && (!data.readBy || !data.readBy.includes(userId))) {
+                  hasUnread = true;
+                  break;
+              }
+          }
+          callback(hasUnread);
+      });
+  },
+
+  // --- Chat Data Management (Export & Delete) ---
+
+  // Fetch messages within a timeframe for export. 
+  // If channelId is provided, fetches specific channel. If null, fetches 'all' (subject to client filter).
+  getMessagesInTimeRange: async (startDate: number, endDate: number) => {
+     if (!db) return [];
+     
+     // Note: Firestore requires a composite index for 'timestamp' if we filter by other fields.
+     // To keep it simple without managing indexes, we query by timestamp and filter client-side.
+     const q = query(
+         collection(db, "messages"),
+         where("timestamp", ">=", startDate),
+         where("timestamp", "<=", endDate),
+         orderBy("timestamp", "asc")
+     );
+
+     try {
+         const snapshot = await getDocs(q);
+         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage));
+     } catch (e) {
+         console.error("Export Messages Error:", e);
+         throw e;
+     }
+  },
+
+  deleteOldChatMessages: async (beforeDate: number) => {
+      if (!db) return 0;
+      // Fetch messages older than date
+      const q = query(collection(db, "messages"), where("timestamp", "<", beforeDate), limit(400)); // Batch limit
+      
+      const snapshot = await getDocs(q);
+      if (snapshot.empty) return 0;
+
+      const batch = writeBatch(db);
+      snapshot.docs.forEach(doc => {
+          batch.delete(doc.ref);
+      });
+
+      await batch.commit();
+      return snapshot.size; // Return count so caller can loop if needed
+  },
+
+  // --- Typing Indicator ---
+  
+  sendTypingStatus: async (channelId: string, user: { uid: string, displayName: string }) => {
+      if (!db) return;
+      const id = `${channelId}_${user.uid}`;
+      try {
+          await setDoc(doc(db, "typing", id), {
+              channelId,
+              userId: user.uid,
+              displayName: user.displayName,
+              timestamp: Date.now()
+          });
+      } catch(e) {}
+  },
+
+  clearTypingStatus: async (channelId: string, userId: string) => {
+      if (!db) return;
+      const id = `${channelId}_${userId}`;
+      try {
+          await deleteDoc(doc(db, "typing", id));
+      } catch(e) {}
+  },
+
+  subscribeTyping: (channelId: string, callback: (typingUsers: string[]) => void) => {
+      if (!db) return () => {};
+      const q = query(collection(db, "typing"), where("channelId", "==", channelId));
+      return onSnapshot(q, (snapshot) => {
+          const now = Date.now();
+          const users = snapshot.docs
+              .map(d => d.data() as { timestamp: number; displayName: string })
+              // Filter out stale typing status (older than 3 seconds)
+              .filter(d => now - d.timestamp < 3000)
+              .map(d => d.displayName);
+          callback([...new Set(users)] as string[]);
+      });
+  },
+
+  updateUserPresence: async (user: User) => {
+    if (!db) return;
+    const chatUser: ChatUser = {
+        uid: user.uid,
+        displayName: user.displayName || 'User',
+        email: user.email || '',
+        photoURL: user.photoURL || '',
+        lastSeen: Date.now(),
+        status: 'online'
+    };
+    try {
+        await setDoc(doc(db, "users", user.uid), chatUser, { merge: true });
+    } catch (e) {
+        console.error("Presence Update Error:", e);
+    }
+  },
+
+  updateUserStatus: async (uid: string, status: 'online' | 'offline' | 'away') => {
+      if (!db) return;
+      try {
+          await updateDoc(doc(db, "users", uid), {
+              status: status,
+              lastSeen: Date.now()
+          });
+      } catch (e) {
+          // Ignore if user doc not found
+      }
+  },
+
+  subscribeChatUsers: (callback: (users: ChatUser[]) => void) => {
+      if (!db) return () => {};
+      const q = query(collection(db, "users"), orderBy("lastSeen", "desc"), limit(50));
+      return onSnapshot(q, (snapshot) => {
+          const users = snapshot.docs.map(doc => doc.data() as ChatUser);
+          callback(users);
       });
   }
 };

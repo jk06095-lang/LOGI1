@@ -1,5 +1,8 @@
+
+
+
 import React from 'react';
-import { Anchor, Settings, Ship, ChevronLeft, ChevronRight, Home, FolderOpen } from 'lucide-react';
+import { Anchor, Settings, Ship, ChevronLeft, ChevronRight, Home, FolderOpen, MessageCircle } from 'lucide-react';
 import { ViewState, Language } from '../types';
 import { User } from 'firebase/auth';
 
@@ -11,6 +14,9 @@ interface SidebarProps {
   language: Language;
   user?: User | null;
   logoUrl?: string;
+  isChatOpen: boolean;
+  onToggleChat: () => void;
+  hasUnreadMessages?: boolean;
 }
 
 const translations = {
@@ -20,7 +26,8 @@ const translations = {
     blMgmt: '화물 관리', // Unify with Title
     settings: '환경 설정',
     role: '운영자',
-    menu: '메인 메뉴'
+    menu: '메인 메뉴',
+    message: '메시지'
   },
   en: {
     dashboard: 'Dashboard',
@@ -28,7 +35,8 @@ const translations = {
     blMgmt: 'Cargo Mgmt',
     settings: 'Settings',
     role: 'Operator',
-    menu: 'Main Menu'
+    menu: 'Main Menu',
+    message: 'Messages'
   },
   cn: {
     dashboard: '工作台',
@@ -36,11 +44,12 @@ const translations = {
     blMgmt: '货物管理',
     settings: '系统设置',
     role: '操作员',
-    menu: '主菜单'
+    menu: '主菜单',
+    message: '消息'
   }
 };
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCollapsed, onToggleCollapse, language, user, logoUrl }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCollapsed, onToggleCollapse, language, user, logoUrl, isChatOpen, onToggleChat, hasUnreadMessages }) => {
   const t = translations[language];
 
   const menuItems = [
@@ -118,6 +127,35 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
           {!isCollapsed && <span>{t.settings}</span>}
         </button>
       </nav>
+
+      {/* Message Button Area */}
+      <div className="px-2 mb-2">
+         <button
+            onClick={onToggleChat}
+            title={isCollapsed ? t.message : ''}
+            className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium relative ${
+                isChatOpen 
+                ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 shadow-sm' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 hover:text-indigo-600 dark:hover:text-indigo-300'
+            }`}
+         >
+            <div className="relative">
+                <MessageCircle size={18} className={isChatOpen ? 'fill-current' : ''} />
+                {hasUnreadMessages && (
+                  <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 border border-white dark:border-slate-900"></span>
+                  </span>
+                )}
+            </div>
+            {!isCollapsed && (
+              <div className="flex-1 flex justify-between items-center">
+                 <span>{t.message}</span>
+                 {hasUnreadMessages && <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>}
+              </div>
+            )}
+         </button>
+      </div>
 
       <div className="p-4 border-t border-slate-100 dark:border-slate-800">
         <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-1`}>
