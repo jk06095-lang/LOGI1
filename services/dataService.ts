@@ -349,16 +349,14 @@ export const dataService = {
       }
   },
 
-  // Track global unread status for the current user
+  // Track global unread status for the current user (boolean only)
   subscribeUnreadStatus: (userId: string, callback: (hasUnread: boolean) => void) => {
       if (!db) return () => {};
-      // Optimization: Limit to latest 30 messages globally to check for unread.
       const q = query(collection(db, "messages"), orderBy("timestamp", "desc"), limit(30));
       return onSnapshot(q, (snapshot) => {
           let hasUnread = false;
           for (const doc of snapshot.docs) {
               const data = doc.data() as ChatMessage;
-              // If I am NOT the sender, AND my ID is NOT in readBy list
               if (data.senderId !== userId && (!data.readBy || !data.readBy.includes(userId))) {
                   hasUnread = true;
                   break;
@@ -368,10 +366,27 @@ export const dataService = {
       });
   },
 
+  // Track specific unread channels for the current user
+  subscribeUnreadChannels: (userId: string, callback: (channelIds: string[]) => void) => {
+      if (!db) return () => {};
+      // Optimization: Limit to latest 50 messages to check for badges
+      const q = query(collection(db, "messages"), orderBy("timestamp", "desc"), limit(50));
+      return onSnapshot(q, (snapshot) => {
+          const unreadChannelSet = new Set<string>();
+          for (const doc of snapshot.docs) {
+              const data = doc.data() as ChatMessage;
+              // If I am NOT the sender, AND my ID is NOT in readBy list
+              if (data.senderId !== userId && (!data.readBy || !data.readBy.includes(userId))) {
+                  unreadChannelSet.add(data.channelId);
+              }
+          }
+          callback(Array.from(unreadChannelSet));
+      });
+  },
+
   // --- Chat Data Management (Export & Delete) ---
 
   // Fetch messages within a timeframe for export. 
-  // If channelId is provided, fetches specific channel. If null, fetches 'all' (subject to client filter).
   getMessagesInTimeRange: async (startDate: number, endDate: number) => {
      if (!db) return [];
      

@@ -18,6 +18,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [inputText, setInputText] = useState('');
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [unreadChannels, setUnreadChannels] = useState<string[]>([]);
+  
   const scrollRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<any>(null);
 
@@ -65,6 +67,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       return () => unsub();
   }, [isOpen]);
 
+  // Subscribe to Unread Channels (for Red Dot)
+  useEffect(() => {
+      if (!isOpen || !currentUser) return;
+      const unsub = dataService.subscribeUnreadChannels(currentUser.uid, setUnreadChannels);
+      return () => unsub();
+  }, [isOpen, currentUser?.uid]);
+
   // Subscribe to Typing Status
   useEffect(() => {
       if (!isOpen || !channelId || !currentUser) return;
@@ -95,6 +104,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       // Send Typing Heartbeat
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       
+      dataService.sendTypingStatus(channelId, { 
+          uid: currentUser.uid, 
+          displayName: currentUser.displayName || 'User' 
+      });
+  };
+
+  const handleInputFocus = () => {
+      if (!currentUser || !channelId) return;
+      // Trigger typing status immediately on focus
       dataService.sendTypingStatus(channelId, { 
           uid: currentUser.uid, 
           displayName: currentUser.displayName || 'User' 
@@ -159,6 +177,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       const chatName = activeTab === 'global' ? 'Global_Chat' : `DM_${selectedUser?.displayName || 'Unknown'}`;
       const blob = new Blob([JSON.stringify(messages, null, 2)], {type: "application/json"});
       saveAs(blob, `${chatName}_Log_${new Date().toISOString().slice(0, 10)}.json`);
+  };
+
+  // Check if a user has unread messages
+  const hasUnread = (targetUid: string) => {
+      if (!currentUser) return false;
+      const dmChannelId = [currentUser.uid, targetUid].sort().join('_');
+      return unreadChannels.includes(dmChannelId);
   };
 
   return (
@@ -307,6 +332,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                                      user.status === 'away' ? 'bg-amber-500' : 
                                      user.status === 'offline' ? 'bg-slate-400' : 'bg-emerald-500'
                                  }`}></div>
+                                 
+                                 {/* Unread Indicator */}
+                                 {hasUnread(user.uid) && (
+                                     <div className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border-2 border-white dark:border-slate-800 animate-pulse"></div>
+                                 )}
                              </div>
                              <div className="flex-1 min-w-0">
                                  <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{user.displayName}</p>
@@ -327,6 +357,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                         type="text" 
                         value={inputText}
                         onChange={handleInputChange}
+                        onFocus={handleInputFocus}
                         onBlur={handleInputBlur}
                         placeholder={`Message ${activeTab === 'global' ? '#global' : selectedUser?.displayName}...`}
                         className="flex-1 bg-slate-100 dark:bg-slate-700 border-none rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none dark:text-white transition-all"

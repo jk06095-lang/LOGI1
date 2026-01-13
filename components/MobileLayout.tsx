@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { BLData, VesselJob, AppSettings, ChatMessage, ChatUser, CargoSourceType } from '../types';
 import { 
@@ -82,6 +81,10 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
 
   const categoryList = useMemo(() => ['ALL', ...categories], [categories]);
 
+  // Determine if bottom navigation should be hidden (when in a chat room)
+  // This prevents layout gap issues when keyboard opens in mobile chat
+  const shouldHideBottomNav = activeTab === 'chat' && chatView === 'room';
+
   return (
     <div className="flex flex-col h-[100dvh] bg-slate-50 text-slate-900 font-sans overflow-hidden">
         {/* Header */}
@@ -104,7 +107,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
         </div>
 
         {/* Main Content Area */}
-        <div className="flex-1 overflow-hidden relative w-full">
+        <div className="flex-1 overflow-hidden relative w-full flex flex-col">
             
             {/* HOME TAB */}
             {activeTab === 'home' && (
@@ -281,37 +284,39 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
             )}
         </div>
 
-        {/* Bottom Navigation */}
-        <div className="min-h-[4rem] bg-white border-t border-slate-200 flex items-center justify-around pb-[env(safe-area-inset-bottom)] z-30 flex-shrink-0">
-            <button 
-                onClick={() => setActiveTab('home')}
-                className={`flex flex-col items-center gap-1 p-2 w-16 ${activeTab === 'home' ? 'text-blue-600' : 'text-slate-400'}`}
-            >
-                <Home size={22} strokeWidth={activeTab === 'home' ? 2.5 : 2} />
-                <span className="text-[10px] font-bold">Home</span>
-            </button>
-            <button 
-                onClick={() => setActiveTab('docs')}
-                className={`flex flex-col items-center gap-1 p-2 w-16 ${activeTab === 'docs' ? 'text-blue-600' : 'text-slate-400'}`}
-            >
-                <Grid size={22} strokeWidth={activeTab === 'docs' ? 2.5 : 2} />
-                <span className="text-[10px] font-bold">Docs</span>
-            </button>
-            <button 
-                onClick={() => setActiveTab('chat')}
-                className={`flex flex-col items-center gap-1 p-2 w-16 ${activeTab === 'chat' ? 'text-blue-600' : 'text-slate-400'}`}
-            >
-                <MessageCircle size={22} strokeWidth={activeTab === 'chat' ? 2.5 : 2} />
-                <span className="text-[10px] font-bold">Chat</span>
-            </button>
-            <button 
-                onClick={() => setActiveTab('menu')}
-                className={`flex flex-col items-center gap-1 p-2 w-16 ${activeTab === 'menu' ? 'text-blue-600' : 'text-slate-400'}`}
-            >
-                <Settings size={22} strokeWidth={activeTab === 'menu' ? 2.5 : 2} />
-                <span className="text-[10px] font-bold">Menu</span>
-            </button>
-        </div>
+        {/* Bottom Navigation - Hidden when inside a specific Chat Room to avoid keyboard gaps */}
+        {!shouldHideBottomNav && (
+            <div className="min-h-[4rem] bg-white border-t border-slate-200 flex items-center justify-around pb-[env(safe-area-inset-bottom)] z-30 flex-shrink-0">
+                <button 
+                    onClick={() => setActiveTab('home')}
+                    className={`flex flex-col items-center gap-1 p-2 w-16 ${activeTab === 'home' ? 'text-blue-600' : 'text-slate-400'}`}
+                >
+                    <Home size={22} strokeWidth={activeTab === 'home' ? 2.5 : 2} />
+                    <span className="text-[10px] font-bold">Home</span>
+                </button>
+                <button 
+                    onClick={() => setActiveTab('docs')}
+                    className={`flex flex-col items-center gap-1 p-2 w-16 ${activeTab === 'docs' ? 'text-blue-600' : 'text-slate-400'}`}
+                >
+                    <Grid size={22} strokeWidth={activeTab === 'docs' ? 2.5 : 2} />
+                    <span className="text-[10px] font-bold">Docs</span>
+                </button>
+                <button 
+                    onClick={() => setActiveTab('chat')}
+                    className={`flex flex-col items-center gap-1 p-2 w-16 ${activeTab === 'chat' ? 'text-blue-600' : 'text-slate-400'}`}
+                >
+                    <MessageCircle size={22} strokeWidth={activeTab === 'chat' ? 2.5 : 2} />
+                    <span className="text-[10px] font-bold">Chat</span>
+                </button>
+                <button 
+                    onClick={() => setActiveTab('menu')}
+                    className={`flex flex-col items-center gap-1 p-2 w-16 ${activeTab === 'menu' ? 'text-blue-600' : 'text-slate-400'}`}
+                >
+                    <Settings size={22} strokeWidth={activeTab === 'menu' ? 2.5 : 2} />
+                    <span className="text-[10px] font-bold">Menu</span>
+                </button>
+            </div>
+        )}
 
         {/* Document Detail Overlay (Read Only) */}
         {selectedDoc && (
@@ -402,7 +407,10 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [inputText, setInputText] = useState('');
     const [users, setUsers] = useState<ChatUser[]>([]);
+    const [typingUsers, setTypingUsers] = useState<string[]>([]);
+    const [unreadChannels, setUnreadChannels] = useState<string[]>([]);
     const scrollRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null); // Ref for input focus
 
     // Subscribe Users
     useEffect(() => {
@@ -410,22 +418,70 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
         return () => unsub();
     }, []);
 
-    // Subscribe Messages
+    // Subscribe Unread Channels
+    useEffect(() => {
+        if (!user) return;
+        const unsub = dataService.subscribeUnreadChannels(user.uid, setUnreadChannels);
+        return () => unsub();
+    }, [user?.uid]);
+
+    // Subscribe Messages & Typing
     useEffect(() => {
         if (view !== 'room' || !activeChannel.id) return;
-        const unsub = dataService.subscribeChatMessages(activeChannel.id, setMessages);
-        return () => unsub();
-    }, [view, activeChannel.id]);
+        
+        const unsubMsg = dataService.subscribeChatMessages(activeChannel.id, setMessages);
+        
+        // Typing Subscription
+        const unsubTyping = dataService.subscribeTyping(activeChannel.id, (u) => {
+            if (user) {
+                setTypingUsers(u.filter(name => name !== user.displayName));
+            }
+        });
+
+        return () => { unsubMsg(); unsubTyping(); };
+    }, [view, activeChannel.id, user?.displayName]);
 
     // Auto Scroll
     useEffect(() => {
         if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }, [messages, view]);
+    }, [messages, view, typingUsers]);
+
+    const handleInputFocus = () => {
+        if (!user || !activeChannel.id) return;
+        dataService.sendTypingStatus(activeChannel.id, {
+            uid: user.uid,
+            displayName: user.displayName || 'User'
+        });
+        
+        // Ensure scroll to bottom on focus (keyboard opening)
+        setTimeout(() => {
+            if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }, 300);
+    };
+
+    const handleInputBlur = () => {
+        if (!user || !activeChannel.id) return;
+        dataService.clearTypingStatus(activeChannel.id, user.uid);
+    };
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setInputText(e.target.value);
+        if (user && activeChannel.id) {
+            dataService.sendTypingStatus(activeChannel.id, {
+                uid: user.uid,
+                displayName: user.displayName || 'User'
+            });
+        }
+    };
 
     const handleSend = async (e: React.FormEvent) => {
-        e.preventDefault();
+        e.preventDefault(); // Prevent form reload and keyboard hiding
         if (!inputText.trim() || !user) return;
         
+        if (activeChannel.id) {
+            dataService.clearTypingStatus(activeChannel.id, user.uid);
+        }
+
         const msg: any = {
             text: inputText.trim(),
             senderId: user.uid,
@@ -438,6 +494,10 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
         };
         
         setInputText('');
+        
+        // Keep focus to maintain keyboard
+        inputRef.current?.focus();
+        
         await dataService.sendChatMessage(msg);
     };
 
@@ -446,6 +506,13 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
         const channelId = [user.uid, targetUser.uid].sort().join('_');
         setActiveChannel({ id: channelId, name: targetUser.displayName, type: 'dm' });
         setView('room');
+    };
+
+    // Check if user has unread messages
+    const hasUnread = (targetUid: string) => {
+        if (!user) return false;
+        const dmChannelId = [user.uid, targetUid].sort().join('_');
+        return unreadChannels.includes(dmChannelId);
     };
 
     if (view === 'list') {
@@ -479,7 +546,14 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                                 <div className="w-10 h-10 bg-slate-200 rounded-full overflow-hidden">
                                     {u.photoURL ? <img src={u.photoURL} className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-2 text-slate-400" />}
                                 </div>
-                                <div className={`absolute bottom-0 right-0 w-3 h-3 border-2 border-white rounded-full ${u.status === 'online' ? 'bg-emerald-500' : 'bg-slate-400'}`}></div>
+                                <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
+                                    u.status === 'online' ? 'bg-emerald-500' : 'bg-slate-400'
+                                }`}></div>
+                                
+                                {/* Red Notification Dot */}
+                                {hasUnread(u.uid) && (
+                                    <div className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse"></div>
+                                )}
                             </div>
                             <div>
                                 <h3 className="font-bold text-sm text-slate-800">{u.displayName}</h3>
@@ -495,7 +569,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
     // Chat Room View
     return (
         <div className="flex flex-col h-full bg-slate-100">
-            <div className="bg-white border-b border-slate-200 p-3 flex justify-center shadow-sm">
+            <div className="bg-white border-b border-slate-200 p-3 flex justify-center shadow-sm flex-shrink-0">
                 <span className="font-bold text-sm text-slate-800">{activeChannel.name}</span>
             </div>
             
@@ -520,15 +594,35 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                         </div>
                     );
                 })}
+
+                {/* Typing Indicator */}
+                {typingUsers.length > 0 && (
+                     <div className="flex gap-2 animate-fade-in">
+                         <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center">
+                             <div className="flex gap-0.5">
+                                 <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce"></span>
+                                 <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce delay-100"></span>
+                                 <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce delay-200"></span>
+                             </div>
+                         </div>
+                         <span className="text-[10px] text-slate-400 self-center">
+                            {typingUsers.join(', ')} typing...
+                         </span>
+                     </div>
+                )}
             </div>
 
-            <div className="p-3 bg-white border-t border-slate-200 safe-area-bottom pb-20">
+            {/* Input Bar - Positioned with safe-area support */}
+            <div className="p-3 bg-white border-t border-slate-200 pb-[env(safe-area-inset-bottom)] flex-shrink-0">
                 <form onSubmit={handleSend} className="flex gap-2">
                     <input 
+                        ref={inputRef}
                         className="flex-1 bg-slate-100 border-none rounded-full px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                         placeholder="Type a message..."
                         value={inputText}
-                        onChange={e => setInputText(e.target.value)}
+                        onChange={handleInputChange}
+                        onFocus={handleInputFocus}
+                        onBlur={handleInputBlur}
                     />
                     <button type="submit" disabled={!inputText.trim()} className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white disabled:opacity-50">
                         <Send size={18} />
