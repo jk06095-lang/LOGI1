@@ -22,6 +22,7 @@ interface MobileLayoutProps {
   onAddTask: (task: BackgroundTask) => void;
   onUpdateTask: (id: string, updates: Partial<BackgroundTask>) => void;
   hasUnreadMessages?: boolean;
+  onCheckMessages?: () => void; // New prop for acknowledging read
 }
 
 // Mobile Chat View Component
@@ -516,7 +517,8 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
   onDeleteBL,
   onAddTask,
   onUpdateTask,
-  hasUnreadMessages
+  hasUnreadMessages,
+  onCheckMessages
 }) => {
   // CHANGED: Default view is now Cargo, Home removed
   const [currentView, setCurrentView] = useState<'cargo' | 'chat' | 'settings'>('cargo');
@@ -711,10 +713,17 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                     <ListIcon size={24} strokeWidth={currentView === 'cargo' ? 2.5 : 2} />
                     <span className="text-[10px] font-bold">Cargo</span>
                 </button>
-                <button onClick={() => setCurrentView('chat')} className={`flex flex-col items-center gap-1 relative ${currentView === 'chat' ? 'text-blue-600' : 'text-slate-400'}`}>
+                <button 
+                    onClick={() => {
+                        setCurrentView('chat');
+                        if (onCheckMessages) onCheckMessages(); // Acknowledge messages
+                    }}
+                    className={`flex flex-col items-center gap-1 relative ${currentView === 'chat' ? 'text-blue-600' : 'text-slate-400'}`}
+                >
                     <div className="relative">
                         <MessageCircle size={24} strokeWidth={currentView === 'chat' ? 2.5 : 2} />
-                        {hasUnreadMessages && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>}
+                        {/* Only show dot if unread AND NOT currently in chat view */}
+                        {hasUnreadMessages && currentView !== 'chat' && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>}
                     </div>
                     <span className="text-[10px] font-bold">Chat</span>
                 </button>

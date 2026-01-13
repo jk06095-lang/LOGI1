@@ -381,22 +381,25 @@ export const dataService = {
   },
 
   // Check for ANY unread messages for the Red Dot indicator
-  subscribeUnreadStatus: (userId: string, callback: (hasUnread: boolean) => void) => {
+  // UPDATED: Now returns the timestamp of the latest unread message instead of boolean
+  subscribeUnreadStatus: (userId: string, callback: (latestUnreadTs: number) => void) => {
       if (!db) return () => {};
       // Listen to the latest 50 messages globally.
       const q = query(collection(db, "messages"), orderBy("timestamp", "desc"), limit(50));
       return onSnapshot(q, (snapshot) => {
-          let hasUnread = false;
+          let maxTs = 0;
           for (const doc of snapshot.docs) {
               const data = doc.data() as ChatMessage;
               const isRelevant = data.channelId === 'global' || data.channelId.includes(userId);
               
               if (isRelevant && data.senderId !== userId && (!data.readBy || !data.readBy.includes(userId))) {
-                  hasUnread = true;
-                  break;
+                  // Found unread message
+                  if (data.timestamp > maxTs) {
+                      maxTs = data.timestamp;
+                  }
               }
           }
-          callback(hasUnread);
+          callback(maxTs);
       });
   },
 

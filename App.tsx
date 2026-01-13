@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard, BriefingReport } from './components/Dashboard';
@@ -40,7 +39,11 @@ const App: React.FC = () => {
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false); // Chat State
-  const [hasUnreadMessages, setHasUnreadMessages] = useState(false); // Red Dot State
+  
+  // Unread Messages Logic (Timestamp based)
+  const [latestUnreadTs, setLatestUnreadTs] = useState<number>(0);
+  const [lastReadTs, setLastReadTs] = useState<number>(0); // When user last opened chat
+  const hasUnreadMessages = latestUnreadTs > lastReadTs;
 
   const [tabs, setTabs] = useState<Tab[]>([{ id: 'dashboard', type: 'dashboard', title: 'Dashboard' }]);
   const [activeTabId, setActiveTabId] = useState('dashboard');
@@ -153,8 +156,8 @@ const App: React.FC = () => {
     });
     const unsubChecklists = dataService.subscribeChecklists(setChecklists);
     
-    // Subscribe to Unread Message Status
-    const unsubUnread = dataService.subscribeUnreadStatus(user.uid, setHasUnreadMessages);
+    // Subscribe to Unread Message Status (returns timestamp now)
+    const unsubUnread = dataService.subscribeUnreadStatus(user.uid, setLatestUnreadTs);
     
     return () => { unsubJobs(); unsubBLs(); unsubChecklists(); unsubUnread(); };
   }, [user, isAuthorized]);
@@ -174,6 +177,21 @@ const App: React.FC = () => {
     } else {
       setExpirationAlert(null);
     }
+  };
+
+  // Chat Toggle Logic
+  const handleToggleChat = () => {
+      const nextState = !isChatOpen;
+      setIsChatOpen(nextState);
+      if (nextState) {
+          // If opening chat, mark all current unread as 'seen' locally to remove dot
+          setLastReadTs(Date.now());
+      }
+  };
+
+  // Called by Mobile Layout when switching to Chat tab
+  const handleMobileChatCheck = () => {
+      setLastReadTs(Date.now());
   };
 
   // Task Management Functions
@@ -515,6 +533,7 @@ const App: React.FC = () => {
               onAddTask={addTask}
               onUpdateTask={updateTask}
               hasUnreadMessages={hasUnreadMessages}
+              onCheckMessages={handleMobileChatCheck} // Pass handler to clear red dot
           />
       );
   }
@@ -530,7 +549,7 @@ const App: React.FC = () => {
         language={settings.language} 
         user={user} 
         isChatOpen={isChatOpen}
-        onToggleChat={() => setIsChatOpen(!isChatOpen)}
+        onToggleChat={handleToggleChat}
         logoUrl={settings.logoUrl}
         hasUnreadMessages={hasUnreadMessages}
       />
