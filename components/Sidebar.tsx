@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { Anchor, Settings, Ship, ChevronLeft, ChevronRight, Home, FolderOpen, MessageCircle } from 'lucide-react';
 import { ViewState, Language } from '../types';
@@ -14,6 +15,7 @@ interface SidebarProps {
   logoUrl?: string;
   isChatOpen: boolean;
   onToggleChat: () => void;
+  hasUnreadMessages?: boolean;
 }
 
 const translations = {
@@ -46,7 +48,7 @@ const translations = {
   }
 };
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCollapsed, onToggleCollapse, language, user, logoUrl, isChatOpen, onToggleChat }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCollapsed, onToggleCollapse, language, user, logoUrl, isChatOpen, onToggleChat, hasUnreadMessages }) => {
   const t = translations[language];
 
   const menuItems = [
@@ -138,10 +140,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
          >
             <div className="relative">
                 <MessageCircle size={18} className={isChatOpen ? 'fill-current' : ''} />
+                {hasUnreadMessages && (
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-800"></span>
+                )}
             </div>
             {!isCollapsed && (
               <div className="flex-1 flex justify-between items-center">
                  <span>{t.message}</span>
+                 {hasUnreadMessages && <span className="w-2 h-2 bg-red-500 rounded-full"></span>}
               </div>
             )}
          </button>

@@ -230,4 +230,5 @@ export interface ChatUser {
   status: 'online' | 'offline' | 'away';
   contacts?: string[]; // List of UIDs this user has added as friends
   fcmTokens?: string[]; // Array of FCM tokens for notifications
+  authorized?: boolean; // New: Access Code Verification Status
 }

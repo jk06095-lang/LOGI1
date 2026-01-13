@@ -4,7 +4,7 @@ import { BLData, VesselJob, AppSettings, ChatMessage, ChatUser, CargoSourceType,
 import { 
     Search, Download, FileText, MessageCircle, Settings, LogOut, 
     Monitor, X, Menu, Filter, ArrowLeft, Send, User as UserIcon, 
-    Check, CheckCheck, Grid, List as ListIcon, Ship, Anchor, Box, Home, ExternalLink, ChevronDown, Truck
+    Check, CheckCheck, Grid, List as ListIcon, Ship, Anchor, Box, Home, ExternalLink, ChevronDown, Truck, ArrowUpCircle
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { User } from 'firebase/auth';
@@ -21,6 +21,7 @@ interface MobileLayoutProps {
   onDeleteBL: (id: string) => Promise<void>;
   onAddTask: (task: BackgroundTask) => void;
   onUpdateTask: (id: string, updates: Partial<BackgroundTask>) => void;
+  hasUnreadMessages?: boolean;
 }
 
 // Mobile Chat View Component
@@ -36,7 +37,16 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [inputText, setInputText] = useState('');
+  const [typingUsers, setTypingUsers] = useState<string[]>([]); // Typing state
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  // 3-Day History Logic
+  const [historyDays, setHistoryDays] = useState(3);
+  
+  // Typing Refs
+  const typingTimeoutRef = useRef<any>(null); 
+  const lastTypingSentRef = useRef<number>(0);
+  const [isTyping, setIsTyping] = useState(false);
   
   // Fetch users for list view
   useEffect(() => {
@@ -44,38 +54,115 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
     return () => unsub();
   }, []);
 
-  // Read Logic for Mobile: Check loaded messages and mark read
+  // Read Logic for Mobile: Immediately mark channel read when entering view 'room'
   useEffect(() => {
-      if (view !== 'room' || !activeChannel.id || !user || messages.length === 0) return;
-      
-      const unreadIds = messages
-        .filter(msg => msg.senderId !== user.uid && (!msg.readBy || !msg.readBy.includes(user.uid)))
-        .map(msg => msg.id);
-
-      if (unreadIds.length > 0) {
-          dataService.markMessagesAsRead(unreadIds, user.uid);
+      if (view === 'room' && activeChannel.id && user) {
+          dataService.markChannelRead(activeChannel.id, user.uid);
       }
-  }, [view, activeChannel, user, messages]);
+  }, [view, activeChannel, user]);
 
-  // Fetch messages for room view
+  // Fetch messages for room view with history depth
   useEffect(() => {
     if (view !== 'room' || !activeChannel.id) return;
     
-    const unsub = dataService.subscribeChatMessages(activeChannel.id, (msgs) => {
+    // Calculate start time based on historyDays (e.g., 3 days ago)
+    const startTime = Date.now() - (historyDays * 24 * 60 * 60 * 1000);
+
+    const unsub = dataService.subscribeChatMessages(activeChannel.id, startTime, (msgs) => {
         setMessages(msgs);
-        if (scrollRef.current) {
-            setTimeout(() => {
-                if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-            }, 100);
+        // Only scroll to bottom on initial load or new message sent by me
+        // A smarter logic would track if we are at bottom, but simple for now:
+        if (historyDays === 3 && scrollRef.current) { 
+             // On initial short history load, scroll to bottom
+             setTimeout(() => {
+                if(scrollRef.current && scrollRef.current.scrollTop === 0) {
+                    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+                }
+             }, 100);
         }
     });
     return () => unsub();
-  }, [view, activeChannel.id]);
+  }, [view, activeChannel.id, historyDays]);
+
+  // Auto scroll to bottom when entering room
+  useEffect(() => {
+      if (view === 'room' && scrollRef.current) {
+          setTimeout(() => {
+              if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+          }, 200);
+      }
+  }, [view]);
+
+  // Subscribe to Typing Status
+  useEffect(() => {
+      if (view !== 'room' || !activeChannel.id || !user) return;
+      const unsub = dataService.subscribeTyping(activeChannel.id, (u) => {
+          setTypingUsers(u.filter(name => name !== (user.displayName || 'User')));
+      });
+      return () => unsub();
+  }, [view, activeChannel.id, user?.uid]);
+
+  // Typing Handlers
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = e.target.value;
+      setInputText(val);
+      
+      if (!user || !activeChannel.id) return;
+
+      if (val.trim() === '') {
+          if (isTyping) {
+              dataService.clearTypingStatus(activeChannel.id, user.uid);
+              setIsTyping(false);
+          }
+          return;
+      }
+
+      // Throttle Send (2.5s)
+      const now = Date.now();
+      if (!isTyping || now - lastTypingSentRef.current > 2500) {
+          dataService.sendTypingStatus(activeChannel.id, { 
+              uid: user.uid, 
+              displayName: user.displayName || 'User' 
+          });
+          lastTypingSentRef.current = now;
+          setIsTyping(true);
+      }
+
+      // Debounce Clear (3s)
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+          dataService.clearTypingStatus(activeChannel.id, user.uid);
+          setIsTyping(false);
+      }, 3000);
+  };
+
+  const handleInputFocus = () => {
+      if (!user || !activeChannel.id) return;
+      dataService.sendTypingStatus(activeChannel.id, { 
+          uid: user.uid, 
+          displayName: user.displayName || 'User' 
+      });
+      setIsTyping(true);
+      lastTypingSentRef.current = Date.now();
+  };
+
+  const handleInputBlur = () => {
+      if (!user || !activeChannel.id) return;
+      if (isTyping) {
+          dataService.clearTypingStatus(activeChannel.id, user.uid);
+          setIsTyping(false);
+      }
+  };
 
   const handleSend = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!inputText.trim() || !user) return;
+      if (!inputText.trim() || !user || !activeChannel.id) return;
       
+      // Clear typing immediately
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      dataService.clearTypingStatus(activeChannel.id, user.uid);
+      setIsTyping(false);
+
       const text = inputText.trim();
       setInputText('');
 
@@ -93,6 +180,12 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
       
       // Optimistic update
       setMessages(prev => [...prev, msg]);
+      // Scroll to bottom
+      if (scrollRef.current) {
+          setTimeout(() => {
+              if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+          }, 50);
+      }
       
       await dataService.sendChatMessage(msg);
   };
@@ -110,6 +203,10 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
       return users.filter(u => me.contacts?.includes(u.uid));
   }, [users, user]);
 
+  const loadMoreHistory = () => {
+      setHistoryDays(prev => prev + 3); // Load 3 more days
+  };
+
   if (view === 'list') {
       return (
           <div className="h-full overflow-y-auto p-4 custom-scrollbar">
@@ -119,6 +216,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                 onClick={() => {
                     setActiveChannel({ id: 'global', name: 'Global Chat', type: 'global' });
                     setView('room');
+                    setHistoryDays(3); // Reset to 3 days
                 }}
                 className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 mb-6 cursor-pointer active:scale-95 transition-transform relative"
               >
@@ -145,6 +243,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                                 onClick={() => {
                                     setActiveChannel({ id: dmId, name: friend.displayName, type: 'dm' });
                                     setView('room');
+                                    setHistoryDays(3); // Reset
                                 }}
                                 className="bg-white p-3 rounded-xl border border-slate-100 flex items-center gap-3 cursor-pointer active:scale-95 transition-transform relative"
                               >
@@ -170,21 +269,34 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   }
 
   return (
-      <div className="flex flex-col h-full bg-slate-100">
-          <div className="p-3 bg-white border-b border-slate-200 shadow-sm flex items-center gap-3 z-10">
+      <div className="flex flex-col h-full bg-slate-100 overflow-hidden">
+          <div className="p-3 bg-white border-b border-slate-200 shadow-sm flex items-center gap-3 z-10 shrink-0">
               <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
                   {activeChannel.name.substring(0,2).toUpperCase()}
               </div>
-              <div>
+              <div className="flex-1">
                   <h3 className="font-bold text-sm text-slate-800">{activeChannel.name}</h3>
                   <p className="text-[10px] text-slate-500">{activeChannel.type === 'global' ? 'Team Channel' : 'Direct Message'}</p>
               </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 custom-scrollbar" ref={scrollRef}>
+          <div className="flex-1 overflow-y-auto p-4 custom-scrollbar" ref={scrollRef} style={{ WebkitOverflowScrolling: 'touch' }}>
+              
+              {/* Load More Button */}
+              <div className="flex justify-center mb-4">
+                  <button 
+                    onClick={loadMoreHistory}
+                    className="text-xs bg-slate-200 text-slate-600 px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-slate-300 active:scale-95 transition-transform"
+                  >
+                      <ArrowUpCircle size={12} /> 이전 3일 대화 더보기
+                  </button>
+              </div>
+
               <div className="space-y-3 pb-4">
                   {messages.map((msg, idx) => {
                       const isMe = msg.senderId === user?.uid;
+                      const isRead = msg.readBy && msg.readBy.length > 1;
+
                       return (
                           <div key={msg.id || idx} className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                               {!isMe && (
@@ -193,25 +305,51 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                                   </div>
                               )}
                               <div className={`max-w-[80%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
+                                  {!isMe && <span className="text-[10px] text-slate-500 ml-1 mb-0.5">{msg.senderName}</span>}
                                   <div className={`px-3 py-2 rounded-2xl text-sm shadow-sm ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white text-slate-800 rounded-tl-none'}`}>
                                       {msg.text}
                                   </div>
-                                  <span className="text-[10px] text-slate-400 px-1 mt-1">
-                                      {new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
-                                  </span>
+                                  <div className="flex items-center gap-1 mt-1 px-1">
+                                      <span className="text-[10px] text-slate-400">
+                                          {new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
+                                      </span>
+                                      {isMe && (
+                                          <span className={`${isRead ? 'text-blue-500' : 'text-slate-300'}`}>
+                                              {isRead ? <CheckCheck size={12} /> : <Check size={12} />}
+                                          </span>
+                                      )}
+                                  </div>
                               </div>
                           </div>
                       )
                   })}
+
+                  {/* Mobile Typing Indicator */}
+                  {typingUsers.length > 0 && (
+                     <div className="flex gap-2 animate-fade-in-up">
+                         <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center">
+                             <div className="flex gap-0.5">
+                                 <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce"></span>
+                                 <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce delay-100"></span>
+                                 <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce delay-200"></span>
+                             </div>
+                         </div>
+                         <span className="text-xs text-slate-400 self-center">
+                            {typingUsers.join(', ')}님이 메세지 작성 중...
+                         </span>
+                     </div>
+                  )}
               </div>
           </div>
 
-          <div className="p-3 bg-white border-t border-slate-200">
+          <div className="p-3 bg-white border-t border-slate-200 shrink-0 safe-area-bottom">
               <form onSubmit={handleSend} className="flex gap-2">
                   <input 
                       type="text" 
                       value={inputText}
-                      onChange={(e) => setInputText(e.target.value)}
+                      onChange={handleInputChange}
+                      onFocus={handleInputFocus}
+                      onBlur={handleInputBlur}
                       placeholder="Type a message..."
                       className="flex-1 bg-slate-100 border-none rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                   />
@@ -365,7 +503,8 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
   onUpdateBL,
   onDeleteBL,
   onAddTask,
-  onUpdateTask
+  onUpdateTask,
+  hasUnreadMessages
 }) => {
   const [currentView, setCurrentView] = useState<'home' | 'cargo' | 'chat' | 'settings'>('home');
   const [chatView, setChatView] = useState<'list' | 'room'>('list');
@@ -409,7 +548,6 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
     if (selectedBLId) {
         const selectedBL = bls.find(b => b.id === selectedBLId);
         if (selectedBL) {
-            // Use dedicated read-only MobileShipmentDetail
             return (
                 <MobileShipmentDetail 
                     bl={selectedBL}
@@ -417,7 +555,6 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                 />
             );
         } else {
-            // Cleanup if BL deleted
             setSelectedBLId(null);
         }
     }
@@ -483,8 +620,6 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
               <div className="p-4 bg-white border-b border-slate-200">
                   <div className="flex justify-between items-center mb-3">
                       <h2 className="font-bold text-lg text-slate-800">Cargo List</h2>
-                      
-                      {/* Vessel Filter Dropdown - Icon Removed */}
                       <div className="relative">
                           <select 
                               value={vesselFilter}
@@ -546,9 +681,6 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
           </div>
         );
       case 'chat':
-          // If in chat room view, we render it full height without bottom nav in some designs, 
-          // but here we keep navigation for simplicity unless in room.
-          // Let's hide navigation if in room view to give space.
           return (
              <div className="h-full flex flex-col relative">
                 {chatView === 'room' && (
@@ -572,7 +704,6 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
         return (
             <div className="p-6">
                 <h2 className="font-bold text-xl text-slate-800 mb-6">Settings</h2>
-                
                 <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden mb-6">
                     <div className="p-4 border-b border-slate-100 flex items-center justify-between">
                         <span className="text-sm font-medium text-slate-700">Dark Mode</span>
@@ -596,14 +727,12 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                         </select>
                     </div>
                 </div>
-
                 <button 
                     onClick={onLogout}
                     className="w-full py-3 bg-red-50 text-red-600 font-bold rounded-xl flex items-center justify-center gap-2"
                 >
                     <LogOut size={18} /> Log Out
                 </button>
-
                 <p className="text-center text-xs text-slate-400 mt-8">
                     LOGI1 Mobile v1.0.0
                 </p>
@@ -618,39 +747,27 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
             {renderContent()}
         </div>
         
-        {/* Bottom Navigation - Hide if in detail view or chat room */}
         {!selectedBLId && !(currentView === 'chat' && chatView === 'room') && (
             <div 
                 className="bg-white border-t border-slate-200 px-6 pt-3 flex justify-between items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-50 shrink-0"
                 style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
             >
-                <button 
-                    onClick={() => setCurrentView('home')}
-                    className={`flex flex-col items-center gap-1 ${currentView === 'home' ? 'text-blue-600' : 'text-slate-400'}`}
-                >
+                <button onClick={() => setCurrentView('home')} className={`flex flex-col items-center gap-1 ${currentView === 'home' ? 'text-blue-600' : 'text-slate-400'}`}>
                     <Home size={24} strokeWidth={currentView === 'home' ? 2.5 : 2} />
                     <span className="text-[10px] font-bold">Home</span>
                 </button>
-                <button 
-                    onClick={() => setCurrentView('cargo')}
-                    className={`flex flex-col items-center gap-1 ${currentView === 'cargo' ? 'text-blue-600' : 'text-slate-400'}`}
-                >
+                <button onClick={() => setCurrentView('cargo')} className={`flex flex-col items-center gap-1 ${currentView === 'cargo' ? 'text-blue-600' : 'text-slate-400'}`}>
                     <ListIcon size={24} strokeWidth={currentView === 'cargo' ? 2.5 : 2} />
                     <span className="text-[10px] font-bold">Cargo</span>
                 </button>
-                <button 
-                    onClick={() => setCurrentView('chat')}
-                    className={`flex flex-col items-center gap-1 relative ${currentView === 'chat' ? 'text-blue-600' : 'text-slate-400'}`}
-                >
+                <button onClick={() => setCurrentView('chat')} className={`flex flex-col items-center gap-1 relative ${currentView === 'chat' ? 'text-blue-600' : 'text-slate-400'}`}>
                     <div className="relative">
                         <MessageCircle size={24} strokeWidth={currentView === 'chat' ? 2.5 : 2} />
+                        {hasUnreadMessages && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>}
                     </div>
                     <span className="text-[10px] font-bold">Chat</span>
                 </button>
-                <button 
-                    onClick={() => setCurrentView('settings')}
-                    className={`flex flex-col items-center gap-1 ${currentView === 'settings' ? 'text-blue-600' : 'text-slate-400'}`}
-                >
+                <button onClick={() => setCurrentView('settings')} className={`flex flex-col items-center gap-1 ${currentView === 'settings' ? 'text-blue-600' : 'text-slate-400'}`}>
                     <Settings size={24} strokeWidth={currentView === 'settings' ? 2.5 : 2} />
                     <span className="text-[10px] font-bold">Menu</span>
                 </button>

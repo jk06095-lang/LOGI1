@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Send, X, User as UserIcon, MessageCircle, ChevronLeft, Check, CheckCheck, Download, UserPlus, Plus } from 'lucide-react';
+import { Send, X, User as UserIcon, MessageCircle, ChevronLeft, Check, CheckCheck, Download, UserPlus, Plus, ArrowUpCircle } from 'lucide-react';
 import { auth } from '../lib/firebase';
 import { dataService } from '../services/dataService';
 import { ChatMessage, ChatUser } from '../types';
@@ -20,13 +20,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
   const [inputText, setInputText] = useState('');
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   
+  // History
+  const [historyDays, setHistoryDays] = useState(3);
+  
   // Add Friend State
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [friendEmail, setFriendEmail] = useState('');
   const [isAddingFriend, setIsAddingFriend] = useState(false);
   
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  // Typing state Refs
   const typingTimeoutRef = useRef<any>(null);
+  const lastTypingSentRef = useRef<number>(0);
+  const [isTyping, setIsTyping] = useState(false);
 
   const currentUser = auth.currentUser;
 
@@ -39,38 +46,32 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
     return null;
   }, [activeTab, selectedUser, currentUser?.uid]);
 
-  // Optimized Mark Read Logic: Filter currently loaded messages and mark read if needed
+  // FORCE MARK READ ON OPEN / SWITCH
+  // Triggers immediate DB update to clear Sidebar notification
   useEffect(() => {
-     if (!isOpen || !channelId || !currentUser || messages.length === 0) return;
-     
-     // Find messages in the current view that I haven't marked as read
-     const unreadIds = messages
-        .filter(msg => msg.senderId !== currentUser.uid && (!msg.readBy || !msg.readBy.includes(currentUser.uid)))
-        .map(msg => msg.id);
-
-     if (unreadIds.length > 0) {
-         // Debounce or just call it. Since we filter by 'loaded' messages, this is efficient.
-         // dataService.markMessagesAsRead handles batching.
-         dataService.markMessagesAsRead(unreadIds, currentUser.uid);
+     if (isOpen && channelId && currentUser) {
+         dataService.markChannelRead(channelId, currentUser.uid);
      }
-  }, [isOpen, channelId, messages, currentUser]);
+  }, [isOpen, channelId, currentUser]);
 
-  // Subscribe to Messages
+  // Subscribe to Messages with History logic
   useEffect(() => {
       if (!isOpen || !channelId) return;
       
-      const unsub = dataService.subscribeChatMessages(channelId, (newMessages) => {
+      const startTime = Date.now() - (historyDays * 24 * 60 * 60 * 1000);
+
+      const unsub = dataService.subscribeChatMessages(channelId, startTime, (newMessages) => {
           setMessages(newMessages);
           
-          // Auto-scroll on new message
-          if (scrollRef.current) {
+          // Auto-scroll logic
+          if (historyDays === 3 && scrollRef.current && scrollRef.current.scrollTop === 0) {
              setTimeout(() => {
                  if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
              }, 100);
           }
       });
       return () => unsub();
-  }, [isOpen, channelId]);
+  }, [isOpen, channelId, historyDays]);
 
   // Subscribe to Users List
   useEffect(() => {
@@ -93,6 +94,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       if (scrollRef.current) {
           scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
       }
+      setHistoryDays(3); // Reset history when changing context
   }, [activeTab, selectedUser]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -102,44 +104,60 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       if (!currentUser || !channelId) return;
 
       if (val.trim() === '') {
-          dataService.clearTypingStatus(channelId, currentUser.uid);
+          if (isTyping) {
+              dataService.clearTypingStatus(channelId, currentUser.uid);
+              setIsTyping(false);
+          }
           return;
       }
 
-      // Send Typing Heartbeat
+      const now = Date.now();
+      if (!isTyping || now - lastTypingSentRef.current > 2500) {
+          dataService.sendTypingStatus(channelId, { 
+              uid: currentUser.uid, 
+              displayName: currentUser.displayName || 'User' 
+          });
+          lastTypingSentRef.current = now;
+          setIsTyping(true);
+      }
+
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       
-      dataService.sendTypingStatus(channelId, { 
-          uid: currentUser.uid, 
-          displayName: currentUser.displayName || 'User' 
-      });
+      typingTimeoutRef.current = setTimeout(() => {
+          dataService.clearTypingStatus(channelId, currentUser.uid);
+          setIsTyping(false);
+      }, 3000);
   };
 
   const handleInputFocus = () => {
       if (!currentUser || !channelId) return;
-      // Trigger typing status immediately on focus
       dataService.sendTypingStatus(channelId, { 
           uid: currentUser.uid, 
           displayName: currentUser.displayName || 'User' 
       });
+      setIsTyping(true);
+      lastTypingSentRef.current = Date.now();
   };
 
   const handleInputBlur = () => {
       if (!currentUser || !channelId) return;
-      dataService.clearTypingStatus(channelId, currentUser.uid);
+      if (isTyping) {
+          dataService.clearTypingStatus(channelId, currentUser.uid);
+          setIsTyping(false);
+      }
   };
 
   const handleSend = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!inputText.trim() || !currentUser || !channelId) return;
 
-      // Clear typing status immediately
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       dataService.clearTypingStatus(channelId, currentUser.uid);
+      setIsTyping(false);
 
       const text = inputText.trim();
-      setInputText(''); // Clear immediately for speed
+      setInputText('');
 
-      // Optimistic Update
       const tempId = 'temp-' + Date.now();
       const optimisticMsg: ChatMessage = {
           id: tempId,
@@ -155,7 +173,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
 
       setMessages(prev => [...prev, optimisticMsg]);
       
-      // Scroll to bottom immediately
       if (scrollRef.current) {
           setTimeout(() => {
              if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -184,14 +201,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       saveAs(blob, `${chatName}_Log_${new Date().toISOString().slice(0, 10)}.json`);
   };
 
-  // Filter Friends Only
   const myFriends = useMemo(() => {
       if (!currentUser || users.length === 0) return [];
-      
-      // Find current user object to get contacts list
       const me = users.find(u => u.uid === currentUser.uid);
       if (!me || !me.contacts) return [];
-
       return users.filter(u => me.contacts?.includes(u.uid));
   }, [users, currentUser]);
 
@@ -277,7 +290,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                      </div>
                      <div>
                          <p className="text-sm font-bold text-slate-800 dark:text-white leading-none">{selectedUser.displayName}</p>
-                         <p className="text-[10px] text-slate-500">{selectedUser.email}</p>
+                         <p className="text-xs text-slate-500">{selectedUser.email}</p>
                      </div>
                  </div>
              )}
@@ -288,12 +301,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
              
              {(activeTab === 'global' || selectedUser) && (
                  <div className="space-y-4 pb-4">
+                     
+                     <div className="flex justify-center">
+                        <button 
+                            onClick={() => setHistoryDays(prev => prev + 3)}
+                            className="text-xs bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+                        >
+                            <ArrowUpCircle size={12} /> Load More History
+                        </button>
+                     </div>
+
                      {messages.length === 0 ? (
                          <div className="text-center text-slate-400 text-sm mt-10 italic">No messages yet. Say hello!</div>
                      ) : (
                          messages.map((msg, index) => {
                              const isMe = msg.senderId === currentUser?.uid;
-                             // Check if read by others (excluding self)
                              const isRead = msg.readBy && msg.readBy.length > 1; 
 
                              return (
@@ -326,16 +348,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
 
                      {/* Typing Indicator Bubble */}
                      {typingUsers.length > 0 && (
-                         <div className="flex gap-2">
-                             <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center">
+                         <div className="flex gap-2 animate-fade-in-up">
+                             <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
                                  <div className="flex gap-0.5">
-                                     <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce"></span>
-                                     <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce delay-100"></span>
-                                     <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce delay-200"></span>
+                                     <span className="w-1 h-1 bg-slate-400 dark:bg-slate-400 rounded-full animate-bounce"></span>
+                                     <span className="w-1 h-1 bg-slate-400 dark:bg-slate-400 rounded-full animate-bounce delay-100"></span>
+                                     <span className="w-1 h-1 bg-slate-400 dark:bg-slate-400 rounded-full animate-bounce delay-200"></span>
                                  </div>
                              </div>
-                             <span className="text-xs text-slate-400 self-center">
-                                {typingUsers.join(', ')} is typing...
+                             <span className="text-xs text-slate-400 dark:text-slate-500 self-center">
+                                {typingUsers.join(', ')}님이 메세지 작성 중...
                              </span>
                          </div>
                      )}

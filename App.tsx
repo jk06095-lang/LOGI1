@@ -11,6 +11,7 @@ import { ShipmentDetail } from './components/ShipmentDetail';
 import { TabNavigation, Tab } from './components/TabNavigation';
 import { ChatWindow } from './components/ChatWindow'; 
 import { MobileLayout } from './components/MobileLayout'; 
+import { AccessGate } from './components/AccessGate';
 import { VesselJob, BLData, ViewState, BLChecklist, AppSettings, CargoSourceType, BackgroundTask, NotificationLog } from './types';
 import { parseBLImage } from './services/geminiService';
 import { dataService } from './services/dataService';
@@ -23,6 +24,7 @@ import { AlertCircle, Loader2, X, Ship as ShipIcon, Clock, Archive, CheckCircle,
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null); // Null = Loading Check
   
   // Initialize settings with auto-detection for mobile devices
   const [settings, setSettings] = useState<AppSettings>(() => {
@@ -38,6 +40,7 @@ const App: React.FC = () => {
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false); // Chat State
+  const [hasUnreadMessages, setHasUnreadMessages] = useState(false); // Red Dot State
 
   const [tabs, setTabs] = useState<Tab[]>([{ id: 'dashboard', type: 'dashboard', title: 'Dashboard' }]);
   const [activeTabId, setActiveTabId] = useState('dashboard');
@@ -72,16 +75,41 @@ const App: React.FC = () => {
     }
   }, [settings.theme, settings.fontStyle, settings.fontSize]);
 
+  // Auth & Authorization Flow
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
-      setAuthLoading(false);
       
-      // Update User Presence for Chat & Setup Notifications
       if (currentUser) {
+          // 1. Update User Presence
           dataService.updateUserPresence(currentUser);
-          dataService.setupNotifications(currentUser); // <--- Setup Notifications
+          dataService.setupNotifications(currentUser); 
+
+          // 2. Check Authorization Status from Firestore
+          const authorized = await dataService.checkUserAuthorization(currentUser.uid);
+          
+          if (authorized) {
+              setIsAuthorized(true);
+          } else {
+              // 2b. Check for temp code from Login screen
+              const tempCode = sessionStorage.getItem('temp_access_code');
+              if (tempCode) {
+                  const isValid = await dataService.verifyAccessCode(tempCode);
+                  if (isValid) {
+                      await dataService.grantAuthorization(currentUser.uid);
+                      setIsAuthorized(true);
+                      sessionStorage.removeItem('temp_access_code'); // Clean up
+                  } else {
+                      setIsAuthorized(false);
+                  }
+              } else {
+                  setIsAuthorized(false);
+              }
+          }
+      } else {
+          setIsAuthorized(null);
       }
+      setAuthLoading(false);
     });
     return () => unsubscribe();
   }, []);
@@ -114,7 +142,8 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    // Only subscribe to data if user is AUTHORIZED
+    if (!user || !isAuthorized) return;
     
     // Subscribe to REAL Firebase data
     const unsubJobs = dataService.subscribeJobs(setVesselJobs);
@@ -124,8 +153,11 @@ const App: React.FC = () => {
     });
     const unsubChecklists = dataService.subscribeChecklists(setChecklists);
     
-    return () => { unsubJobs(); unsubBLs(); unsubChecklists(); };
-  }, [user]);
+    // Subscribe to Unread Message Status
+    const unsubUnread = dataService.subscribeUnreadStatus(user.uid, setHasUnreadMessages);
+    
+    return () => { unsubJobs(); unsubBLs(); unsubChecklists(); unsubUnread(); };
+  }, [user, isAuthorized]);
 
   // Check for files older than 3 months
   const checkExpiration = (data: BLData[]) => {
@@ -341,6 +373,16 @@ const App: React.FC = () => {
     }
   };
 
+  const handleAccessVerify = async (code: string) => {
+      if (!user) return false;
+      const isValid = await dataService.verifyAccessCode(code);
+      if (isValid) {
+          await dataService.grantAuthorization(user.uid);
+          setIsAuthorized(true);
+      }
+      return isValid;
+  };
+
   const renderContent = () => {
     if (!activeTab) return <div className="p-10 flex flex-col items-center"><Loader2 className="animate-spin text-blue-500 mb-2" /> Loading...</div>;
 
@@ -439,7 +481,23 @@ const App: React.FC = () => {
   };
 
   if (authLoading) return <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-slate-400 font-bold tracking-widest uppercase">Initializing LOGI1...</div>;
+  
   if (!user) return <Login />;
+
+  // Access Gate Check (After Login)
+  if (isAuthorized === false) {
+      return <AccessGate onVerify={handleAccessVerify} onLogout={() => signOut(auth)} userEmail={user.email || ''} />;
+  }
+
+  // Waiting for authorization check
+  if (isAuthorized === null) {
+      return (
+          <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50">
+              <Loader2 className="animate-spin text-blue-500 mb-4" size={40} />
+              <p className="text-slate-500 font-bold">Verifying Access Rights...</p>
+          </div>
+      );
+  }
 
   // MOBILE VIEW CHECK - Renders full screen mobile layout without Sidebar
   if (settings.viewMode === 'mobile') {
@@ -456,6 +514,7 @@ const App: React.FC = () => {
               onDeleteBL={dataService.deleteBL}
               onAddTask={addTask}
               onUpdateTask={updateTask}
+              hasUnreadMessages={hasUnreadMessages}
           />
       );
   }
@@ -473,6 +532,7 @@ const App: React.FC = () => {
         isChatOpen={isChatOpen}
         onToggleChat={() => setIsChatOpen(!isChatOpen)}
         logoUrl={settings.logoUrl}
+        hasUnreadMessages={hasUnreadMessages}
       />
       
       {/* Chat Window Component */}

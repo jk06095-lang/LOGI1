@@ -1,3 +1,4 @@
+
 import { db, messaging, functions } from "../lib/firebase";
 import { collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy, setDoc, deleteDoc, writeBatch, getDoc, arrayUnion, arrayRemove, runTransaction, where, limit, getDocs, Timestamp } from "firebase/firestore";
 import { getToken } from "firebase/messaging";
@@ -308,14 +309,17 @@ export const dataService = {
 
   // --- Chat Methods ---
   
-  subscribeChatMessages: (channelId: string, callback: (messages: ChatMessage[]) => void) => {
+  // Updated: Accept startTime to filter by 3-day chunks
+  subscribeChatMessages: (channelId: string, startTime: number, callback: (messages: ChatMessage[]) => void) => {
     if (!db) return () => {};
     
-    // MODIFIED: Removed orderBy and limit to avoid needing a Firestore composite index for 'channelId' + 'timestamp'.
-    // This allows the query to work immediately for real-time updates.
+    // Default to last 3 days if not provided
+    const safeStartTime = startTime || (Date.now() - 3 * 24 * 60 * 60 * 1000);
+
     const q = query(
         collection(db, "messages"), 
-        where("channelId", "==", channelId)
+        where("channelId", "==", channelId),
+        where("timestamp", ">=", safeStartTime)
     );
     
     return onSnapshot(q, (snapshot) => {
@@ -364,77 +368,53 @@ export const dataService = {
       
       try {
           await batch.commit();
+          console.log(`Marked ${idsToMark.length} messages as read.`);
       } catch(e) {
           console.error("Batch mark read failed", e);
       }
   },
 
-  // Helper: Mark all unread messages in a channel as read for the user
-  // Updated to support aggressive clearing based on failsafe requirements
-  markChannelAsRead: async (channelId: string, userId: string) => {
-      if (!db) return;
-      
-      const q = query(
-          collection(db, "messages"), 
-          where("channelId", "==", channelId),
-          orderBy("timestamp", "desc"),
-          limit(100) // Increase limit to catch more potential unreads
-      );
+  // NEW FUNCTION: Aggressively mark channel as read by querying latest messages
+  markChannelRead: async (channelId: string, userId: string) => {
+      if (!db || !channelId || !userId) return;
       
       try {
-          const snapshot = await getDocs(q);
-          const unreadIds: string[] = [];
+          // Query the last 50 messages of this channel (matching the unread listener limit)
+          const q = query(
+              collection(db, "messages"), 
+              where("channelId", "==", channelId), 
+              orderBy("timestamp", "desc"), 
+              limit(50)
+          );
           
-          snapshot.forEach(doc => {
-              const data = doc.data() as ChatMessage;
+          const snapshot = await getDocs(q);
+          const batch = writeBatch(db);
+          let updateCount = 0;
+
+          snapshot.docs.forEach((docSnap) => {
+              const data = docSnap.data() as ChatMessage;
+              // If I am NOT the sender AND I haven't read it yet
               if (data.senderId !== userId && (!data.readBy || !data.readBy.includes(userId))) {
-                  unreadIds.push(doc.id);
+                  batch.update(docSnap.ref, { readBy: arrayUnion(userId) });
+                  updateCount++;
               }
           });
-          
-          if (unreadIds.length > 0) {
-              await dataService.markMessagesAsRead(unreadIds, userId);
+
+          if (updateCount > 0) {
+              await batch.commit();
+              console.log(`Aggressively marked ${updateCount} messages as read in channel ${channelId}`);
           }
       } catch (e) {
-          console.error("Mark Channel Read Error:", e);
+          console.error("Error marking channel read:", e);
       }
   },
 
-  // Failsafe: Clear ALL recent notifications for a user (Global + known DMs)
-  // Designed to be attached to the red dot click
-  markAllRecentAsRead: async (userId: string) => {
-      if (!db) return;
-      // We can't query "all messages not read by me". 
-      // We will grab the latest 100 messages GLOBALLY and mark them read if needed.
-      const q = query(collection(db, "messages"), orderBy("timestamp", "desc"), limit(100));
-      
-      try {
-          const snapshot = await getDocs(q);
-          const unreadIds: string[] = [];
-          
-          snapshot.forEach(doc => {
-              const data = doc.data() as ChatMessage;
-              // Check Global OR DMs involving me
-              const isRelevant = data.channelId === 'global' || data.channelId.includes(userId);
-              
-              if (isRelevant && data.senderId !== userId && (!data.readBy || !data.readBy.includes(userId))) {
-                  unreadIds.push(doc.id);
-              }
-          });
-          
-          if (unreadIds.length > 0) {
-              await dataService.markMessagesAsRead(unreadIds, userId);
-          }
-      } catch(e) {
-          console.error("Failsafe Clear Error:", e);
-      }
-  },
-
-  // Track global unread status for the current user (boolean only)
+  // Check for ANY unread messages for the Red Dot indicator
   subscribeUnreadStatus: (userId: string, callback: (hasUnread: boolean) => void) => {
       if (!db) return () => {};
-      // Increased limit to 100 to capture more messages and ensure red dot clears correctly
-      const q = query(collection(db, "messages"), orderBy("timestamp", "desc"), limit(100));
+      // Listen to the latest 50 messages globally. If any are NOT read by me and NOT sent by me, flag true.
+      // This is an optimization to avoid reading the entire collection.
+      const q = query(collection(db, "messages"), orderBy("timestamp", "desc"), limit(50));
       return onSnapshot(q, (snapshot) => {
           let hasUnread = false;
           for (const doc of snapshot.docs) {
@@ -442,6 +422,7 @@ export const dataService = {
               // Must check if message is relevant (Global or My DM)
               const isRelevant = data.channelId === 'global' || data.channelId.includes(userId);
               
+              // Key change: Check unread AND not self
               if (isRelevant && data.senderId !== userId && (!data.readBy || !data.readBy.includes(userId))) {
                   hasUnread = true;
                   break;
@@ -451,34 +432,12 @@ export const dataService = {
       });
   },
 
-  // Track specific unread channels for the current user
-  subscribeUnreadChannels: (userId: string, callback: (channelIds: string[]) => void) => {
-      if (!db) return () => {};
-      // Optimization: Limit to latest 100 messages to check for badges
-      const q = query(collection(db, "messages"), orderBy("timestamp", "desc"), limit(100));
-      return onSnapshot(q, (snapshot) => {
-          const unreadChannelSet = new Set<string>();
-          for (const doc of snapshot.docs) {
-              const data = doc.data() as ChatMessage;
-              const isRelevant = data.channelId === 'global' || data.channelId.includes(userId);
-
-              // If I am NOT the sender, AND my ID is NOT in readBy list
-              if (isRelevant && data.senderId !== userId && (!data.readBy || !data.readBy.includes(userId))) {
-                  unreadChannelSet.add(data.channelId);
-              }
-          }
-          callback(Array.from(unreadChannelSet));
-      });
-  },
-
   // --- Chat Data Management (Export & Delete) ---
 
   // Fetch messages within a timeframe for export. 
   getMessagesInTimeRange: async (startDate: number, endDate: number) => {
      if (!db) return [];
      
-     // Note: Firestore requires a composite index for 'timestamp' if we filter by other fields.
-     // To keep it simple without managing indexes, we query by timestamp and filter client-side.
      const q = query(
          collection(db, "messages"),
          where("timestamp", ">=", startDate),
@@ -538,21 +497,38 @@ export const dataService = {
   subscribeTyping: (channelId: string, callback: (typingUsers: string[]) => void) => {
       if (!db) return () => {};
       const q = query(collection(db, "typing"), where("channelId", "==", channelId));
-      return onSnapshot(q, (snapshot) => {
+      
+      let rawData: { timestamp: number; displayName: string }[] = [];
+
+      // Function to filter stale users locally (every second)
+      const updateCallback = () => {
           const now = Date.now();
-          const users = snapshot.docs
-              .map(d => d.data() as { timestamp: number; displayName: string })
-              // Filter out stale typing status (older than 3 seconds)
-              .filter(d => now - d.timestamp < 3000)
+          // Filter out users who haven't updated in 4 seconds
+          const activeUsers = rawData
+              .filter(d => now - d.timestamp < 4000)
               .map(d => d.displayName);
-          callback([...new Set(users)] as string[]);
+          
+          callback([...new Set(activeUsers)]);
+      };
+
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+          rawData = snapshot.docs.map(d => d.data() as { timestamp: number; displayName: string });
+          updateCallback();
       });
+
+      // Set internal interval to prune stale users even if no DB update happens
+      const intervalId = setInterval(updateCallback, 1000);
+
+      return () => {
+          unsubscribe();
+          clearInterval(intervalId);
+      };
   },
 
   updateUserPresence: async (user: User) => {
     if (!db) return;
     try {
-        // First get existing data to preserve contacts
+        // First get existing data to preserve contacts & authorization
         const userRef = doc(db, "users", user.uid);
         const snapshot = await getDoc(userRef);
         const existingData = snapshot.exists() ? snapshot.data() : {};
@@ -564,7 +540,8 @@ export const dataService = {
             photoURL: user.photoURL || '',
             lastSeen: Date.now(),
             status: 'online',
-            contacts: existingData.contacts || [] // Preserve contacts
+            contacts: existingData.contacts || [], // Preserve contacts
+            authorized: existingData.authorized || false // Preserve authorization
         };
         
         await setDoc(userRef, chatUser, { merge: true });
@@ -654,5 +631,50 @@ export const dataService = {
     } catch (e) {
         console.error("Notification setup failed:", e);
     }
+  },
+
+  // --- Access Control / Access Code Strategy ---
+  
+  checkUserAuthorization: async (uid: string): Promise<boolean> => {
+      if (!db) return false;
+      try {
+          const userRef = doc(db, "users", uid);
+          const snap = await getDoc(userRef);
+          if (snap.exists()) {
+              const data = snap.data();
+              return data.authorized === true;
+          }
+          return false;
+      } catch(e) {
+          console.error("Auth Check Error:", e);
+          return false;
+      }
+  },
+
+  verifyAccessCode: async (code: string): Promise<boolean> => {
+      if (!db) return false;
+      // Strategy: "Document name is the password"
+      // Attempt to GET the document with ID `code` from `secret_codes` collection.
+      // Firestore Rule: allow get: if request.auth != null; allow list: false;
+      // If doc exists -> Success. If not exists -> Fail.
+      try {
+          const codeRef = doc(db, "secret_codes", code);
+          const snap = await getDoc(codeRef);
+          return snap.exists();
+      } catch(e) {
+          console.error("Verify Code Error:", e);
+          return false;
+      }
+  },
+
+  grantAuthorization: async (uid: string) => {
+      if (!db) return;
+      try {
+          const userRef = doc(db, "users", uid);
+          await setDoc(userRef, { authorized: true }, { merge: true });
+      } catch(e) {
+          console.error("Grant Auth Error:", e);
+          throw e;
+      }
   }
 };
