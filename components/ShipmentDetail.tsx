@@ -312,28 +312,54 @@ const HS_CODE_DEFAULTS: Record<string, string> = {
     'GENERAL': ''
 };
 
-// Increased font sizes from text-xs/text-[9px] to text-sm/text-xs
-const DetailInput = ({ label, value, onChange, className = "", placeholder = "", asTextarea = false }: any) => (
-    <div className={`flex flex-col h-full ${className}`}>
-        {label && <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 tracking-wide">{label}</label>}
-        {asTextarea ? (
-             <textarea
-                className="w-full flex-1 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-sm px-3 py-2 text-sm resize-none outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-slate-800 dark:text-slate-100 placeholder-slate-400 font-mono leading-relaxed" 
-                value={value || ''} 
-                onChange={onChange}
-                placeholder={placeholder}
-             />
-        ) : (
-            <input 
-                type="text" 
-                className="w-full bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-sm px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-shadow text-slate-800 dark:text-slate-100 placeholder-slate-400 font-medium" 
-                value={value || ''} 
-                onChange={onChange} 
-                placeholder={placeholder} 
-            />
-        )}
-    </div>
-);
+// Updated DetailInput with Copy Functionality
+const DetailInput = ({ label, value, onChange, className = "", placeholder = "", asTextarea = false, enableCopy = false }: any) => {
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (value) {
+            navigator.clipboard.writeText(value);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        }
+    };
+
+    return (
+        <div className={`flex flex-col h-full ${className} relative group`}>
+            <div className="flex justify-between items-center mb-1.5 min-h-[16px]">
+                {label && <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">{label}</label>}
+                {enableCopy && value && (
+                    <button 
+                        onClick={handleCopy}
+                        className={`transition-all duration-200 p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 ${copied ? 'text-emerald-500' : 'text-slate-400 hover:text-blue-500'}`}
+                        title="Copy to clipboard"
+                        type="button"
+                    >
+                        {copied ? <Check size={12} strokeWidth={3} /> : <Copy size={12} />}
+                    </button>
+                )}
+            </div>
+            {asTextarea ? (
+                <textarea
+                    className="w-full flex-1 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-sm px-3 py-2 text-sm resize-none outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-slate-800 dark:text-slate-100 placeholder-slate-400 font-mono leading-relaxed" 
+                    value={value || ''} 
+                    onChange={onChange}
+                    placeholder={placeholder}
+                />
+            ) : (
+                <input 
+                    type="text" 
+                    className="w-full bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-sm px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-shadow text-slate-800 dark:text-slate-100 placeholder-slate-400 font-medium" 
+                    value={value || ''} 
+                    onChange={onChange} 
+                    placeholder={placeholder} 
+                />
+            )}
+        </div>
+    );
+};
 
 const DocSlot = ({ 
     title, 
@@ -380,6 +406,7 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
   const [uploadingDoc, setUploadingDoc] = useState<DocumentScanType | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
   const [isManualCategory, setIsManualCategory] = useState(false);
+  const [headerCopied, setHeaderCopied] = useState(false);
 
   // Category Dropdown State
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
@@ -586,6 +613,14 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
   const handleImportSubChange = (val: ImportSubClass) => {
       handleInputChange('importSubClass', val);
   };
+
+  const handleHeaderCopy = () => {
+    if (formData.blNumber) {
+        navigator.clipboard.writeText(formData.blNumber);
+        setHeaderCopied(true);
+        setTimeout(() => setHeaderCopied(false), 2000);
+    }
+  };
   
   // Custom Dropdown Handlers
   const deleteCategory = async (e: React.MouseEvent, cat: string) => {
@@ -745,7 +780,7 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
                             <div className="col-span-12 md:col-span-6 flex flex-col">
                                 <div className="grid grid-cols-2 divide-x divide-slate-300 dark:divide-slate-600 border-b border-slate-300 dark:border-slate-600">
                                      <div className="p-4">
-                                         <DetailInput label={t.blNo} value={formData.blNumber} onChange={(e: any) => handleInputChange('blNumber', e.target.value)} />
+                                         <DetailInput label={t.blNo} value={formData.blNumber} onChange={(e: any) => handleInputChange('blNumber', e.target.value)} enableCopy />
                                      </div>
                                      <div className="p-4">
                                         <DetailInput label={t.voyage} value={formData.voyageNo} onChange={(e: any) => handleInputChange('voyageNo', e.target.value)} />

@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
@@ -45,7 +44,7 @@ export const Login: React.FC<LoginProps> = () => {
             <h1 className="text-4xl font-black text-slate-900 mb-2 tracking-tight flex items-center justify-center gap-1">
               LOGI<span className="text-blue-600">1</span>
             </h1>
-            <p className="text-slate-500 mb-10 font-medium tracking-wide text-sm">Next-Gen Logistics Management System</p>
+            <p className="text-slate-500 mb-10 font-medium tracking-wide text-sm">Logistics Management System</p>
             
             <button
               onClick={handleLogin}
