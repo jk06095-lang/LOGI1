@@ -228,4 +228,5 @@ export interface ChatUser {
   photoURL?: string;
   lastSeen: number;
   status: 'online' | 'offline' | 'away';
+  contacts?: string[]; // List of UIDs this user has added as friends
 }

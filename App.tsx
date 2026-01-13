@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard, BriefingReport } from './components/Dashboard';
@@ -469,7 +470,8 @@ const App: React.FC = () => {
         isChatOpen={isChatOpen}
         onToggleChat={() => {
            setIsChatOpen(!isChatOpen);
-           if (!isChatOpen) setHasUnreadMessages(false); // Clear notification on open
+           // NOTE: We do not manually clear unread status here. 
+           // It should be cleared when messages are read in the ChatWindow via dataService.
         }}
         logoUrl={settings.logoUrl}
         hasUnreadMessages={hasUnreadMessages}

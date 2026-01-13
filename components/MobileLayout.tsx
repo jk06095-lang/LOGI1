@@ -429,7 +429,17 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
     useEffect(() => {
         if (view !== 'room' || !activeChannel.id) return;
         
-        const unsubMsg = dataService.subscribeChatMessages(activeChannel.id, setMessages);
+        const unsubMsg = dataService.subscribeChatMessages(activeChannel.id, (msgs) => {
+            setMessages(msgs);
+            // Mark visible messages as read when channel is active
+            if (user) {
+                msgs.forEach(msg => {
+                    if (msg.senderId !== user.uid && (!msg.readBy || !msg.readBy.includes(user.uid))) {
+                        dataService.markMessageRead(msg.id, user.uid);
+                    }
+                });
+            }
+        });
         
         // Typing Subscription
         const unsubTyping = dataService.subscribeTyping(activeChannel.id, (u) => {
@@ -439,7 +449,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
         });
 
         return () => { unsubMsg(); unsubTyping(); };
-    }, [view, activeChannel.id, user?.displayName]);
+    }, [view, activeChannel.id, user?.displayName, user?.uid]);
 
     // Auto Scroll
     useEffect(() => {
@@ -523,7 +533,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                 {/* Global Channel Card */}
                 <div 
                     onClick={() => { setActiveChannel({id: 'global', name: 'Global Chat', type: 'global'}); setView('room'); }}
-                    className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 mb-6 cursor-pointer active:scale-95 transition-transform"
+                    className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 mb-6 cursor-pointer active:scale-95 transition-transform relative"
                 >
                     <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
                         <MessageCircle size={24} />
@@ -532,6 +542,10 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                         <h3 className="font-bold text-slate-800">Global Team Chat</h3>
                         <p className="text-xs text-slate-500">General discussion channel</p>
                     </div>
+                    {/* Unread Indicator for Global Chat */}
+                    {unreadChannels.includes('global') && (
+                        <div className="absolute top-4 right-4 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse"></div>
+                    )}
                 </div>
 
                 <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Direct Messages</h2>

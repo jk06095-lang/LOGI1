@@ -1,3 +1,4 @@
+
 import { db } from "../lib/firebase";
 import { collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy, setDoc, deleteDoc, writeBatch, getDoc, arrayUnion, arrayRemove, runTransaction, where, limit, getDocs, Timestamp } from "firebase/firestore";
 import { VesselJob, BLData, BLChecklist, ResourceLock, ChatMessage, ChatUser } from "../types";
@@ -352,7 +353,8 @@ export const dataService = {
   // Track global unread status for the current user (boolean only)
   subscribeUnreadStatus: (userId: string, callback: (hasUnread: boolean) => void) => {
       if (!db) return () => {};
-      const q = query(collection(db, "messages"), orderBy("timestamp", "desc"), limit(30));
+      // Increased limit to 100 to capture more messages and ensure red dot clears correctly
+      const q = query(collection(db, "messages"), orderBy("timestamp", "desc"), limit(100));
       return onSnapshot(q, (snapshot) => {
           let hasUnread = false;
           for (const doc of snapshot.docs) {
@@ -369,8 +371,8 @@ export const dataService = {
   // Track specific unread channels for the current user
   subscribeUnreadChannels: (userId: string, callback: (channelIds: string[]) => void) => {
       if (!db) return () => {};
-      // Optimization: Limit to latest 50 messages to check for badges
-      const q = query(collection(db, "messages"), orderBy("timestamp", "desc"), limit(50));
+      // Optimization: Limit to latest 100 messages to check for badges
+      const q = query(collection(db, "messages"), orderBy("timestamp", "desc"), limit(100));
       return onSnapshot(q, (snapshot) => {
           const unreadChannelSet = new Set<string>();
           for (const doc of snapshot.docs) {
@@ -464,16 +466,23 @@ export const dataService = {
 
   updateUserPresence: async (user: User) => {
     if (!db) return;
-    const chatUser: ChatUser = {
-        uid: user.uid,
-        displayName: user.displayName || 'User',
-        email: user.email || '',
-        photoURL: user.photoURL || '',
-        lastSeen: Date.now(),
-        status: 'online'
-    };
     try {
-        await setDoc(doc(db, "users", user.uid), chatUser, { merge: true });
+        // First get existing data to preserve contacts
+        const userRef = doc(db, "users", user.uid);
+        const snapshot = await getDoc(userRef);
+        const existingData = snapshot.exists() ? snapshot.data() : {};
+
+        const chatUser: ChatUser = {
+            uid: user.uid,
+            displayName: user.displayName || 'User',
+            email: user.email || '',
+            photoURL: user.photoURL || '',
+            lastSeen: Date.now(),
+            status: 'online',
+            contacts: existingData.contacts || [] // Preserve contacts
+        };
+        
+        await setDoc(userRef, chatUser, { merge: true });
     } catch (e) {
         console.error("Presence Update Error:", e);
     }
@@ -498,5 +507,27 @@ export const dataService = {
           const users = snapshot.docs.map(doc => doc.data() as ChatUser);
           callback(users);
       });
+  },
+
+  addContactByEmail: async (currentUserUid: string, contactEmail: string) => {
+      if (!db) throw new Error("Database not connected");
+      
+      // 1. Find the user with this email
+      const q = query(collection(db, "users"), where("email", "==", contactEmail));
+      const querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) {
+          throw new Error("User not found with this email.");
+      }
+      
+      const contactUser = querySnapshot.docs[0].data() as ChatUser;
+      
+      // 2. Add to current user's contact list
+      const currentUserRef = doc(db, "users", currentUserUid);
+      await updateDoc(currentUserRef, {
+          contacts: arrayUnion(contactUser.uid)
+      });
+      
+      return contactUser;
   }
 };
