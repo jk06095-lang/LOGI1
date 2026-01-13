@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard, BriefingReport } from './components/Dashboard';
@@ -38,7 +37,6 @@ const App: React.FC = () => {
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false); // Chat State
-  const [hasUnreadMessages, setHasUnreadMessages] = useState(false); // Unread Chat State
 
   const [tabs, setTabs] = useState<Tab[]>([{ id: 'dashboard', type: 'dashboard', title: 'Dashboard' }]);
   const [activeTabId, setActiveTabId] = useState('dashboard');
@@ -123,10 +121,8 @@ const App: React.FC = () => {
         checkExpiration(data);
     });
     const unsubChecklists = dataService.subscribeChecklists(setChecklists);
-    // Subscribe to unread messages status
-    const unsubUnread = dataService.subscribeUnreadStatus(user.uid, setHasUnreadMessages);
     
-    return () => { unsubJobs(); unsubBLs(); unsubChecklists(); unsubUnread(); };
+    return () => { unsubJobs(); unsubBLs(); unsubChecklists(); };
   }, [user]);
 
   // Check for files older than 3 months
@@ -468,13 +464,8 @@ const App: React.FC = () => {
         language={settings.language} 
         user={user} 
         isChatOpen={isChatOpen}
-        onToggleChat={() => {
-           setIsChatOpen(!isChatOpen);
-           // NOTE: We do not manually clear unread status here. 
-           // It should be cleared when messages are read in the ChatWindow via dataService.
-        }}
+        onToggleChat={() => setIsChatOpen(!isChatOpen)}
         logoUrl={settings.logoUrl}
-        hasUnreadMessages={hasUnreadMessages}
       />
       
       {/* Chat Window Component */}
@@ -488,16 +479,13 @@ const App: React.FC = () => {
         <div className="flex justify-between items-end bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 pr-4 print:hidden">
             <TabNavigation tabs={tabs} activeTabId={activeTabId} onTabClick={activateTab} onTabClose={closeTab} />
             
-            {/* Notification Bell */}
+            {/* Notification Bell (No Red Dot logic anymore) */}
             <div className="relative mb-1" ref={notifRef}>
                 <button 
                   onClick={() => setShowNotifications(!showNotifications)}
                   className="p-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors relative"
                 >
                     <Bell size={18} />
-                    {notificationHistory.some(n => n.type === 'error' && new Date(n.timestamp).getTime() > Date.now() - 60000) && (
-                        <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white dark:border-slate-900"></span>
-                    )}
                 </button>
 
                 {/* Notification Dropdown */}

@@ -350,6 +350,24 @@ export const dataService = {
       }
   },
 
+  markMessagesAsRead: async (messageIds: string[], userId: string) => {
+      if (!db || messageIds.length === 0) return;
+      const batch = writeBatch(db);
+      // Firestore batch limit is 500, safe limit to 490
+      const idsToMark = messageIds.slice(0, 490);
+      
+      idsToMark.forEach(id => {
+          const ref = doc(db, "messages", id);
+          batch.update(ref, { readBy: arrayUnion(userId) });
+      });
+      
+      try {
+          await batch.commit();
+      } catch(e) {
+          console.error("Batch mark read failed", e);
+      }
+  },
+
   // Track global unread status for the current user (boolean only)
   subscribeUnreadStatus: (userId: string, callback: (hasUnread: boolean) => void) => {
       if (!db) return () => {};

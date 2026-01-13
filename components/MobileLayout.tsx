@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { BLData, VesselJob, AppSettings, ChatMessage, ChatUser, CargoSourceType } from '../types';
 import { 
@@ -44,6 +45,191 @@ const DocRow = ({ title, url }: { title: string, url?: string }) => (
         )}
     </div>
 );
+
+// Mobile Chat View Component
+interface MobileChatViewProps {
+  user: User | null;
+  view: 'list' | 'room';
+  setView: (view: 'list' | 'room') => void;
+  activeChannel: { id: string; name: string; type: 'global' | 'dm' };
+  setActiveChannel: (channel: { id: string; name: string; type: 'global' | 'dm' }) => void;
+}
+
+const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, activeChannel, setActiveChannel }) => {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [users, setUsers] = useState<ChatUser[]>([]);
+  const [inputText, setInputText] = useState('');
+  const scrollRef = useRef<HTMLDivElement>(null);
+  
+  // Fetch users for list view
+  useEffect(() => {
+    const unsub = dataService.subscribeChatUsers(setUsers);
+    return () => unsub();
+  }, []);
+
+  // Fetch messages for room view
+  useEffect(() => {
+    if (view !== 'room' || !activeChannel.id) return;
+    
+    const unsub = dataService.subscribeChatMessages(activeChannel.id, (msgs) => {
+        setMessages(msgs);
+        if (scrollRef.current) {
+            setTimeout(() => {
+                if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+            }, 100);
+        }
+    });
+    return () => unsub();
+  }, [view, activeChannel.id]);
+
+  const handleSend = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!inputText.trim() || !user) return;
+      
+      const text = inputText.trim();
+      setInputText('');
+
+      const msg: ChatMessage = {
+          id: 'temp-' + Date.now(),
+          text,
+          senderId: user.uid,
+          senderName: user.displayName || 'User',
+          senderPhoto: user.photoURL || '',
+          timestamp: Date.now(),
+          channelId: activeChannel.id,
+          readBy: [user.uid],
+          pending: true
+      };
+      
+      // Optimistic update
+      setMessages(prev => [...prev, msg]);
+      
+      await dataService.sendChatMessage(msg);
+  };
+
+  const getDmChannelId = (partnerId: string) => {
+      if (!user) return '';
+      return [user.uid, partnerId].sort().join('_');
+  };
+  
+  // Filter friends
+  const myFriends = useMemo(() => {
+      if (!user || users.length === 0) return [];
+      const me = users.find(u => u.uid === user.uid);
+      if (!me || !me.contacts) return [];
+      return users.filter(u => me.contacts?.includes(u.uid));
+  }, [users, user]);
+
+  if (view === 'list') {
+      return (
+          <div className="h-full overflow-y-auto p-4 custom-scrollbar">
+              <h2 className="font-bold text-slate-800 mb-4 text-lg">Messages</h2>
+              
+              <div 
+                onClick={() => {
+                    setActiveChannel({ id: 'global', name: 'Global Chat', type: 'global' });
+                    setView('room');
+                }}
+                className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 mb-6 cursor-pointer active:scale-95 transition-transform"
+              >
+                  <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center">
+                      <MessageCircle size={24} />
+                  </div>
+                  <div>
+                      <h3 className="font-bold text-slate-800">Global Chat</h3>
+                      <p className="text-xs text-slate-500">Public Team Channel</p>
+                  </div>
+              </div>
+
+              <h3 className="font-bold text-slate-400 text-xs uppercase tracking-widest mb-3">Direct Messages</h3>
+              <div className="space-y-2">
+                  {myFriends.length === 0 ? (
+                      <p className="text-slate-400 text-sm italic">No contacts added. Use PC to add friends.</p>
+                  ) : (
+                      myFriends.map(friend => (
+                          <div 
+                            key={friend.uid}
+                            onClick={() => {
+                                const cid = getDmChannelId(friend.uid);
+                                setActiveChannel({ id: cid, name: friend.displayName, type: 'dm' });
+                                setView('room');
+                            }}
+                            className="bg-white p-3 rounded-xl border border-slate-100 flex items-center gap-3 cursor-pointer active:scale-95 transition-transform"
+                          >
+                              <div className="relative">
+                                  <div className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden">
+                                      {friend.photoURL ? <img src={friend.photoURL} alt={friend.displayName} className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-2 text-slate-400"/>}
+                                  </div>
+                                  <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
+                                      friend.status === 'online' ? 'bg-emerald-500' : friend.status === 'away' ? 'bg-amber-500' : 'bg-slate-300'
+                                  }`}></div>
+                              </div>
+                              <div>
+                                  <p className="font-bold text-sm text-slate-800">{friend.displayName}</p>
+                                  <p className="text-xs text-slate-500">{friend.status}</p>
+                              </div>
+                          </div>
+                      ))
+                  )}
+              </div>
+          </div>
+      );
+  }
+
+  return (
+      <div className="flex flex-col h-full bg-slate-100">
+          <div className="p-3 bg-white border-b border-slate-200 shadow-sm flex items-center gap-3 z-10">
+              <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
+                  {activeChannel.name.substring(0,2).toUpperCase()}
+              </div>
+              <div>
+                  <h3 className="font-bold text-sm text-slate-800">{activeChannel.name}</h3>
+                  <p className="text-[10px] text-slate-500">{activeChannel.type === 'global' ? 'Team Channel' : 'Direct Message'}</p>
+              </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 custom-scrollbar" ref={scrollRef}>
+              <div className="space-y-3 pb-4">
+                  {messages.map((msg, idx) => {
+                      const isMe = msg.senderId === user?.uid;
+                      return (
+                          <div key={msg.id || idx} className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                              {!isMe && (
+                                  <div className="w-8 h-8 rounded-full bg-slate-200 flex-shrink-0 overflow-hidden mt-1">
+                                      {msg.senderPhoto ? <img src={msg.senderPhoto} alt="U" /> : <UserIcon className="w-full h-full p-1.5 text-slate-400"/>}
+                                  </div>
+                              )}
+                              <div className={`max-w-[80%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
+                                  <div className={`px-3 py-2 rounded-2xl text-sm shadow-sm ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white text-slate-800 rounded-tl-none'}`}>
+                                      {msg.text}
+                                  </div>
+                                  <span className="text-[10px] text-slate-400 px-1 mt-1">
+                                      {new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
+                                  </span>
+                              </div>
+                          </div>
+                      )
+                  })}
+              </div>
+          </div>
+
+          <div className="p-3 bg-white border-t border-slate-200">
+              <form onSubmit={handleSend} className="flex gap-2">
+                  <input 
+                      type="text" 
+                      value={inputText}
+                      onChange={(e) => setInputText(e.target.value)}
+                      placeholder="Type a message..."
+                      className="flex-1 bg-slate-100 border-none rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                  <button type="submit" disabled={!inputText.trim()} className="p-2 bg-blue-600 text-white rounded-full disabled:opacity-50">
+                      <Send size={18} />
+                  </button>
+              </form>
+          </div>
+      </div>
+  );
+};
 
 export const MobileLayout: React.FC<MobileLayoutProps> = ({
   user, settings, onUpdateSettings, onLogout, bls, jobs
@@ -391,258 +577,4 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
         )}
     </div>
   );
-};
-
-// --- Mobile Chat Sub-Component ---
-
-interface MobileChatViewProps {
-    user: User | null;
-    view: 'list' | 'room';
-    setView: (v: 'list' | 'room') => void;
-    activeChannel: {id: string, name: string, type: 'global' | 'dm'};
-    setActiveChannel: (c: {id: string, name: string, type: 'global' | 'dm'}) => void;
-}
-
-const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, activeChannel, setActiveChannel }) => {
-    const [messages, setMessages] = useState<ChatMessage[]>([]);
-    const [inputText, setInputText] = useState('');
-    const [users, setUsers] = useState<ChatUser[]>([]);
-    const [typingUsers, setTypingUsers] = useState<string[]>([]);
-    const [unreadChannels, setUnreadChannels] = useState<string[]>([]);
-    const scrollRef = useRef<HTMLDivElement>(null);
-    const inputRef = useRef<HTMLInputElement>(null); // Ref for input focus
-
-    // Subscribe Users
-    useEffect(() => {
-        const unsub = dataService.subscribeChatUsers(setUsers);
-        return () => unsub();
-    }, []);
-
-    // Subscribe Unread Channels
-    useEffect(() => {
-        if (!user) return;
-        const unsub = dataService.subscribeUnreadChannels(user.uid, setUnreadChannels);
-        return () => unsub();
-    }, [user?.uid]);
-
-    // Subscribe Messages & Typing
-    useEffect(() => {
-        if (view !== 'room' || !activeChannel.id) return;
-        
-        const unsubMsg = dataService.subscribeChatMessages(activeChannel.id, (msgs) => {
-            setMessages(msgs);
-            // Mark visible messages as read when channel is active
-            if (user) {
-                msgs.forEach(msg => {
-                    if (msg.senderId !== user.uid && (!msg.readBy || !msg.readBy.includes(user.uid))) {
-                        dataService.markMessageRead(msg.id, user.uid);
-                    }
-                });
-            }
-        });
-        
-        // Typing Subscription
-        const unsubTyping = dataService.subscribeTyping(activeChannel.id, (u) => {
-            if (user) {
-                setTypingUsers(u.filter(name => name !== user.displayName));
-            }
-        });
-
-        return () => { unsubMsg(); unsubTyping(); };
-    }, [view, activeChannel.id, user?.displayName, user?.uid]);
-
-    // Auto Scroll
-    useEffect(() => {
-        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }, [messages, view, typingUsers]);
-
-    const handleInputFocus = () => {
-        if (!user || !activeChannel.id) return;
-        dataService.sendTypingStatus(activeChannel.id, {
-            uid: user.uid,
-            displayName: user.displayName || 'User'
-        });
-        
-        // Ensure scroll to bottom on focus (keyboard opening)
-        setTimeout(() => {
-            if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        }, 300);
-    };
-
-    const handleInputBlur = () => {
-        if (!user || !activeChannel.id) return;
-        dataService.clearTypingStatus(activeChannel.id, user.uid);
-    };
-
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setInputText(e.target.value);
-        if (user && activeChannel.id) {
-            dataService.sendTypingStatus(activeChannel.id, {
-                uid: user.uid,
-                displayName: user.displayName || 'User'
-            });
-        }
-    };
-
-    const handleSend = async (e: React.FormEvent) => {
-        e.preventDefault(); // Prevent form reload and keyboard hiding
-        if (!inputText.trim() || !user) return;
-        
-        if (activeChannel.id) {
-            dataService.clearTypingStatus(activeChannel.id, user.uid);
-        }
-
-        const msg: any = {
-            text: inputText.trim(),
-            senderId: user.uid,
-            senderName: user.displayName || 'User',
-            senderPhoto: user.photoURL || '',
-            timestamp: Date.now(),
-            channelId: activeChannel.id,
-            readBy: [user.uid],
-            pending: false
-        };
-        
-        setInputText('');
-        
-        // Keep focus to maintain keyboard
-        inputRef.current?.focus();
-        
-        await dataService.sendChatMessage(msg);
-    };
-
-    const openDM = (targetUser: ChatUser) => {
-        if (!user) return;
-        const channelId = [user.uid, targetUser.uid].sort().join('_');
-        setActiveChannel({ id: channelId, name: targetUser.displayName, type: 'dm' });
-        setView('room');
-    };
-
-    // Check if user has unread messages
-    const hasUnread = (targetUid: string) => {
-        if (!user) return false;
-        const dmChannelId = [user.uid, targetUid].sort().join('_');
-        return unreadChannels.includes(dmChannelId);
-    };
-
-    if (view === 'list') {
-        return (
-            <div className="h-full overflow-y-auto custom-scrollbar p-4">
-                <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Channels</h2>
-                
-                {/* Global Channel Card */}
-                <div 
-                    onClick={() => { setActiveChannel({id: 'global', name: 'Global Chat', type: 'global'}); setView('room'); }}
-                    className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 mb-6 cursor-pointer active:scale-95 transition-transform relative"
-                >
-                    <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600">
-                        <MessageCircle size={24} />
-                    </div>
-                    <div>
-                        <h3 className="font-bold text-slate-800">Global Team Chat</h3>
-                        <p className="text-xs text-slate-500">General discussion channel</p>
-                    </div>
-                    {/* Unread Indicator for Global Chat */}
-                    {unreadChannels.includes('global') && (
-                        <div className="absolute top-4 right-4 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse"></div>
-                    )}
-                </div>
-
-                <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Direct Messages</h2>
-                <div className="space-y-2">
-                    {users.filter(u => u.uid !== user?.uid).map(u => (
-                        <div 
-                            key={u.uid} 
-                            onClick={() => openDM(u)}
-                            className="bg-white p-3 rounded-xl border border-slate-100 flex items-center gap-3 cursor-pointer active:bg-slate-50"
-                        >
-                            <div className="relative">
-                                <div className="w-10 h-10 bg-slate-200 rounded-full overflow-hidden">
-                                    {u.photoURL ? <img src={u.photoURL} className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-2 text-slate-400" />}
-                                </div>
-                                <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
-                                    u.status === 'online' ? 'bg-emerald-500' : 'bg-slate-400'
-                                }`}></div>
-                                
-                                {/* Red Notification Dot */}
-                                {hasUnread(u.uid) && (
-                                    <div className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse"></div>
-                                )}
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-sm text-slate-800">{u.displayName}</h3>
-                                <p className="text-[10px] text-slate-500">{u.status === 'online' ? 'Online' : 'Offline'}</p>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        );
-    }
-
-    // Chat Room View
-    return (
-        <div className="flex flex-col h-full bg-slate-100">
-            <div className="bg-white border-b border-slate-200 p-3 flex justify-center shadow-sm flex-shrink-0">
-                <span className="font-bold text-sm text-slate-800">{activeChannel.name}</span>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-4 space-y-3" ref={scrollRef}>
-                {messages.map((msg, idx) => {
-                    const isMe = msg.senderId === user?.uid;
-                    return (
-                        <div key={idx} className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                            {!isMe && (
-                                <div className="w-8 h-8 rounded-full bg-slate-300 overflow-hidden flex-shrink-0">
-                                    {msg.senderPhoto ? <img src={msg.senderPhoto} /> : <UserIcon className="p-1.5 text-slate-500" />}
-                                </div>
-                            )}
-                            <div className={`max-w-[80%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
-                                <div className={`px-4 py-2 rounded-2xl text-sm shadow-sm ${isMe ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-white text-slate-800 rounded-tl-sm'}`}>
-                                    {msg.text}
-                                </div>
-                                <span className="text-[10px] text-slate-400 mt-1 px-1">
-                                    {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                </span>
-                            </div>
-                        </div>
-                    );
-                })}
-
-                {/* Typing Indicator */}
-                {typingUsers.length > 0 && (
-                     <div className="flex gap-2 animate-fade-in">
-                         <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center">
-                             <div className="flex gap-0.5">
-                                 <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce"></span>
-                                 <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce delay-100"></span>
-                                 <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce delay-200"></span>
-                             </div>
-                         </div>
-                         <span className="text-[10px] text-slate-400 self-center">
-                            {typingUsers.join(', ')} typing...
-                         </span>
-                     </div>
-                )}
-            </div>
-
-            {/* Input Bar - Positioned with safe-area support */}
-            <div className="p-3 bg-white border-t border-slate-200 pb-[env(safe-area-inset-bottom)] flex-shrink-0">
-                <form onSubmit={handleSend} className="flex gap-2">
-                    <input 
-                        ref={inputRef}
-                        className="flex-1 bg-slate-100 border-none rounded-full px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                        placeholder="Type a message..."
-                        value={inputText}
-                        onChange={handleInputChange}
-                        onFocus={handleInputFocus}
-                        onBlur={handleInputBlur}
-                    />
-                    <button type="submit" disabled={!inputText.trim()} className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white disabled:opacity-50">
-                        <Send size={18} />
-                    </button>
-                </form>
-            </div>
-        </div>
-    );
 };

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Send, X, User as UserIcon, MessageCircle, ChevronLeft, Check, CheckCheck, Download, UserPlus, Plus } from 'lucide-react';
 import { auth } from '../lib/firebase';
@@ -18,7 +19,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [inputText, setInputText] = useState('');
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
-  const [unreadChannels, setUnreadChannels] = useState<string[]>([]);
   
   // Add Friend State
   const [showAddFriend, setShowAddFriend] = useState(false);
@@ -52,18 +52,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                  if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
              }, 100);
           }
-
-          // Force Mark visible messages as read when channel is active
-          if (currentUser) {
-              newMessages.forEach(msg => {
-                  if (msg.senderId !== currentUser.uid && (!msg.readBy || !msg.readBy.includes(currentUser.uid))) {
-                      dataService.markMessageRead(msg.id, currentUser.uid);
-                  }
-              });
-          }
       });
       return () => unsub();
-  }, [isOpen, channelId, currentUser?.uid]);
+  }, [isOpen, channelId]);
 
   // Subscribe to Users List
   useEffect(() => {
@@ -71,13 +62,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       const unsub = dataService.subscribeChatUsers(setUsers);
       return () => unsub();
   }, [isOpen]);
-
-  // Subscribe to Unread Channels (for Red Dot)
-  useEffect(() => {
-      if (!isOpen || !currentUser) return;
-      const unsub = dataService.subscribeUnreadChannels(currentUser.uid, setUnreadChannels);
-      return () => unsub();
-  }, [isOpen, currentUser?.uid]);
 
   // Subscribe to Typing Status
   useEffect(() => {
@@ -184,13 +168,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       saveAs(blob, `${chatName}_Log_${new Date().toISOString().slice(0, 10)}.json`);
   };
 
-  // Check if a user has unread messages
-  const hasUnread = (targetUid: string) => {
-      if (!currentUser) return false;
-      const dmChannelId = [currentUser.uid, targetUid].sort().join('_');
-      return unreadChannels.includes(dmChannelId);
-  };
-
   // Filter Friends Only
   const myFriends = useMemo(() => {
       if (!currentUser || users.length === 0) return [];
@@ -258,9 +235,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                         className={`pb-2 text-sm font-bold border-b-2 transition-colors relative ${activeTab === 'global' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                     >
                         Global
-                        {unreadChannels.includes('global') && activeTab !== 'global' && (
-                             <span className="absolute top-0 -right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-                        )}
                     </button>
                     <button 
                         onClick={() => setActiveTab('dm')}
@@ -381,11 +355,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                                             user.status === 'away' ? 'bg-amber-500' : 
                                             user.status === 'offline' ? 'bg-slate-400' : 'bg-emerald-500'
                                         }`}></div>
-                                        
-                                        {/* Unread Indicator */}
-                                        {hasUnread(user.uid) && (
-                                            <div className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border-2 border-white dark:border-slate-800 animate-pulse"></div>
-                                        )}
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{user.displayName}</p>
