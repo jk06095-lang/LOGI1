@@ -42,7 +42,13 @@ const App: React.FC = () => {
   
   // Unread Messages Logic (Timestamp based)
   const [latestUnreadTs, setLatestUnreadTs] = useState<number>(0);
-  const [lastReadTs, setLastReadTs] = useState<number>(0); // When user last opened chat
+  
+  // Initialize lastReadTs from LocalStorage to persist across refreshes
+  const [lastReadTs, setLastReadTs] = useState<number>(() => {
+      const stored = localStorage.getItem('LOGI1_lastReadTs');
+      return stored ? parseInt(stored, 10) : 0;
+  });
+
   const hasUnreadMessages = latestUnreadTs > lastReadTs;
 
   const [tabs, setTabs] = useState<Tab[]>([{ id: 'dashboard', type: 'dashboard', title: 'Dashboard' }]);
@@ -179,19 +185,25 @@ const App: React.FC = () => {
     }
   };
 
+  const updateLastRead = () => {
+      const now = Date.now();
+      setLastReadTs(now);
+      localStorage.setItem('LOGI1_lastReadTs', now.toString());
+  };
+
   // Chat Toggle Logic
   const handleToggleChat = () => {
       const nextState = !isChatOpen;
       setIsChatOpen(nextState);
       if (nextState) {
-          // If opening chat, mark all current unread as 'seen' locally to remove dot
-          setLastReadTs(Date.now());
+          // If opening chat, update last read ts
+          updateLastRead();
       }
   };
 
   // Called by Mobile Layout when switching to Chat tab
   const handleMobileChatCheck = () => {
-      setLastReadTs(Date.now());
+      updateLastRead();
   };
 
   // Task Management Functions
@@ -533,7 +545,7 @@ const App: React.FC = () => {
               onAddTask={addTask}
               onUpdateTask={updateTask}
               hasUnreadMessages={hasUnreadMessages}
-              onCheckMessages={handleMobileChatCheck} // Pass handler to clear red dot
+              onCheckMessages={handleMobileChatCheck} // Pass handler to clear red dot and update persistence
           />
       );
   }

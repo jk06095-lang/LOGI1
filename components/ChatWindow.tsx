@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { Send, X, User as UserIcon, MessageCircle, ChevronLeft, Check, CheckCheck, Download, UserPlus, Plus, ArrowUpCircle } from 'lucide-react';
 import { auth } from '../lib/firebase';
 import { dataService } from '../services/dataService';
@@ -23,6 +23,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
   
   // History Limit
   const [messageLimit, setMessageLimit] = useState(150); // Default to 150 (approx 3+ days)
+  const isHistoryLoadingRef = useRef(false);
+  const previousScrollHeightRef = useRef(0);
   
   // Add Friend State
   const [showAddFriend, setShowAddFriend] = useState(false);
@@ -84,28 +86,35 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       return () => unsub();
   }, [isOpen, channelId, messageLimit]);
 
-  // Handle Scrolling
-  useEffect(() => {
+  // SCROLL LOGIC: Handle both new messages and history loading
+  useLayoutEffect(() => {
       if (!scrollRef.current) return;
       
-      // Auto-scroll to bottom only on initial load or if user is near bottom
-      const isInitialLoad = prevMessagesLengthRef.current === 0 && messages.length > 0;
-      const isNewMessage = messages.length > prevMessagesLengthRef.current;
+      const currentScrollHeight = scrollRef.current.scrollHeight;
       
+      // 1. Initial Load: Scroll to bottom
+      const isInitialLoad = prevMessagesLengthRef.current === 0 && messages.length > 0;
       if (isInitialLoad) {
-          // Allow time for DOM to render
-          setTimeout(() => {
-              if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-          }, 100);
-      } else if (isNewMessage) {
-          // Only auto-scroll if we are already near the bottom
-          const distanceFromBottom = scrollRef.current.scrollHeight - scrollRef.current.scrollTop - scrollRef.current.clientHeight;
+          scrollRef.current.scrollTop = currentScrollHeight;
+      } 
+      // 2. History Load: Preserve relative scroll position
+      else if (isHistoryLoadingRef.current) {
+          const heightDiff = currentScrollHeight - previousScrollHeightRef.current;
+          if (heightDiff > 0) {
+              scrollRef.current.scrollTop += heightDiff;
+          }
+          isHistoryLoadingRef.current = false; // Reset flag
+      } 
+      // 3. New Message: Auto-scroll if near bottom
+      else if (messages.length > prevMessagesLengthRef.current) {
+          const distanceFromBottom = currentScrollHeight - scrollRef.current.scrollTop - scrollRef.current.clientHeight;
           if (distanceFromBottom < 100) {
-              scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+              scrollRef.current.scrollTop = currentScrollHeight;
           }
       }
       
       prevMessagesLengthRef.current = messages.length;
+      previousScrollHeightRef.current = currentScrollHeight;
   }, [messages]);
 
   // Subscribe to Users List
@@ -130,6 +139,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
   useEffect(() => {
       setMessageLimit(150);
       prevMessagesLengthRef.current = 0;
+      previousScrollHeightRef.current = 0;
   }, [activeTab, selectedUser]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -284,6 +294,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
   };
 
   const loadMoreMessages = () => {
+      isHistoryLoadingRef.current = true;
       setMessageLimit(prev => prev + 100);
   };
 

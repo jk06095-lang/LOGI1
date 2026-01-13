@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
 import { BLData, VesselJob, AppSettings, ChatMessage, ChatUser, CargoSourceType, BLChecklist, BackgroundTask } from '../types';
 import { 
     Search, Download, FileText, MessageCircle, Settings, LogOut, 
@@ -44,6 +44,9 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   
   // History Limit
   const [messageLimit, setMessageLimit] = useState(150);
+  const isHistoryLoadingRef = useRef(false);
+  const prevMessagesLengthRef = useRef(0);
+  const previousScrollHeightRef = useRef(0);
   
   // Typing Refs
   const typingTimeoutRef = useRef<any>(null); 
@@ -70,30 +73,41 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
     
     const unsub = dataService.subscribeChatMessages(activeChannel.id, messageLimit, (msgs) => {
         setMessages(msgs);
-        
-        // Initial Scroll to bottom
-        if (messageLimit === 150 && scrollRef.current) { 
-             setTimeout(() => {
-                if(scrollRef.current) {
-                    // Check if at top
-                    if (scrollRef.current.scrollTop === 0) {
-                        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-                    }
-                }
-             }, 200);
-        }
     });
     return () => unsub();
   }, [view, activeChannel.id, messageLimit]);
 
-  // Auto scroll to bottom when entering room
-  useEffect(() => {
-      if (view === 'room' && scrollRef.current) {
-          setTimeout(() => {
-              if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-          }, 200);
+  // SCROLL LOGIC
+  useLayoutEffect(() => {
+      if (view !== 'room' || !scrollRef.current) return;
+      
+      const currentScrollHeight = scrollRef.current.scrollHeight;
+      
+      // 1. Initial Load: Scroll to bottom
+      const isInitialLoad = prevMessagesLengthRef.current === 0 && messages.length > 0;
+      if (isInitialLoad) {
+          scrollRef.current.scrollTop = currentScrollHeight;
       }
-  }, [view]);
+      // 2. History Load: Preserve scroll
+      else if (isHistoryLoadingRef.current) {
+          const heightDiff = currentScrollHeight - previousScrollHeightRef.current;
+          if (heightDiff > 0) {
+              scrollRef.current.scrollTop += heightDiff;
+          }
+          isHistoryLoadingRef.current = false;
+      }
+      // 3. New Message
+      else if (messages.length > prevMessagesLengthRef.current) {
+          // Auto scroll to bottom if near bottom
+          const distanceFromBottom = currentScrollHeight - scrollRef.current.scrollTop - scrollRef.current.clientHeight;
+          if (distanceFromBottom < 100) {
+              scrollRef.current.scrollTop = currentScrollHeight;
+          }
+      }
+
+      prevMessagesLengthRef.current = messages.length;
+      previousScrollHeightRef.current = currentScrollHeight;
+  }, [messages, view]);
 
   // Subscribe to Typing Status
   useEffect(() => {
@@ -216,6 +230,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   }, [users, user]);
 
   const loadMoreHistory = () => {
+      isHistoryLoadingRef.current = true;
       setMessageLimit(prev => prev + 100); 
   };
 
@@ -229,6 +244,8 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                     setActiveChannel({ id: 'global', name: 'Global Chat', type: 'global' });
                     setView('room');
                     setMessageLimit(150); // Reset limit
+                    prevMessagesLengthRef.current = 0;
+                    previousScrollHeightRef.current = 0;
                 }}
                 className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 mb-6 cursor-pointer active:scale-95 transition-transform relative"
               >
@@ -256,6 +273,8 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                                     setActiveChannel({ id: dmId, name: friend.displayName, type: 'dm' });
                                     setView('room');
                                     setMessageLimit(150); // Reset
+                                    prevMessagesLengthRef.current = 0;
+                                    previousScrollHeightRef.current = 0;
                                 }}
                                 className="bg-white p-3 rounded-xl border border-slate-100 flex items-center gap-3 cursor-pointer active:scale-95 transition-transform relative"
                               >
