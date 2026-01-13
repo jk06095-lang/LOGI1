@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth, db } from './lib/firebase';
@@ -57,12 +58,14 @@ const App: React.FC = () => {
   useEffect(() => {
       if (!user) return;
       
-      const qJobs = query(collection(db, 'vessel_jobs'), orderBy('createdAt', 'desc'));
+      // Fixed Collection Name: 'jobs' (was 'vessel_jobs')
+      const qJobs = query(collection(db, 'jobs'), orderBy('createdAt', 'desc'));
       const unsubJobs = onSnapshot(qJobs, (snap) => {
           setJobs(snap.docs.map(d => ({ id: d.id, ...d.data() } as VesselJob)));
       });
       
-      const qBLs = query(collection(db, 'bl_documents'), orderBy('uploadDate', 'desc'));
+      // Fixed Collection Name: 'bls' (was 'bl_documents')
+      const qBLs = query(collection(db, 'bls'), orderBy('uploadDate', 'desc'));
       const unsubBLs = onSnapshot(qBLs, (snap) => {
           setBLs(snap.docs.map(d => ({ id: d.id, ...d.data() } as BLData)));
       });
@@ -84,23 +87,28 @@ const App: React.FC = () => {
   const handleUpdateSettings = (newSettings: AppSettings) => setSettings(newSettings);
   
   const handleCreateJob = async (job: Omit<VesselJob, 'id'>) => {
-      await addDoc(collection(db, 'vessel_jobs'), job);
+      // Fixed Collection Name
+      await addDoc(collection(db, 'jobs'), job);
   };
 
   const handleUpdateJob = async (id: string, updates: Partial<VesselJob>) => {
-      await updateDoc(doc(db, 'vessel_jobs', id), updates);
+      // Fixed Collection Name
+      await updateDoc(doc(db, 'jobs', id), updates);
   };
 
   const handleDeleteJob = async (id: string) => {
-      if(window.confirm("Delete job?")) await deleteDoc(doc(db, 'vessel_jobs', id));
+      // Fixed Collection Name
+      if(window.confirm("Delete job?")) await deleteDoc(doc(db, 'jobs', id));
   };
 
   const handleUpdateBL = async (id: string, updates: Partial<BLData>) => {
-      await updateDoc(doc(db, 'bl_documents', id), updates);
+      // Fixed Collection Name
+      await updateDoc(doc(db, 'bls', id), updates);
   };
 
   const handleDeleteBL = async (id: string) => {
-      await deleteDoc(doc(db, 'bl_documents', id));
+      // Fixed Collection Name
+      await deleteDoc(doc(db, 'bls', id));
   };
 
   const handleUpdateChecklist = async (blId: string, checklist: BLChecklist) => {
@@ -138,7 +146,8 @@ const App: React.FC = () => {
                   ...ocrData
               };
               
-              await addDoc(collection(db, 'bl_documents'), newBL);
+              // Fixed Collection Name
+              await addDoc(collection(db, 'bls'), newBL);
               // Init empty checklist
               const checklistRef = doc(db, 'checklists', newBL.id);
               // Assume EMPTY_CHECKLIST logic handles initialization or we trigger cloud function
@@ -154,7 +163,8 @@ const App: React.FC = () => {
   };
 
   const handleCreateManualBL = async (blData: BLData) => {
-      await addDoc(collection(db, 'bl_documents'), blData);
+      // Fixed Collection Name
+      await addDoc(collection(db, 'bls'), blData);
   };
 
   if (loading) return <div className="flex items-center justify-center h-screen">Loading...</div>;
