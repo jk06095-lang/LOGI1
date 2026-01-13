@@ -21,8 +21,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [unreadMap, setUnreadMap] = useState<Set<string>>(new Set()); // Tracks Channel IDs with unread messages
   
-  // History
-  const [historyDays, setHistoryDays] = useState(3);
+  // History Limit
+  const [messageLimit, setMessageLimit] = useState(150); // Default to 150 (approx 3+ days)
   
   // Add Friend State
   const [showAddFriend, setShowAddFriend] = useState(false);
@@ -30,6 +30,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
   const [isAddingFriend, setIsAddingFriend] = useState(false);
   
   const scrollRef = useRef<HTMLDivElement>(null);
+  const prevMessagesLengthRef = useRef(0);
   
   // Typing state Refs
   const typingTimeoutRef = useRef<any>(null);
@@ -62,30 +63,50 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
   // FORCE MARK READ ON OPEN / SWITCH
   useEffect(() => {
      if (isOpen && channelId && currentUser) {
+         // Optimistically remove from local unread map to hide dot instantly
+         setUnreadMap(prev => {
+             const newMap = new Set(prev);
+             newMap.delete(channelId);
+             return newMap;
+         });
+         // Update Backend
          dataService.markChannelRead(channelId, currentUser.uid);
      }
   }, [isOpen, channelId, currentUser]);
 
-  // Subscribe to Messages with History logic
+  // Subscribe to Messages with Limit logic
   useEffect(() => {
       if (!isOpen || !channelId) return;
       
-      const startTime = Date.now() - (historyDays * 24 * 60 * 60 * 1000);
-
-      const unsub = dataService.subscribeChatMessages(channelId, startTime, (newMessages) => {
+      const unsub = dataService.subscribeChatMessages(channelId, messageLimit, (newMessages) => {
           setMessages(newMessages);
-          
-          // Auto-scroll logic: If viewing default history and near top/empty, scroll to bottom
-          if (historyDays === 3 && scrollRef.current) {
-             setTimeout(() => {
-                 if(scrollRef.current && scrollRef.current.scrollTop < 50) {
-                     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-                 }
-             }, 100);
-          }
       });
       return () => unsub();
-  }, [isOpen, channelId, historyDays]);
+  }, [isOpen, channelId, messageLimit]);
+
+  // Handle Scrolling
+  useEffect(() => {
+      if (!scrollRef.current) return;
+      
+      // Auto-scroll to bottom only on initial load or if user is near bottom
+      const isInitialLoad = prevMessagesLengthRef.current === 0 && messages.length > 0;
+      const isNewMessage = messages.length > prevMessagesLengthRef.current;
+      
+      if (isInitialLoad) {
+          // Allow time for DOM to render
+          setTimeout(() => {
+              if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+          }, 100);
+      } else if (isNewMessage) {
+          // Only auto-scroll if we are already near the bottom
+          const distanceFromBottom = scrollRef.current.scrollHeight - scrollRef.current.scrollTop - scrollRef.current.clientHeight;
+          if (distanceFromBottom < 100) {
+              scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+          }
+      }
+      
+      prevMessagesLengthRef.current = messages.length;
+  }, [messages]);
 
   // Subscribe to Users List
   useEffect(() => {
@@ -105,14 +126,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       return () => unsub();
   }, [isOpen, channelId, currentUser?.uid]);
 
-  // Auto-scroll on tab change
+  // Reset limit when switching chats
   useEffect(() => {
-      if (scrollRef.current) {
-          setTimeout(() => {
-             if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-          }, 50);
-      }
-      setHistoryDays(3); // Reset history when changing context
+      setMessageLimit(150);
+      prevMessagesLengthRef.current = 0;
   }, [activeTab, selectedUser]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -149,6 +166,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
 
   const handleInputFocus = () => {
       if (!currentUser || !channelId) return;
+      // Mark read again just in case a new message arrived while window was open but blurred
+      dataService.markChannelRead(channelId, currentUser.uid);
+      
       dataService.sendTypingStatus(channelId, { 
           uid: currentUser.uid, 
           displayName: currentUser.displayName || 'User' 
@@ -191,18 +211,38 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
 
       setMessages(prev => [...prev, optimisticMsg]);
       
-      if (scrollRef.current) {
-          setTimeout(() => {
-             if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-          }, 50);
-      }
+      // Force scroll to bottom on send
+      setTimeout(() => {
+         if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }, 50);
 
       await dataService.sendChatMessage(optimisticMsg);
   };
 
   const handleUserSelect = (user: ChatUser) => {
       if (user.uid === currentUser?.uid) return;
+      
+      // OPTIMISTIC: Clear Red Dot for this user immediately
+      const dmId = getDmChannelId(user.uid);
+      setUnreadMap(prev => {
+          const newMap = new Set(prev);
+          newMap.delete(dmId);
+          return newMap;
+      });
+
       setSelectedUser(user);
+  };
+
+  const handleTabSwitch = (tab: 'global' | 'dm') => {
+      if (tab === 'global') {
+          // Optimistic clear for global
+          setUnreadMap(prev => {
+              const newMap = new Set(prev);
+              newMap.delete('global');
+              return newMap;
+          });
+      }
+      setActiveTab(tab);
   };
 
   const formatTime = (ts: number) => {
@@ -243,6 +283,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       }
   };
 
+  const loadMoreMessages = () => {
+      setMessageLimit(prev => prev + 100);
+  };
+
   return (
     <div 
         className={`fixed top-0 bottom-0 z-30 bg-white dark:bg-slate-900 shadow-2xl transition-transform duration-300 ease-in-out border-r border-slate-200 dark:border-slate-800 flex flex-col w-80 md:w-96`}
@@ -278,14 +322,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
              {!selectedUser && (
                 <div className="flex px-4 pb-0 gap-4">
                     <button 
-                        onClick={() => setActiveTab('global')}
+                        onClick={() => handleTabSwitch('global')}
                         className={`pb-2 text-sm font-bold border-b-2 transition-colors relative ${activeTab === 'global' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                     >
                         Global
                         {unreadMap.has('global') && <span className="absolute -top-1 -right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
                     </button>
                     <button 
-                        onClick={() => setActiveTab('dm')}
+                        onClick={() => handleTabSwitch('dm')}
                         className={`pb-2 text-sm font-bold border-b-2 transition-colors relative ${activeTab === 'dm' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                     >
                         Direct Messages
@@ -325,10 +369,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                      
                      <div className="flex justify-center">
                         <button 
-                            onClick={() => setHistoryDays(prev => prev + 7)} 
+                            onClick={loadMoreMessages} 
                             className="text-xs bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
                         >
-                            <ArrowUpCircle size={12} /> Load More History (7 Days)
+                            <ArrowUpCircle size={12} /> Load Previous Messages
                         </button>
                      </div>
 

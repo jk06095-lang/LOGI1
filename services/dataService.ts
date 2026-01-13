@@ -309,22 +309,23 @@ export const dataService = {
 
   // --- Chat Methods ---
   
-  // Updated: Accept startTime to filter by 3-day chunks
-  subscribeChatMessages: (channelId: string, startTime: number, callback: (messages: ChatMessage[]) => void) => {
+  // Updated: Accept limitCount instead of startTime for better pagination
+  subscribeChatMessages: (channelId: string, limitCount: number, callback: (messages: ChatMessage[]) => void) => {
     if (!db) return () => {};
     
-    // Default to last 3 days if not provided
-    const safeStartTime = startTime || (Date.now() - 3 * 24 * 60 * 60 * 1000);
+    // Default limit if not provided
+    const safeLimit = limitCount || 100;
 
     const q = query(
         collection(db, "messages"), 
         where("channelId", "==", channelId),
-        where("timestamp", ">=", safeStartTime)
+        orderBy("timestamp", "desc"), // Requires index for channelId + timestamp
+        limit(safeLimit)
     );
     
     return onSnapshot(q, (snapshot) => {
         const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage));
-        // Sort in client memory: Oldest first (Ascending timestamp)
+        // Sort in client memory: Oldest first (Ascending timestamp) for display
         msgs.sort((a, b) => a.timestamp - b.timestamp);
         callback(msgs);
     }, (error) => {

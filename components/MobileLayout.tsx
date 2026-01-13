@@ -39,9 +39,10 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   const [inputText, setInputText] = useState('');
   const [typingUsers, setTypingUsers] = useState<string[]>([]); // Typing state
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null); // For maintaining focus
   
-  // 3-Day History Logic
-  const [historyDays, setHistoryDays] = useState(3);
+  // History Limit
+  const [messageLimit, setMessageLimit] = useState(150);
   
   // Typing Refs
   const typingTimeoutRef = useRef<any>(null); 
@@ -57,32 +58,32 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   // Read Logic for Mobile: Immediately mark channel read when entering view 'room'
   useEffect(() => {
       if (view === 'room' && activeChannel.id && user) {
+          // Trigger read logic immediately
           dataService.markChannelRead(activeChannel.id, user.uid);
       }
   }, [view, activeChannel, user]);
 
-  // Fetch messages for room view with history depth
+  // Fetch messages for room view with limit
   useEffect(() => {
     if (view !== 'room' || !activeChannel.id) return;
     
-    // Calculate start time based on historyDays (e.g., 3 days ago)
-    const startTime = Date.now() - (historyDays * 24 * 60 * 60 * 1000);
-
-    const unsub = dataService.subscribeChatMessages(activeChannel.id, startTime, (msgs) => {
+    const unsub = dataService.subscribeChatMessages(activeChannel.id, messageLimit, (msgs) => {
         setMessages(msgs);
-        // Only scroll to bottom on initial load or new message sent by me
-        // A smarter logic would track if we are at bottom, but simple for now:
-        if (historyDays === 3 && scrollRef.current) { 
-             // On initial short history load, scroll to bottom
+        
+        // Initial Scroll to bottom
+        if (messageLimit === 150 && scrollRef.current) { 
              setTimeout(() => {
-                if(scrollRef.current && scrollRef.current.scrollTop === 0) {
-                    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+                if(scrollRef.current) {
+                    // Check if at top
+                    if (scrollRef.current.scrollTop === 0) {
+                        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+                    }
                 }
-             }, 100);
+             }, 200);
         }
     });
     return () => unsub();
-  }, [view, activeChannel.id, historyDays]);
+  }, [view, activeChannel.id, messageLimit]);
 
   // Auto scroll to bottom when entering room
   useEffect(() => {
@@ -140,6 +141,9 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
 
   const handleInputFocus = () => {
       if (!user || !activeChannel.id) return;
+      // Mark read again
+      dataService.markChannelRead(activeChannel.id, user.uid);
+
       dataService.sendTypingStatus(activeChannel.id, { 
           uid: user.uid, 
           displayName: user.displayName || 'User' 
@@ -190,6 +194,11 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
       }
       
       await dataService.sendChatMessage(msg);
+
+      // KEEP FOCUS ON INPUT
+      if (inputRef.current) {
+          inputRef.current.focus();
+      }
   };
 
   const getDmChannelId = (partnerId: string) => {
@@ -206,7 +215,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   }, [users, user]);
 
   const loadMoreHistory = () => {
-      setHistoryDays(prev => prev + 7); 
+      setMessageLimit(prev => prev + 100); 
   };
 
   if (view === 'list') {
@@ -218,7 +227,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                 onClick={() => {
                     setActiveChannel({ id: 'global', name: 'Global Chat', type: 'global' });
                     setView('room');
-                    setHistoryDays(3); // Reset to 3 days
+                    setMessageLimit(150); // Reset limit
                 }}
                 className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 mb-6 cursor-pointer active:scale-95 transition-transform relative"
               >
@@ -245,7 +254,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                                 onClick={() => {
                                     setActiveChannel({ id: dmId, name: friend.displayName, type: 'dm' });
                                     setView('room');
-                                    setHistoryDays(3); // Reset
+                                    setMessageLimit(150); // Reset
                                 }}
                                 className="bg-white p-3 rounded-xl border border-slate-100 flex items-center gap-3 cursor-pointer active:scale-95 transition-transform relative"
                               >
@@ -290,7 +299,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                     onClick={loadMoreHistory}
                     className="text-xs bg-slate-200 text-slate-600 px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-slate-300 active:scale-95 transition-transform"
                   >
-                      <ArrowUpCircle size={12} /> Load More History (7 Days)
+                      <ArrowUpCircle size={12} /> Load Previous Messages
                   </button>
               </div>
 
@@ -347,6 +356,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
           <div className="p-3 bg-white border-t border-slate-200 shrink-0 safe-area-bottom">
               <form onSubmit={handleSend} className="flex gap-2">
                   <input 
+                      ref={inputRef}
                       type="text" 
                       value={inputText}
                       onChange={handleInputChange}
@@ -363,10 +373,6 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
       </div>
   );
 };
-
-// ... (Rest of MobileLayout code for MobileShipmentDetail and MobileLayout wrapper remains the same, assuming imports are consistent) ... 
-// Due to size limit, only re-exporting the changed sub-component above. 
-// However, I need to output the FULL file for the instruction format.
 
 // Dedicated Read-Only Mobile Detail View
 const MobileShipmentDetail = ({ bl, onClose }: { bl: BLData, onClose: () => void }) => {
@@ -512,7 +518,8 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
   onUpdateTask,
   hasUnreadMessages
 }) => {
-  const [currentView, setCurrentView] = useState<'home' | 'cargo' | 'chat' | 'settings'>('home');
+  // CHANGED: Default view is now Cargo, Home removed
+  const [currentView, setCurrentView] = useState<'cargo' | 'chat' | 'settings'>('cargo');
   const [chatView, setChatView] = useState<'list' | 'room'>('list');
   const [activeChannel, setActiveChannel] = useState<{ id: string; name: string; type: 'global' | 'dm' }>({ id: 'global', name: 'Global Chat', type: 'global' });
   const [searchTerm, setSearchTerm] = useState('');
@@ -545,10 +552,6 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
     return result;
   }, [bls, searchTerm, vesselFilter]);
 
-  // Home Screen Stats
-  const incomingCount = jobs.filter(j => j.status === 'incoming').length;
-  const workingCount = jobs.filter(j => j.status === 'working').length;
-  
   const renderContent = () => {
     // 1. Detail View Check
     if (selectedBLId) {
@@ -566,60 +569,6 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
     }
 
     switch(currentView) {
-      case 'home':
-        return (
-          <div className="p-4 space-y-4 overflow-y-auto h-full pb-20 custom-scrollbar">
-            <div className="flex justify-between items-center mb-2">
-               <div>
-                   <h1 className="text-2xl font-black text-slate-800">LOGI<span className="text-blue-600">1</span></h1>
-                   <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">Mobile ERP</p>
-               </div>
-               <div className="w-10 h-10 bg-slate-200 rounded-full overflow-hidden">
-                   {user?.photoURL ? <img src={user.photoURL} alt="U" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-2 text-slate-400" />}
-               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-               <div className="bg-blue-600 text-white p-4 rounded-xl shadow-lg shadow-blue-500/30">
-                  <p className="text-xs font-bold opacity-80 uppercase">Active Vessels</p>
-                  <p className="text-3xl font-black">{workingCount}</p>
-               </div>
-               <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-                   <p className="text-xs font-bold text-slate-400 uppercase">Incoming</p>
-                   <p className="text-3xl font-black text-slate-800">{incomingCount}</p>
-               </div>
-               <div className="col-span-2 bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between">
-                   <div>
-                       <p className="text-xs font-bold text-slate-400 uppercase">Total Docs</p>
-                       <p className="text-2xl font-black text-slate-800">{bls.length}</p>
-                   </div>
-                   <div className="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
-                       <FileText size={24} />
-                   </div>
-               </div>
-            </div>
-
-            <div>
-                <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-                    <Ship size={16} className="text-blue-500" /> Recent Vessels
-                </h3>
-                <div className="space-y-3">
-                    {jobs.slice(0, 3).map(job => (
-                        <div key={job.id} className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
-                            <div className="flex justify-between items-start mb-1">
-                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${job.status === 'working' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
-                                    {job.status.toUpperCase()}
-                                </span>
-                                <span className="text-xs text-slate-400 font-medium">ETA: {job.eta}</span>
-                            </div>
-                            <h4 className="font-bold text-slate-800">{job.vesselName}</h4>
-                            <p className="text-xs text-slate-500">Voy. {job.voyageNo}</p>
-                        </div>
-                    ))}
-                </div>
-            </div>
-          </div>
-        );
       case 'cargo':
         return (
           <div className="flex flex-col h-full">
@@ -758,10 +707,6 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                 className="bg-white border-t border-slate-200 px-6 pt-3 flex justify-between items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-50 shrink-0"
                 style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
             >
-                <button onClick={() => setCurrentView('home')} className={`flex flex-col items-center gap-1 ${currentView === 'home' ? 'text-blue-600' : 'text-slate-400'}`}>
-                    <Home size={24} strokeWidth={currentView === 'home' ? 2.5 : 2} />
-                    <span className="text-[10px] font-bold">Home</span>
-                </button>
                 <button onClick={() => setCurrentView('cargo')} className={`flex flex-col items-center gap-1 ${currentView === 'cargo' ? 'text-blue-600' : 'text-slate-400'}`}>
                     <ListIcon size={24} strokeWidth={currentView === 'cargo' ? 2.5 : 2} />
                     <span className="text-[10px] font-bold">Cargo</span>

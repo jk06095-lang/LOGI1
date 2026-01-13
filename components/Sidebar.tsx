@@ -148,14 +148,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
          >
             <div className="relative">
                 <MessageCircle size={18} className={isChatOpen ? 'fill-current' : ''} />
-                {hasUnreadMessages && (
+                {hasUnreadMessages && !isChatOpen && (
                     <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-800 animate-pulse"></span>
                 )}
             </div>
             {!isCollapsed && (
               <div className="flex-1 flex justify-between items-center">
                  <span>{t.message}</span>
-                 {hasUnreadMessages && <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
+                 {hasUnreadMessages && !isChatOpen && <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
               </div>
             )}
          </button>
