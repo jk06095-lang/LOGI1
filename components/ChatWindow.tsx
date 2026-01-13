@@ -10,19 +10,16 @@ interface ChatWindowProps {
   isOpen: boolean;
   onClose: () => void;
   sidebarWidth: number;
-  lastReadTs: number; // New Prop
 }
 
-export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebarWidth, lastReadTs }) => {
+export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebarWidth }) => {
   const [activeTab, setActiveTab] = useState<'global' | 'dm'>('global');
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [inputText, setInputText] = useState('');
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
-  
-  // Tracks Channel IDs mapped to the timestamp of the latest unread message
-  const [unreadMap, setUnreadMap] = useState<Map<string, number>>(new Map()); 
+  const [unreadMap, setUnreadMap] = useState<Set<string>>(new Set()); // Tracks Channel IDs with unread messages
   
   // History Limit
   const [messageLimit, setMessageLimit] = useState(150); // Default to 150 (approx 3+ days)
@@ -58,21 +55,28 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       return [currentUser.uid, partnerId].sort().join('_');
   };
 
-  // Subscribe to Unread Map
+  // Subscribe to Unread Map to show dots on DM List
   useEffect(() => {
       if (!currentUser) return;
       const unsub = dataService.subscribeUnreadMap(currentUser.uid, setUnreadMap);
       return () => unsub();
   }, [currentUser]);
 
-  // Mark Read on Open
+  // FORCE MARK READ ON OPEN / SWITCH
   useEffect(() => {
      if (isOpen && channelId && currentUser) {
+         // Optimistically remove from local unread map to hide dot instantly
+         setUnreadMap(prev => {
+             const newMap = new Set(prev);
+             newMap.delete(channelId);
+             return newMap;
+         });
+         // Update Backend
          dataService.markChannelRead(channelId, currentUser.uid);
      }
   }, [isOpen, channelId, currentUser]);
 
-  // Subscribe to Messages
+  // Subscribe to Messages with Limit logic
   useEffect(() => {
       if (!isOpen || !channelId) return;
       
@@ -82,22 +86,27 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       return () => unsub();
   }, [isOpen, channelId, messageLimit]);
 
-  // SCROLL LOGIC
+  // SCROLL LOGIC: Handle both new messages and history loading
   useLayoutEffect(() => {
       if (!scrollRef.current) return;
       
       const currentScrollHeight = scrollRef.current.scrollHeight;
-      const isInitialLoad = prevMessagesLengthRef.current === 0 && messages.length > 0;
       
+      // 1. Initial Load: Scroll to bottom
+      const isInitialLoad = prevMessagesLengthRef.current === 0 && messages.length > 0;
       if (isInitialLoad) {
           scrollRef.current.scrollTop = currentScrollHeight;
-      } else if (isHistoryLoadingRef.current) {
+      } 
+      // 2. History Load: Preserve relative scroll position
+      else if (isHistoryLoadingRef.current) {
           const heightDiff = currentScrollHeight - previousScrollHeightRef.current;
           if (heightDiff > 0) {
               scrollRef.current.scrollTop += heightDiff;
           }
-          isHistoryLoadingRef.current = false;
-      } else if (messages.length > prevMessagesLengthRef.current) {
+          isHistoryLoadingRef.current = false; // Reset flag
+      } 
+      // 3. New Message: Auto-scroll if near bottom
+      else if (messages.length > prevMessagesLengthRef.current) {
           const distanceFromBottom = currentScrollHeight - scrollRef.current.scrollTop - scrollRef.current.clientHeight;
           if (distanceFromBottom < 100) {
               scrollRef.current.scrollTop = currentScrollHeight;
@@ -119,6 +128,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
   useEffect(() => {
       if (!isOpen || !channelId || !currentUser) return;
       const unsub = dataService.subscribeTyping(channelId, (list) => {
+          // Filter out self by UID
           const others = list.filter(u => u.userId !== currentUser.uid).map(u => u.displayName);
           setTypingUsers(others);
       });
@@ -166,6 +176,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
 
   const handleInputFocus = () => {
       if (!currentUser || !channelId) return;
+      // Mark read again just in case a new message arrived while window was open but blurred
       dataService.markChannelRead(channelId, currentUser.uid);
       
       dataService.sendTypingStatus(channelId, { 
@@ -210,6 +221,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
 
       setMessages(prev => [...prev, optimisticMsg]);
       
+      // Force scroll to bottom on send
       setTimeout(() => {
          if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
       }, 50);
@@ -219,7 +231,28 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
 
   const handleUserSelect = (user: ChatUser) => {
       if (user.uid === currentUser?.uid) return;
+      
+      // OPTIMISTIC: Clear Red Dot for this user immediately
+      const dmId = getDmChannelId(user.uid);
+      setUnreadMap(prev => {
+          const newMap = new Set(prev);
+          newMap.delete(dmId);
+          return newMap;
+      });
+
       setSelectedUser(user);
+  };
+
+  const handleTabSwitch = (tab: 'global' | 'dm') => {
+      if (tab === 'global') {
+          // Optimistic clear for global
+          setUnreadMap(prev => {
+              const newMap = new Set(prev);
+              newMap.delete('global');
+              return newMap;
+          });
+      }
+      setActiveTab(tab);
   };
 
   const formatTime = (ts: number) => {
@@ -265,23 +298,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       setMessageLimit(prev => prev + 100);
   };
 
-  // Helper: Check if a channel has "new" unread messages based on local lastReadTs
-  // This logic prevents ghost notifications on refresh.
-  const isChannelUnread = (chId: string) => {
-      const msgTimestamp = unreadMap.get(chId);
-      if (!msgTimestamp) return false;
-      return msgTimestamp > lastReadTs;
-  };
-
-  const hasGlobalUnread = isChannelUnread('global');
-  
-  const hasAnyDmUnread = useMemo(() => {
-      for (const [chId, ts] of unreadMap.entries()) {
-          if (chId !== 'global' && ts > lastReadTs) return true;
-      }
-      return false;
-  }, [unreadMap, lastReadTs]);
-
   return (
     <div 
         className={`fixed top-0 bottom-0 z-30 bg-white dark:bg-slate-900 shadow-2xl transition-transform duration-300 ease-in-out border-r border-slate-200 dark:border-slate-800 flex flex-col w-80 md:w-96`}
@@ -317,18 +333,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
              {!selectedUser && (
                 <div className="flex px-4 pb-0 gap-4">
                     <button 
-                        onClick={() => setActiveTab('global')}
+                        onClick={() => handleTabSwitch('global')}
                         className={`pb-2 text-sm font-bold border-b-2 transition-colors relative ${activeTab === 'global' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                     >
                         Global
-                        {hasGlobalUnread && <span className="absolute -top-1 -right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
+                        {unreadMap.has('global') && <span className="absolute -top-1 -right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
                     </button>
                     <button 
-                        onClick={() => setActiveTab('dm')}
+                        onClick={() => handleTabSwitch('dm')}
                         className={`pb-2 text-sm font-bold border-b-2 transition-colors relative ${activeTab === 'dm' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                     >
                         Direct Messages
-                        {hasAnyDmUnread && <span className="absolute -top-1 -right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
+                        {/* Check if any DM channel has unread */}
+                        {Array.from(unreadMap).some(id => id !== 'global') && <span className="absolute -top-1 -right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
                     </button>
                 </div>
              )}
@@ -405,7 +422,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                          })
                      )}
 
-                     {/* Typing Indicator */}
+                     {/* Typing Indicator Bubble */}
                      {typingUsers.length > 0 && (
                          <div className="flex gap-2 animate-fade-in-up">
                              <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
@@ -440,8 +457,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                         <div className="space-y-1">
                             {myFriends.map(user => {
                                 const dmId = getDmChannelId(user.uid);
-                                // Ensure strict comparison with lastReadTs to avoid reappearing dots
-                                const hasUnread = isChannelUnread(dmId);
+                                const hasUnread = unreadMap.has(dmId);
 
                                 return (
                                 <div 
