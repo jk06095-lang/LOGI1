@@ -746,7 +746,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
           );
       case 'settings':
         return (
-            <div className="p-6">
+            <div className="p-6 h-full overflow-y-auto custom-scrollbar">
                 <h2 className="font-bold text-xl text-slate-800 mb-6">Settings</h2>
                 <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden mb-6">
                     <div className="p-4 border-b border-slate-100 flex items-center justify-between">
@@ -763,7 +763,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                         <select 
                             value={settings.language}
                             onChange={(e) => onUpdateSettings({...settings, language: e.target.value as any})}
-                            className="bg-slate-50 text-sm border-none rounded-lg p-2"
+                            className="bg-slate-50 text-sm border-none rounded-lg p-2 text-slate-700"
                         >
                             <option value="ko">한국어</option>
                             <option value="en">English</option>
@@ -771,13 +771,30 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                         </select>
                     </div>
                 </div>
+
+                {user && (
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 mb-6 flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-full bg-slate-100 overflow-hidden flex-shrink-0 flex items-center justify-center border border-slate-200">
+                            {user.photoURL ? (
+                                <img src={user.photoURL} alt={user.displayName || 'User'} className="w-full h-full object-cover" />
+                            ) : (
+                                <UserIcon className="text-slate-400 w-6 h-6" />
+                            )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="font-bold text-slate-800 truncate text-sm">{user.displayName || 'User'}</p>
+                            <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                        </div>
+                    </div>
+                )}
+
                 <button 
                     onClick={onLogout}
-                    className="w-full py-3 bg-red-50 text-red-600 font-bold rounded-xl flex items-center justify-center gap-2"
+                    className="w-full py-3 bg-red-50 text-red-600 font-bold rounded-xl flex items-center justify-center gap-2 mb-8"
                 >
                     <LogOut size={18} /> Log Out
                 </button>
-                <p className="text-center text-xs text-slate-400 mt-8">
+                <p className="text-center text-xs text-slate-400 mt-auto pb-6">
                     LOGI1 Mobile v1.0.0
                 </p>
             </div>

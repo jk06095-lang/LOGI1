@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { VesselJob, BLData, Language, CargoSourceType, ResourceLock } from '../types';
-import { Folder, Ship, Calendar as CalendarIcon, FileText, List, ChevronLeft, ChevronRight, Package, ArrowRight, Printer, PieChart, ArrowUpDown, ArrowUp, ArrowDown, ZoomIn, ZoomOut, Save, Layers, Home, Filter, X, Lock, Users } from 'lucide-react';
+import { Folder, Ship, Calendar as CalendarIcon, FileText, List, ChevronLeft, ChevronRight, Package, ArrowRight, Printer, PieChart, ArrowUpDown, ArrowUp, ArrowDown, ZoomIn, ZoomOut, Save, Layers, Home, Filter, X, Lock, Users, ChevronDown, Check } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { auth } from '../lib/firebase';
 import { dataService } from '../services/dataService';
@@ -83,6 +83,7 @@ const translations = {
     bulkScanDesc: '여러 B/L을 한 번에 스캔하여 카고 리스트를 생성합니다.',
     filterVessel: '선박 필터',
     allVessels: '모든 선박',
+    selectedVessels: '{count}개 선박 선택됨',
     moreVessels: '+ {count}척 더보기',
     scheduleFor: '일정 상세',
     lockedTitle: '편집 잠금 (Read Only)',
@@ -146,6 +147,7 @@ const translations = {
     bulkScanDesc: 'Scan multiple B/Ls at once to generate cargo lists.',
     filterVessel: 'Filter Vessel',
     allVessels: 'All Vessels',
+    selectedVessels: '{count} Vessels Selected',
     moreVessels: '+ {count} More',
     scheduleFor: 'Schedule for',
     lockedTitle: 'Locked (Read Only)',
@@ -209,6 +211,7 @@ const translations = {
     bulkScanDesc: '一次扫描多份提单，自动生成货物清单。',
     filterVessel: '筛选船舶',
     allVessels: '所有船舶',
+    selectedVessels: '已选择 {count} 艘船舶',
     moreVessels: '+ {count} 更多',
     scheduleFor: '日程详情',
     lockedTitle: '编辑锁定 (只读)',
@@ -518,7 +521,11 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
   const [reportMode, setReportMode] = useState<'general' | 'report'>('general');
   const [zoomLevel, setZoomLevel] = useState(1);
   const [isSaving, setIsSaving] = useState(false);
-  const [selectedVesselId, setSelectedVesselId] = useState<string>('all');
+  
+  // Vessel Filtering (Multi-Select)
+  const [selectedVesselIds, setSelectedVesselIds] = useState<string[]>([]);
+  const [isVesselDropdownOpen, setIsVesselDropdownOpen] = useState(false);
+  const vesselDropdownRef = useRef<HTMLDivElement>(null);
 
   // Locking State
   const [lockData, setLockData] = useState<ResourceLock | null>(null);
@@ -533,6 +540,19 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
     no: 30, type: 50, shipper: 110, transporter: 100, location: 80, qty: 80, weight: 90, desc: 180, note: 120, remark: 120
   });
   const resizingRef = useRef<{ col: keyof typeof colWidths | null, startX: number, startWidth: number }>({ col: null, startX: 0, startWidth: 0 });
+
+  // Click Outside Handler for Vessel Dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (vesselDropdownRef.current && !vesselDropdownRef.current.contains(event.target as Node)) {
+        setIsVesselDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   // Generate a Lock ID based on period
   const lockId = useMemo(() => {
@@ -657,13 +677,29 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
       });
     }
 
-    if (selectedVesselId !== 'all') {
-        filtered = filtered.filter(job => job.id === selectedVesselId);
+    // Vessel Filter (Multi-Select)
+    if (selectedVesselIds.length > 0) {
+        filtered = filtered.filter(job => selectedVesselIds.includes(job.id));
     }
     return filtered;
   };
 
   const briefingJobs = getFilteredJobs();
+
+  // Handle Vessel Selection Toggle
+  const toggleVesselSelection = (jobId: string) => {
+      setSelectedVesselIds(prev => {
+          if (prev.includes(jobId)) {
+              return prev.filter(id => id !== jobId);
+          } else {
+              return [...prev, jobId];
+          }
+      });
+  };
+
+  const toggleAllVessels = () => {
+      setSelectedVesselIds([]); // Empty array means "All"
+  };
 
   // Alias Helper Function
   const getTypeAlias = (bl: BLData): string => {
@@ -902,19 +938,52 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
               <button onClick={() => setBriefingPeriod('month')} className={`px-3 py-1 text-sm font-medium rounded-md transition-all ${briefingPeriod === 'month' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-300 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}>{t.monthly}</button>
             </div>
             
-            {/* Vessel Filter */}
-            <div className="ml-4 flex items-center gap-2">
-                <Filter size={16} className="text-slate-400"/>
-                <select 
-                    value={selectedVesselId} 
-                    onChange={(e) => setSelectedVesselId(e.target.value)}
-                    className="bg-slate-100 dark:bg-slate-900 border-none text-sm font-medium rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-blue-500 text-slate-700 dark:text-slate-300"
+            {/* Vessel Filter (Multi-Select) */}
+            <div className="ml-4 relative" ref={vesselDropdownRef}>
+                <button 
+                    onClick={() => setIsVesselDropdownOpen(!isVesselDropdownOpen)}
+                    className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900 border-none text-sm font-medium rounded-lg px-3 py-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors text-slate-700 dark:text-slate-300 min-w-[140px] justify-between"
                 >
-                    <option value="all">{t.allVessels}</option>
-                    {jobs.map(j => (
-                        <option key={j.id} value={j.id}>{j.vesselName}</option>
-                    ))}
-                </select>
+                    <div className="flex items-center gap-2 truncate">
+                        <Filter size={16} className="text-slate-400 flex-shrink-0"/>
+                        <span className="truncate">
+                            {selectedVesselIds.length === 0 
+                                ? t.allVessels 
+                                : t.selectedVessels.replace('{count}', selectedVesselIds.length.toString())}
+                        </span>
+                    </div>
+                    <ChevronDown size={14} className="text-slate-400 flex-shrink-0"/>
+                </button>
+
+                {isVesselDropdownOpen && (
+                    <div className="absolute top-full left-0 mt-1 w-64 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 z-50 overflow-hidden animate-fade-in-up">
+                        <div className="p-2 border-b border-slate-100 dark:border-slate-700">
+                            <div 
+                                onClick={toggleAllVessels}
+                                className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-md cursor-pointer transition-colors"
+                            >
+                                <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedVesselIds.length === 0 ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 dark:border-slate-500'}`}>
+                                    {selectedVesselIds.length === 0 && <Check size={12} strokeWidth={3} />}
+                                </div>
+                                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{t.allVessels}</span>
+                            </div>
+                        </div>
+                        <div className="max-h-60 overflow-y-auto custom-scrollbar p-2 space-y-1">
+                            {jobs.map(job => (
+                                <div 
+                                    key={job.id}
+                                    onClick={() => toggleVesselSelection(job.id)}
+                                    className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-md cursor-pointer transition-colors"
+                                >
+                                    <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedVesselIds.includes(job.id) ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 dark:border-slate-500'}`}>
+                                        {selectedVesselIds.includes(job.id) && <Check size={12} strokeWidth={3} />}
+                                    </div>
+                                    <span className="text-sm text-slate-700 dark:text-slate-300 truncate">{job.vesselName}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
 
             <div className="flex items-center gap-2 ml-4">
