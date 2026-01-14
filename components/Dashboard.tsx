@@ -1,10 +1,11 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { VesselJob, BLData, Language, CargoSourceType, ResourceLock } from '../types';
-import { Folder, Ship, Calendar as CalendarIcon, FileText, List, ChevronLeft, ChevronRight, Package, ArrowRight, Printer, PieChart, ArrowUpDown, ArrowUp, ArrowDown, ZoomIn, ZoomOut, Save, Layers, Home, Filter, X, Lock, Users, ChevronDown, Check } from 'lucide-react';
+import { Folder, Ship, Calendar as CalendarIcon, FileText, List, ChevronLeft, ChevronRight, Package, ArrowRight, Printer, PieChart, ArrowUpDown, ArrowUp, ArrowDown, ZoomIn, ZoomOut, Save, Layers, Home, Filter, X, Lock, Users, ChevronDown, Check, Waves, CloudRain } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { auth } from '../lib/firebase';
 import { dataService } from '../services/dataService';
+import { fetchBusanWeather, WeatherData } from '../services/weatherService';
 
 // --- Types ---
 interface DashboardProps {
@@ -252,9 +253,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
   const t = translations[language];
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDateForModal, setSelectedDateForModal] = useState<string | null>(null);
+  const [weatherData, setWeatherData] = useState<Record<string, WeatherData>>({});
 
   // Today's date for highlighting
   const today = useMemo(() => new Date(), []);
+
+  // Fetch weather when currentDate (month) changes
+  useEffect(() => {
+    const loadWeather = async () => {
+        const data = await fetchBusanWeather(currentDate.getFullYear(), currentDate.getMonth());
+        setWeatherData(data);
+    };
+    loadWeather();
+  }, [currentDate]);
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
@@ -336,6 +347,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
       const isToday = today.getFullYear() === currentDate.getFullYear() &&
                       today.getMonth() === currentDate.getMonth() &&
                       today.getDate() === d;
+      
+      const w = weatherData[dateStr];
 
       dayCells.push(
         <div 
@@ -349,9 +362,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
                 ${hasJobs ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50' : ''}`}
         >
           <div className="flex justify-between items-start mb-2">
-              <span className={`text-sm font-bold ${isToday ? 'text-blue-700 dark:text-blue-300 bg-white dark:bg-blue-800 px-2 py-0.5 rounded-full shadow-sm' : (eta.length > 0 || etd.length > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400')}`}>
-                  {d}
-              </span>
+              <div className="flex items-center gap-2">
+                  <span className={`text-sm font-bold ${isToday ? 'text-blue-700 dark:text-blue-300 bg-white dark:bg-blue-800 px-2 py-0.5 rounded-full shadow-sm' : (eta.length > 0 || etd.length > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400')}`}>
+                      {d}
+                  </span>
+                  {w && (
+                      <div className="flex items-center gap-1.5 text-[9px] font-medium bg-slate-100 dark:bg-slate-700/50 px-1.5 py-0.5 rounded-md" title="부산 앞바다 08:00 기준">
+                          {/* Rain Icon */}
+                          {w.precipitation > 0 && <CloudRain size={10} className="text-slate-500 dark:text-slate-400" />}
+                          
+                          {/* Wave Icon with Conditional Color */}
+                          <span className={`flex items-center gap-0.5 ${w.waveHeight > 1.5 ? 'text-red-500 font-bold' : w.waveHeight > 1.0 ? 'text-amber-500 font-bold' : 'text-blue-500 dark:text-blue-400'}`}>
+                              <Waves size={10} /> {w.waveHeight}m
+                          </span>
+                      </div>
+                  )}
+              </div>
               {isToday && (
                   <span className="text-[10px] font-bold text-white bg-blue-600 px-1.5 py-0.5 rounded-md shadow-sm">
                       {t.today}
@@ -483,8 +509,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
                 <div className="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
                     {(() => {
                         const { eta, etd } = getDayJobs(selectedDateForModal);
+                        const w = weatherData[selectedDateForModal];
                         return (
                             <div className="space-y-4">
+                                {w && (
+                                    <div className="bg-slate-50 dark:bg-slate-700/30 p-3 rounded-lg border border-slate-100 dark:border-slate-700 mb-4">
+                                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">기상 정보 (08:00 기준)</h4>
+                                        <div className="flex items-center gap-4 text-sm font-medium text-slate-700 dark:text-slate-200">
+                                            {/* Wave Height with Color Logic - UPDATED: Amber > 1.0, Red > 1.5 */}
+                                            <span className={`flex items-center gap-1.5 ${w.waveHeight > 1.5 ? 'text-red-500 font-bold' : w.waveHeight > 1.0 ? 'text-amber-500 font-bold' : 'text-blue-500'}`}>
+                                                <Waves size={16} /> 파고: {w.waveHeight}m
+                                            </span>
+                                            
+                                            {/* Rain Indicator */}
+                                            {w.precipitation > 0 && (
+                                                <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                                                    <CloudRain size={16} /> 우천 (강수량: {w.precipitation}mm)
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                                 <div>
                                     <h4 className="text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">{t.legendIncoming} / {t.legendWorking}</h4>
                                     {eta.length === 0 ? <p className="text-sm text-slate-400 italic">No incoming vessels</p> : (

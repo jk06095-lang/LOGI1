@@ -29,8 +29,7 @@ exports.subscribeToGlobalChat = functions.https.onCall(async (data, context) => 
 
 // --------------------------------------------------------
 // 2. [Global Chat] Message Trigger
-// Description: When a message is added to 'global_messages' (or 'messages' with channelId 'global'), send to topic
-// NOTE: Adjust collection path to match your actual DB structure. Assuming 'messages' collection with channelId check based on types.ts
+// Description: Fixed title/body, High Priority, Click Action to logi01.com
 // --------------------------------------------------------
 exports.sendGlobalNotification = functions.firestore
   .document("messages/{messageId}")
@@ -42,15 +41,23 @@ exports.sendGlobalNotification = functions.firestore
 
     const payload = {
       notification: {
-        title: `[Global] ${message.senderName || "New Message"}`,
-        body: message.text,
+        title: "LOGI1",               // [Fixed]
+        body: "신규메세지가 있습니다.", // [Fixed]
       },
       topic: "global-chat", 
       data: {
         type: "GLOBAL_CHAT",
         messageId: context.params.messageId,
-        click_action: "/", // URL to open
+        click_action: "https://www.logi01.com/", // [Added] Click action
       },
+      webpush: {
+        headers: {
+          Urgency: "high" // [Important] Immediate delivery
+        },
+        fcm_options: {
+          link: "https://www.logi01.com/" // [Added] Webpush link
+        }
+      }
     };
 
     return admin.messaging().send(payload)
@@ -64,7 +71,7 @@ exports.sendGlobalNotification = functions.firestore
 
 // --------------------------------------------------------
 // 3. [DM] 1:1 Message Trigger
-// Description: Send notification to specific user for DMs
+// Description: Fixed title/body, High Priority, Click Action to logi01.com
 // --------------------------------------------------------
 exports.sendDMNotification = functions.firestore
   .document("messages/{messageId}")
@@ -101,15 +108,23 @@ exports.sendDMNotification = functions.firestore
     const payload = {
       tokens: tokens, 
       notification: {
-        title: message.senderName || "New Message",
-        body: message.text,
+        title: "LOGI1",               // [Fixed]
+        body: "신규메세지가 있습니다.", // [Fixed]
       },
       data: {
         type: "DM",
         channelId: message.channelId,
         senderId: senderId,
-        click_action: "/", 
+        click_action: "https://www.logi01.com/", // [Added] Click action
       },
+      webpush: {
+        headers: {
+          Urgency: "high" // [Important] Immediate delivery
+        },
+        fcm_options: {
+          link: "https://www.logi01.com/" // [Added] Webpush link
+        }
+      }
     };
 
     try {
@@ -123,7 +138,6 @@ exports.sendDMNotification = functions.firestore
           }
         });
         console.log("Failed tokens:", failedTokens);
-        // Optional: Remove failed tokens from DB here
       }
       
       console.log("DM notification sent.");
