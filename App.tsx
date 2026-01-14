@@ -571,6 +571,7 @@ const App: React.FC = () => {
          isOpen={isChatOpen} 
          onClose={() => setIsChatOpen(false)} 
          sidebarWidth={isSidebarCollapsed ? 64 : 224} 
+         user={user} // Pass user to ChatWindow
       />
 
       <main className="flex-1 flex flex-col overflow-hidden relative print:overflow-visible print:h-auto print:block">

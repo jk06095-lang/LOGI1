@@ -1,18 +1,19 @@
 
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import { Send, X, User as UserIcon, MessageCircle, ChevronLeft, Check, CheckCheck, Download, UserPlus, Plus, ArrowUpCircle } from 'lucide-react';
-import { auth } from '../lib/firebase';
 import { dataService } from '../services/dataService';
 import { ChatMessage, ChatUser } from '../types';
+import { User } from 'firebase/auth';
 import saveAs from 'file-saver';
 
 interface ChatWindowProps {
   isOpen: boolean;
   onClose: () => void;
   sidebarWidth: number;
+  user: User | null;
 }
 
-export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebarWidth }) => {
+export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebarWidth, user }) => {
   const [activeTab, setActiveTab] = useState<'global' | 'dm'>('global');
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -39,34 +40,32 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
   const lastTypingSentRef = useRef<number>(0);
   const [isTyping, setIsTyping] = useState(false);
 
-  const currentUser = auth.currentUser;
-
   // Stable Channel ID calculation
   const channelId = useMemo(() => {
     if (activeTab === 'global') return 'global';
-    if (selectedUser && currentUser) {
-        return [currentUser.uid, selectedUser.uid].sort().join('_');
+    if (selectedUser && user) {
+        return [user.uid, selectedUser.uid].sort().join('_');
     }
     return null;
-  }, [activeTab, selectedUser, currentUser?.uid]);
+  }, [activeTab, selectedUser, user?.uid]);
 
   const getDmChannelId = (partnerId: string) => {
-      if (!currentUser) return '';
-      return [currentUser.uid, partnerId].sort().join('_');
+      if (!user) return '';
+      return [user.uid, partnerId].sort().join('_');
   };
 
   // Subscribe to Unread Map to show dots on DM List
   useEffect(() => {
-      if (!currentUser) return;
-      const unsub = dataService.subscribeUnreadMap(currentUser.uid, setUnreadMap);
+      if (!user) return;
+      const unsub = dataService.subscribeUnreadMap(user.uid, setUnreadMap);
       return () => unsub();
-  }, [currentUser]);
+  }, [user]);
 
   // REAL-TIME READ MARKING:
   // Trigger whenever isOpen, channelId changes OR messages update.
   // This ensures that as soon as a new message arrives (and we are looking at it), it is marked read.
   useEffect(() => {
-     if (isOpen && channelId && currentUser) {
+     if (isOpen && channelId && user) {
          // 1. Optimistically remove from local unread map to hide dot instantly
          setUnreadMap(prev => {
              const newMap = new Set(prev);
@@ -76,13 +75,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
 
          // 2. Check if there are any unread messages for me in the current list
          // This prevents unnecessary DB calls if everything is already read.
-         const hasUnread = messages.some(m => m.senderId !== currentUser.uid && (!m.readBy || !m.readBy.includes(currentUser.uid)));
+         const hasUnread = messages.some(m => m.senderId !== user.uid && (!m.readBy || !m.readBy.includes(user.uid)));
          
          if (hasUnread) {
-             dataService.markChannelRead(channelId, currentUser.uid);
+             dataService.markChannelRead(channelId, user.uid);
          }
      }
-  }, [isOpen, channelId, currentUser, messages]); // Dependent on 'messages' for real-time ack
+  }, [isOpen, channelId, user, messages]); // Dependent on 'messages' for real-time ack
 
   // Subscribe to Messages with Limit logic
   useEffect(() => {
@@ -134,14 +133,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
 
   // Subscribe to Typing Status
   useEffect(() => {
-      if (!isOpen || !channelId || !currentUser) return;
+      if (!isOpen || !channelId || !user) return;
       const unsub = dataService.subscribeTyping(channelId, (list) => {
           // Filter out self by UID
-          const others = list.filter(u => u.userId !== currentUser.uid).map(u => u.displayName);
+          const others = list.filter(u => u.userId !== user.uid).map(u => u.displayName);
           setTypingUsers(others);
       });
       return () => unsub();
-  }, [isOpen, channelId, currentUser?.uid]);
+  }, [isOpen, channelId, user?.uid]);
 
   // Reset limit when switching chats
   useEffect(() => {
@@ -154,11 +153,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       const val = e.target.value;
       setInputText(val);
       
-      if (!currentUser || !channelId) return;
+      if (!user || !channelId) return;
 
       if (val.trim() === '') {
           if (isTyping) {
-              dataService.clearTypingStatus(channelId, currentUser.uid);
+              dataService.clearTypingStatus(channelId, user.uid);
               setIsTyping(false);
           }
           return;
@@ -167,8 +166,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       const now = Date.now();
       if (!isTyping || now - lastTypingSentRef.current > 2500) {
           dataService.sendTypingStatus(channelId, { 
-              uid: currentUser.uid, 
-              displayName: currentUser.displayName || 'User' 
+              uid: user.uid, 
+              displayName: user.displayName || 'User' 
           });
           lastTypingSentRef.current = now;
           setIsTyping(true);
@@ -177,38 +176,38 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       
       typingTimeoutRef.current = setTimeout(() => {
-          dataService.clearTypingStatus(channelId, currentUser.uid);
+          dataService.clearTypingStatus(channelId, user.uid);
           setIsTyping(false);
       }, 3000);
   };
 
   const handleInputFocus = () => {
-      if (!currentUser || !channelId) return;
+      if (!user || !channelId) return;
       // Mark read again just in case a new message arrived while window was open but blurred
-      dataService.markChannelRead(channelId, currentUser.uid);
+      dataService.markChannelRead(channelId, user.uid);
       
       dataService.sendTypingStatus(channelId, { 
-          uid: currentUser.uid, 
-          displayName: currentUser.displayName || 'User' 
+          uid: user.uid, 
+          displayName: user.displayName || 'User' 
       });
       setIsTyping(true);
       lastTypingSentRef.current = Date.now();
   };
 
   const handleInputBlur = () => {
-      if (!currentUser || !channelId) return;
+      if (!user || !channelId) return;
       if (isTyping) {
-          dataService.clearTypingStatus(channelId, currentUser.uid);
+          dataService.clearTypingStatus(channelId, user.uid);
           setIsTyping(false);
       }
   };
 
   const handleSend = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!inputText.trim() || !currentUser || !channelId) return;
+      if (!inputText.trim() || !user || !channelId) return;
 
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      dataService.clearTypingStatus(channelId, currentUser.uid);
+      dataService.clearTypingStatus(channelId, user.uid);
       setIsTyping(false);
 
       const text = inputText.trim();
@@ -218,12 +217,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       const optimisticMsg: ChatMessage = {
           id: tempId,
           text: text,
-          senderId: currentUser.uid,
-          senderName: currentUser.displayName || 'User',
-          senderPhoto: currentUser.photoURL || '',
+          senderId: user.uid,
+          senderName: user.displayName || 'User',
+          senderPhoto: user.photoURL || '',
           timestamp: Date.now(),
           channelId: channelId,
-          readBy: [currentUser.uid],
+          readBy: [user.uid],
           pending: true
       };
 
@@ -237,22 +236,22 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       await dataService.sendChatMessage(optimisticMsg);
   };
 
-  const handleUserSelect = (user: ChatUser) => {
-      if (user.uid === currentUser?.uid) return;
+  const handleUserSelect = (targetUser: ChatUser) => {
+      if (targetUser.uid === user?.uid) return;
       
       // OPTIMISTIC: Clear Red Dot for this user immediately
-      const dmId = getDmChannelId(user.uid);
+      const dmId = getDmChannelId(targetUser.uid);
       setUnreadMap(prev => {
           const newMap = new Set(prev);
           newMap.delete(dmId);
           return newMap;
       });
       // Force server mark read for the new channel immediately
-      if (currentUser) {
-          dataService.markChannelRead(dmId, currentUser.uid);
+      if (user) {
+          dataService.markChannelRead(dmId, user.uid);
       }
 
-      setSelectedUser(user);
+      setSelectedUser(targetUser);
   };
 
   const handleTabSwitch = (tab: 'global' | 'dm') => {
@@ -264,8 +263,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
               return newMap;
           });
           // Force server mark read for global
-          if (currentUser) {
-              dataService.markChannelRead('global', currentUser.uid);
+          if (user) {
+              dataService.markChannelRead('global', user.uid);
           }
       }
       setActiveTab(tab);
@@ -286,19 +285,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
   };
 
   const myFriends = useMemo(() => {
-      if (!currentUser || users.length === 0) return [];
-      const me = users.find(u => u.uid === currentUser.uid);
+      if (!user || users.length === 0) return [];
+      const me = users.find(u => u.uid === user.uid);
       if (!me || !me.contacts) return [];
       return users.filter(u => me.contacts?.includes(u.uid));
-  }, [users, currentUser]);
+  }, [users, user]);
 
   const handleAddFriend = async (e: React.FormEvent) => {
       e.preventDefault();
-      if (!friendEmail.trim() || !currentUser) return;
+      if (!friendEmail.trim() || !user) return;
 
       setIsAddingFriend(true);
       try {
-          await dataService.addContactByEmail(currentUser.uid, friendEmail.trim());
+          await dataService.addContactByEmail(user.uid, friendEmail.trim());
           setFriendEmail('');
           setShowAddFriend(false);
           alert("Friend added successfully!");
@@ -407,7 +406,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                          <div className="text-center text-slate-400 text-sm mt-10 italic">No messages yet. Say hello!</div>
                      ) : (
                          messages.map((msg, index) => {
-                             const isMe = msg.senderId === currentUser?.uid;
+                             const isMe = msg.senderId === user?.uid;
+                             // Check if at least one other person (besides sender) has read it. 
+                             // If sender is me, I am in readBy. If someone else read it, length > 1.
                              const isRead = msg.readBy && msg.readBy.length > 1; 
 
                              return (
@@ -426,9 +427,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                                              <span className="text-[10px] text-slate-400">
                                                  {formatTime(msg.timestamp)}
                                              </span>
-                                             {isMe && !msg.pending && (
+                                             {isMe && (
                                                 <span className={`ml-1 ${isRead ? 'text-blue-500' : 'text-slate-300'}`}>
-                                                    {isRead ? <CheckCheck size={12} /> : <Check size={12} />}
+                                                    {isRead ? <CheckCheck size={14} /> : <Check size={14} />}
                                                 </span>
                                              )}
                                          </div>
@@ -471,23 +472,23 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                          </div>
                      ) : (
                         <div className="space-y-1">
-                            {myFriends.map(user => {
-                                const dmId = getDmChannelId(user.uid);
+                            {myFriends.map(friend => {
+                                const dmId = getDmChannelId(friend.uid);
                                 const hasUnread = unreadMap.has(dmId);
 
                                 return (
                                 <div 
-                                    key={user.uid} 
-                                    onClick={() => handleUserSelect(user)}
+                                    key={friend.uid} 
+                                    onClick={() => handleUserSelect(friend)}
                                     className="flex items-center gap-3 p-2 hover:bg-white dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors relative"
                                 >
                                     <div className="relative">
                                         <div className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden">
-                                            {user.photoURL ? <img src={user.photoURL} alt={user.displayName} className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-2 text-slate-400"/>}
+                                            {friend.photoURL ? <img src={friend.photoURL} alt={friend.displayName} className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-2 text-slate-400"/>}
                                         </div>
                                         <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white dark:border-slate-800 ${
-                                            user.status === 'away' ? 'bg-amber-500' : 
-                                            user.status === 'offline' ? 'bg-slate-400' : 'bg-emerald-500'
+                                            friend.status === 'away' ? 'bg-amber-500' : 
+                                            friend.status === 'offline' ? 'bg-slate-400' : 'bg-emerald-500'
                                         }`}></div>
                                         
                                         {/* UNREAD RED DOT ON USER */}
@@ -497,9 +498,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                                     </div>
                                     <div className="flex-1 min-w-0">
                                         <p className="text-sm font-bold text-slate-800 dark:text-white truncate flex items-center gap-2">
-                                            {user.displayName}
+                                            {friend.displayName}
                                         </p>
-                                        <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                                        <p className="text-xs text-slate-500 truncate">{friend.email}</p>
                                     </div>
                                     <ChevronLeft size={16} className="text-slate-300 rotate-180" />
                                 </div>

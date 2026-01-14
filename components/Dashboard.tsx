@@ -89,6 +89,7 @@ const translations = {
     lockedDesc: '현재 다른 사용자가 이 보고서를 편집 중입니다. 데이터 충돌 방지를 위해 읽기 전용 모드로 전환됩니다.',
     lockedBy: '편집 중인 사용자: ',
     forceEdit: '편집 권한 가져오기 (주의)',
+    today: '오늘',
   },
   en: {
     title: 'Dashboard',
@@ -151,6 +152,7 @@ const translations = {
     lockedDesc: 'Another user is currently editing this report. Switched to Read-Only mode to prevent conflicts.',
     lockedBy: 'Edited by: ',
     forceEdit: 'Take Over Edit (Caution)',
+    today: 'Today',
   },
   cn: {
     title: '工作台',
@@ -213,6 +215,7 @@ const translations = {
     lockedDesc: '另一位用户正在编辑此报告。为防止冲突，已切换为只读模式。',
     lockedBy: '编辑者：',
     forceEdit: '强制获取编辑权 (慎用)',
+    today: '今天',
   }
 };
 
@@ -246,6 +249,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
   const t = translations[language];
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDateForModal, setSelectedDateForModal] = useState<string | null>(null);
+
+  // Today's date for highlighting
+  const today = useMemo(() => new Date(), []);
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
@@ -323,14 +329,33 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
       const displayJobs = allDayJobs.slice(0, MAX_DISPLAY);
       const remainingCount = allDayJobs.length - MAX_DISPLAY;
 
+      // Check if this cell represents today
+      const isToday = today.getFullYear() === currentDate.getFullYear() &&
+                      today.getMonth() === currentDate.getMonth() &&
+                      today.getDate() === d;
+
       dayCells.push(
         <div 
             key={d} 
             onClick={() => hasJobs && setSelectedDateForModal(dateStr)}
-            className={`min-h-[8rem] bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-2 relative group transition-colors ${hasJobs ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50' : ''}`}
+            className={`min-h-[8rem] border p-2 relative group transition-colors 
+                ${isToday 
+                    ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-500 ring-1 ring-inset ring-blue-200 dark:ring-blue-700' 
+                    : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'
+                } 
+                ${hasJobs ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50' : ''}`}
         >
-          <span className={`text-sm font-bold ${eta.length > 0 || etd.length > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}>{d}</span>
-          <div className="mt-2">
+          <div className="flex justify-between items-start mb-2">
+              <span className={`text-sm font-bold ${isToday ? 'text-blue-700 dark:text-blue-300 bg-white dark:bg-blue-800 px-2 py-0.5 rounded-full shadow-sm' : (eta.length > 0 || etd.length > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400')}`}>
+                  {d}
+              </span>
+              {isToday && (
+                  <span className="text-[10px] font-bold text-white bg-blue-600 px-1.5 py-0.5 rounded-md shadow-sm">
+                      {t.today}
+                  </span>
+              )}
+          </div>
+          <div className="mt-1">
              {displayJobs.map(j => renderJobItem(j, j._type))}
              
              {remainingCount > 0 && (

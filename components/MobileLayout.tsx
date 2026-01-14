@@ -32,13 +32,17 @@ interface MobileChatViewProps {
   setView: (view: 'list' | 'room') => void;
   activeChannel: { id: string; name: string; type: 'global' | 'dm' };
   setActiveChannel: (channel: { id: string; name: string; type: 'global' | 'dm' }) => void;
+  // Pass history handler to parent
+  onNavigateToRoom: () => void;
+  onBackToList: () => void;
 }
 
-const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, activeChannel, setActiveChannel }) => {
+const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, activeChannel, setActiveChannel, onNavigateToRoom, onBackToList }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [inputText, setInputText] = useState('');
   const [typingUsers, setTypingUsers] = useState<string[]>([]); // Typing state
+  const [unreadMap, setUnreadMap] = useState<Set<string>>(new Set()); // New: Unread Map for Dots
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null); // For maintaining focus
   
@@ -59,6 +63,13 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
     return () => unsub();
   }, []);
 
+  // Subscribe to Unread Map (New Feature)
+  useEffect(() => {
+      if (!user) return;
+      const unsub = dataService.subscribeUnreadMap(user.uid, setUnreadMap);
+      return () => unsub();
+  }, [user]);
+
   // Read Logic for Mobile: Immediately mark channel read when entering view 'room'
   // AND whenever new messages arrive
   useEffect(() => {
@@ -66,7 +77,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
           // Trigger read logic
           dataService.markChannelRead(activeChannel.id, user.uid);
       }
-  }, [view, activeChannel, user, messages.length]); // Added messages.length
+  }, [view, activeChannel, user, messages.length]);
 
   // Fetch messages for room view with limit
   useEffect(() => {
@@ -243,10 +254,10 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
               <div 
                 onClick={() => {
                     setActiveChannel({ id: 'global', name: 'Global Chat', type: 'global' });
-                    setView('room');
                     setMessageLimit(150); // Reset limit
                     prevMessagesLengthRef.current = 0;
                     previousScrollHeightRef.current = 0;
+                    onNavigateToRoom(); // Use handler
                 }}
                 className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 mb-6 cursor-pointer active:scale-95 transition-transform relative"
               >
@@ -266,16 +277,17 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                   ) : (
                       myFriends.map(friend => {
                           const dmId = getDmChannelId(friend.uid);
+                          const hasUnread = unreadMap.has(dmId);
 
                           return (
                               <div 
                                 key={friend.uid}
                                 onClick={() => {
                                     setActiveChannel({ id: dmId, name: friend.displayName, type: 'dm' });
-                                    setView('room');
                                     setMessageLimit(150); // Reset
                                     prevMessagesLengthRef.current = 0;
                                     previousScrollHeightRef.current = 0;
+                                    onNavigateToRoom(); // Use handler
                                 }}
                                 className="bg-white p-3 rounded-xl border border-slate-100 flex items-center gap-3 cursor-pointer active:scale-95 transition-transform relative"
                               >
@@ -286,6 +298,11 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                                       <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
                                           friend.status === 'online' ? 'bg-emerald-500' : friend.status === 'away' ? 'bg-amber-500' : 'bg-slate-300'
                                       }`}></div>
+                                      
+                                      {/* NEW: Unread Dot on Profile Picture */}
+                                      {hasUnread && (
+                                          <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white animate-pulse"></div>
+                                      )}
                                   </div>
                                   <div>
                                       <p className="font-bold text-sm text-slate-800">{friend.displayName}</p>
@@ -554,6 +571,48 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
   const [vesselFilter, setVesselFilter] = useState('all');
   const [selectedBLId, setSelectedBLId] = useState<string | null>(null);
 
+  // --- Mobile Back Button Handling (Browser History API) ---
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+        // Priority 1: Close Detail Modal if open
+        if (selectedBLId) {
+            setSelectedBLId(null);
+            return;
+        }
+        // Priority 2: Close Chat Room if open
+        if (currentView === 'chat' && chatView === 'room') {
+            setChatView('list');
+            return;
+        }
+        // If nothing to close, we allow browser default (which might be exiting the app/page)
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [selectedBLId, currentView, chatView]);
+
+  const handleOpenDetail = (id: string) => {
+      // Push state so back button works
+      window.history.pushState({ modal: true }, '');
+      setSelectedBLId(id);
+  };
+
+  const handleCloseDetail = () => {
+      // Navigate back to remove the pushed state, which triggers popstate handler
+      window.history.back();
+  };
+
+  const handleOpenChatRoom = () => {
+      // Push state
+      window.history.pushState({ chatRoom: true }, '');
+      setChatView('room');
+  };
+
+  const handleCloseChatRoom = () => {
+      window.history.back();
+  };
+  // -----------------------------------------------------------
+
   // Search logic for Cargo
   const filteredBLs = useMemo(() => {
     let result = bls;
@@ -588,7 +647,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
             return (
                 <MobileShipmentDetail 
                     bl={selectedBL}
-                    onClose={() => setSelectedBLId(null)}
+                    onClose={handleCloseDetail} // Trigger History Back
                 />
             );
         } else {
@@ -640,7 +699,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                       filteredBLs.map(bl => (
                           <div 
                             key={bl.id} 
-                            onClick={() => setSelectedBLId(bl.id)}
+                            onClick={() => handleOpenDetail(bl.id)}
                             className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm active:scale-95 transition-transform"
                           >
                               <div className="flex justify-between items-start mb-2">
@@ -668,7 +727,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
              <div className="h-full flex flex-col relative">
                 {chatView === 'room' && (
                     <button 
-                        onClick={() => setChatView('list')} 
+                        onClick={handleCloseChatRoom} 
                         className="absolute top-3 left-3 z-20 p-2 bg-white/80 backdrop-blur rounded-full shadow-sm"
                     >
                         <ArrowLeft size={20} className="text-slate-700"/>
@@ -680,6 +739,8 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                     setView={setChatView} 
                     activeChannel={activeChannel}
                     setActiveChannel={setActiveChannel}
+                    onNavigateToRoom={handleOpenChatRoom} // Pass the history push handler
+                    onBackToList={handleCloseChatRoom}
                 />
              </div>
           );
