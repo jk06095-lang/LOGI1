@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
-import { Send, X, User as UserIcon, MessageCircle, ChevronLeft, Check, CheckCheck, Download, UserPlus, Plus, ArrowUpCircle } from 'lucide-react';
+import { Send, X, User as UserIcon, MessageCircle, ChevronLeft, Check, CheckCheck, Download, UserPlus, Plus, ArrowUpCircle, Settings2, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { ChatMessage, ChatUser } from '../types';
 import { User } from 'firebase/auth';
@@ -27,10 +27,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
   const isHistoryLoadingRef = useRef(false);
   const previousScrollHeightRef = useRef(0);
   
-  // Add Friend State
+  // Add Friend & Edit State
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [friendEmail, setFriendEmail] = useState('');
   const [isAddingFriend, setIsAddingFriend] = useState(false);
+  const [isEditingFriends, setIsEditingFriends] = useState(false);
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevMessagesLengthRef = useRef(0);
@@ -62,8 +63,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
   }, [user]);
 
   // REAL-TIME READ MARKING:
-  // Trigger whenever isOpen, channelId changes OR messages update.
-  // This ensures that as soon as a new message arrives (and we are looking at it), it is marked read.
   useEffect(() => {
      if (isOpen && channelId && user) {
          // 1. Optimistically remove from local unread map to hide dot instantly
@@ -74,14 +73,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
          });
 
          // 2. Check if there are any unread messages for me in the current list
-         // This prevents unnecessary DB calls if everything is already read.
          const hasUnread = messages.some(m => m.senderId !== user.uid && (!m.readBy || !m.readBy.includes(user.uid)));
          
          if (hasUnread) {
              dataService.markChannelRead(channelId, user.uid);
          }
      }
-  }, [isOpen, channelId, user, messages]); // Dependent on 'messages' for real-time ack
+  }, [isOpen, channelId, user, messages]);
 
   // Subscribe to Messages with Limit logic
   useEffect(() => {
@@ -93,7 +91,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       return () => unsub();
   }, [isOpen, channelId, messageLimit]);
 
-  // SCROLL LOGIC: Handle both new messages and history loading
+  // SCROLL LOGIC
   useLayoutEffect(() => {
       if (!scrollRef.current) return;
       
@@ -183,7 +181,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
 
   const handleInputFocus = () => {
       if (!user || !channelId) return;
-      // Mark read again just in case a new message arrived while window was open but blurred
       dataService.markChannelRead(channelId, user.uid);
       
       dataService.sendTypingStatus(channelId, { 
@@ -228,7 +225,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
 
       setMessages(prev => [...prev, optimisticMsg]);
       
-      // Force scroll to bottom on send
       setTimeout(() => {
          if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
       }, 50);
@@ -239,14 +235,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
   const handleUserSelect = (targetUser: ChatUser) => {
       if (targetUser.uid === user?.uid) return;
       
-      // OPTIMISTIC: Clear Red Dot for this user immediately
       const dmId = getDmChannelId(targetUser.uid);
       setUnreadMap(prev => {
           const newMap = new Set(prev);
           newMap.delete(dmId);
           return newMap;
       });
-      // Force server mark read for the new channel immediately
       if (user) {
           dataService.markChannelRead(dmId, user.uid);
       }
@@ -256,13 +250,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
 
   const handleTabSwitch = (tab: 'global' | 'dm') => {
       if (tab === 'global') {
-          // Optimistic clear for global
           setUnreadMap(prev => {
               const newMap = new Set(prev);
               newMap.delete('global');
               return newMap;
           });
-          // Force server mark read for global
           if (user) {
               dataService.markChannelRead('global', user.uid);
           }
@@ -284,11 +276,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       saveAs(blob, `${chatName}_Log_${new Date().toISOString().slice(0, 10)}.json`);
   };
 
+  // Derive friends list respecting the order in 'contacts' array
   const myFriends = useMemo(() => {
       if (!user || users.length === 0) return [];
       const me = users.find(u => u.uid === user.uid);
       if (!me || !me.contacts) return [];
-      return users.filter(u => me.contacts?.includes(u.uid));
+      
+      // Map contacts array IDs to User objects to preserve order
+      return me.contacts
+          .map(contactId => users.find(u => u.uid === contactId))
+          .filter((u): u is ChatUser => !!u);
   }, [users, user]);
 
   const handleAddFriend = async (e: React.FormEvent) => {
@@ -311,6 +308,30 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
   const loadMoreMessages = () => {
       isHistoryLoadingRef.current = true;
       setMessageLimit(prev => prev + 100);
+  };
+
+  const deleteFriend = async (friendUid: string) => {
+      if (!user) return;
+      if (window.confirm("Remove this friend from your list?")) {
+          await dataService.removeContact(user.uid, friendUid);
+      }
+  };
+
+  const moveFriend = async (index: number, direction: 'up' | 'down') => {
+      if (!user) return;
+      const newFriends = [...myFriends];
+      if (direction === 'up' && index > 0) {
+          [newFriends[index], newFriends[index - 1]] = [newFriends[index - 1], newFriends[index]];
+      } else if (direction === 'down' && index < newFriends.length - 1) {
+          [newFriends[index], newFriends[index + 1]] = [newFriends[index + 1], newFriends[index]];
+      } else {
+          return;
+      }
+      
+      const newContactIds = newFriends.map(f => f.uid);
+      // Optimistic update handled by Firestore subscription if fast enough, 
+      // but strictly relying on subscription is safer.
+      await dataService.updateContacts(user.uid, newContactIds);
   };
 
   return (
@@ -359,7 +380,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                         className={`pb-2 text-sm font-bold border-b-2 transition-colors relative ${activeTab === 'dm' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                     >
                         Direct Messages
-                        {/* Check if any DM channel has unread */}
                         {Array.from(unreadMap).some(id => id !== 'global') && <span className="absolute -top-1 -right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
                     </button>
                 </div>
@@ -407,8 +427,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                      ) : (
                          messages.map((msg, index) => {
                              const isMe = msg.senderId === user?.uid;
-                             // Check if at least one other person (besides sender) has read it. 
-                             // If sender is me, I am in readBy. If someone else read it, length > 1.
                              const isRead = msg.readBy && msg.readBy.length > 1; 
 
                              return (
@@ -439,7 +457,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                          })
                      )}
 
-                     {/* Typing Indicator Bubble */}
+                     {/* Typing Indicator */}
                      {typingUsers.length > 0 && (
                          <div className="flex gap-2 animate-fade-in-up">
                              <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
@@ -459,12 +477,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
 
              {activeTab === 'dm' && !selectedUser && (
                  <div className="space-y-4">
-                     <button 
-                        onClick={() => setShowAddFriend(true)}
-                        className="w-full py-3 bg-white dark:bg-slate-800 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-slate-500 hover:border-blue-500 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 font-bold text-sm"
-                     >
-                        <UserPlus size={18} /> Add Friend (친구 추가)
-                     </button>
+                     <div className="flex gap-2">
+                         <button 
+                            onClick={() => setShowAddFriend(true)}
+                            className="flex-1 py-3 bg-white dark:bg-slate-800 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-slate-500 hover:border-blue-500 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 font-bold text-sm"
+                         >
+                            <UserPlus size={18} /> Add Friend (친구 추가)
+                         </button>
+                         <button
+                            onClick={() => setIsEditingFriends(!isEditingFriends)}
+                            className={`px-4 py-3 border-2 rounded-xl transition-colors flex items-center justify-center ${isEditingFriends ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-500 hover:text-slate-700'}`}
+                            title="Edit Friends List"
+                         >
+                             {isEditingFriends ? <Check size={18} /> : <Settings2 size={18} />}
+                         </button>
+                     </div>
 
                      {myFriends.length === 0 ? (
                          <div className="text-center text-slate-400 text-sm italic mt-10">
@@ -472,27 +499,48 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                          </div>
                      ) : (
                         <div className="space-y-1">
-                            {myFriends.map(friend => {
+                            {myFriends.map((friend, index) => {
                                 const dmId = getDmChannelId(friend.uid);
                                 const hasUnread = unreadMap.has(dmId);
 
                                 return (
                                 <div 
                                     key={friend.uid} 
-                                    onClick={() => handleUserSelect(friend)}
-                                    className="flex items-center gap-3 p-2 hover:bg-white dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors relative"
+                                    onClick={() => !isEditingFriends && handleUserSelect(friend)}
+                                    className={`flex items-center gap-3 p-2 rounded-lg transition-all relative ${isEditingFriends ? 'bg-slate-50 dark:bg-slate-800/50 border border-dashed border-slate-300 dark:border-slate-700' : 'hover:bg-white dark:hover:bg-slate-800 cursor-pointer'}`}
                                 >
+                                    {isEditingFriends && (
+                                        <div className="flex flex-col gap-1 mr-1">
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); moveFriend(index, 'up'); }} 
+                                                disabled={index === 0}
+                                                className="p-0.5 hover:bg-slate-200 dark:hover:bg-slate-600 rounded disabled:opacity-30"
+                                            >
+                                                <ChevronUp size={14} />
+                                            </button>
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); moveFriend(index, 'down'); }}
+                                                disabled={index === myFriends.length - 1}
+                                                className="p-0.5 hover:bg-slate-200 dark:hover:bg-slate-600 rounded disabled:opacity-30"
+                                            >
+                                                <ChevronDown size={14} />
+                                            </button>
+                                        </div>
+                                    )}
+
                                     <div className="relative">
                                         <div className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden">
                                             {friend.photoURL ? <img src={friend.photoURL} alt={friend.displayName} className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-2 text-slate-400"/>}
                                         </div>
-                                        <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white dark:border-slate-800 ${
-                                            friend.status === 'away' ? 'bg-amber-500' : 
-                                            friend.status === 'offline' ? 'bg-slate-400' : 'bg-emerald-500'
-                                        }`}></div>
+                                        {!isEditingFriends && (
+                                            <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white dark:border-slate-800 ${
+                                                friend.status === 'away' ? 'bg-amber-500' : 
+                                                friend.status === 'offline' ? 'bg-slate-400' : 'bg-emerald-500'
+                                            }`}></div>
+                                        )}
                                         
-                                        {/* UNREAD RED DOT ON USER */}
-                                        {hasUnread && (
+                                        {/* UNREAD RED DOT */}
+                                        {hasUnread && !isEditingFriends && (
                                             <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-900 animate-pulse"></div>
                                         )}
                                     </div>
@@ -502,7 +550,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                                         </p>
                                         <p className="text-xs text-slate-500 truncate">{friend.email}</p>
                                     </div>
-                                    <ChevronLeft size={16} className="text-slate-300 rotate-180" />
+                                    
+                                    {isEditingFriends ? (
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); deleteFriend(friend.uid); }}
+                                            className="p-2 bg-red-50 text-red-500 rounded-lg hover:bg-red-100 transition-colors"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    ) : (
+                                        <ChevronLeft size={16} className="text-slate-300 rotate-180" />
+                                    )}
                                 </div>
                                 )
                             })}

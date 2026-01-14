@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { BLData, VesselJob, Language, BLChecklist } from '../types';
 import { FileText, Search, ArrowRight, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, Building2, Truck, ListChecks, FolderOpen, Download } from 'lucide-react';
@@ -281,13 +282,66 @@ export const BLManagement: React.FC<BLManagementProps> = ({
   };
 
   const exportCSV = () => {
-    const allItems = filteredBLs.flatMap(bl => (bl.cargoItems || []).map(item => ({ ...item, blNumber: bl.blNumber, vessel: bl.vesselName, shipper: bl.shipper, consignee: bl.consignee, category: bl.cargoCategory, cbm: getCbm(bl) })));
-    const headers = ["Vessel", "B/L Number", "Category", "Shipper", "Consignee", "Description", "Quantity", "Weight", "CBM"];
-    const rows = allItems.map(item => [item.vessel, item.blNumber, item.category || 'GENERAL', item.shipper, item.consignee, item.description, item.quantity, item.grossWeight, item.measurement]);
-    const csvContent = "data:text/csv;charset=utf-8,\ufeff" + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    // Helper to escape CSV fields properly
+    const escape = (val: any) => {
+      if (val === null || val === undefined) return '';
+      const str = String(val);
+      // If the field contains comma, newline or double quote, enclose in double quotes
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const headers = [
+      t.status,
+      t.vesselName,
+      "Voyage",
+      t.cargoCategory,
+      t.blNumber,
+      t.shipper,
+      t.consignee,
+      t.tableHeaders[6], // Description
+      t.tableHeaders[7], // Qty
+      t.tableHeaders[8], // Weight
+      t.tableHeaders[9], // CBM
+      "Korean Forwarder",
+      "Transporter"
+    ];
+
+    const rows = filteredBLs.map(bl => {
+      const { percentage, currentStageLabel, isUnassigned } = getProgressInfo(bl);
+      const statusText = isUnassigned ? t.unassigned : `${currentStageLabel} (${percentage}%)`;
+      const totalQty = getQty(bl);
+      const totalWeight = getWeight(bl);
+      const totalCbm = getCbm(bl);
+      const displayDesc = bl.cargoItems.length > 0 ? bl.cargoItems[0].description : '-';
+      const jobName = getJobName(bl.vesselJobId) || bl.vesselName;
+
+      return [
+        statusText,
+        jobName,
+        bl.voyageNo,
+        bl.cargoCategory || '',
+        bl.blNumber,
+        bl.shipper,
+        bl.consignee,
+        displayDesc,
+        totalQty,
+        totalWeight,
+        totalCbm,
+        bl.koreanForwarder || '',
+        bl.transporterName || ''
+      ].map(escape);
+    });
+
+    // BOM for Excel to recognize UTF-8
+    const csvContent = "\ufeff" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", encodeURI(csvContent));
-    link.setAttribute("download", `integrated_cargo_list.csv`);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Cargo_List_${new Date().toISOString().slice(0,10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

@@ -197,7 +197,6 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], checklists = {}
   const getCategoryBadge = (cat?: string) => {
       if (!cat) return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-50 text-slate-400 border border-slate-100">{t.catGen}</span>;
       
-      // Standardize coloring based on string hash or predefined types if needed, currently using dynamic
       return <span className="bg-white text-slate-600 dark:bg-transparent dark:text-slate-300 px-2 py-0.5 rounded text-[10px] font-bold border border-slate-200 dark:border-slate-700 uppercase">{cat}</span>;
   };
 
@@ -224,6 +223,62 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], checklists = {}
       );
   };
 
+  const exportCSV = () => {
+    // Helper to escape CSV fields properly
+    const escape = (val: any) => {
+      if (val === null || val === undefined) return '';
+      const str = String(val);
+      // If the field contains comma, newline or double quote, enclose in double quotes
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const headers = [
+        t.type,
+        t.category,
+        t.vessel,
+        t.blNo,
+        t.shipper,
+        t.consignee,
+        t.desc,
+        t.qty,
+        t.weight,
+        t.cbm
+    ];
+
+    const rows = sortedData.map(bl => {
+        const totalQty = getQty(bl);
+        const totalWeight = getWeight(bl);
+        const totalCbm = getCbm(bl);
+        const displayDesc = bl.cargoItems.length > 0 ? bl.cargoItems[0].description : '-';
+        
+        return [
+            bl.sourceType,
+            bl.cargoCategory || '',
+            bl.vesselName,
+            bl.blNumber,
+            bl.shipper,
+            bl.consignee,
+            displayDesc,
+            totalQty,
+            totalWeight,
+            totalCbm
+        ].map(escape);
+    });
+
+    const csvContent = "\ufeff" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Vessel_Cargo_List_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   if (data.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 border-dashed animate-fade-in">
@@ -237,19 +292,6 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], checklists = {}
       </div>
     );
   }
-
-  const exportCSV = () => {
-    const allItems = data.flatMap(bl => (bl.cargoItems || []).map(item => ({ ...item, blNumber: bl.blNumber, vessel: bl.vesselName, shipper: bl.shipper, consignee: bl.consignee, category: bl.cargoCategory, cbm: getCbm(bl) })));
-    const headers = ["Vessel", "B/L Number", "Category", "Shipper", "Consignee", "Description", "Quantity", "Weight", "CBM"];
-    const rows = allItems.map(item => [item.vessel, item.blNumber, item.category || 'GENERAL', item.shipper, item.consignee, item.description, item.quantity, item.grossWeight, item.measurement]);
-    const csvContent = "data:text/csv;charset=utf-8,\ufeff" + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
-    const link = document.createElement("a");
-    link.setAttribute("href", encodeURI(csvContent));
-    link.setAttribute("download", `cargo_list.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
   return (
     <div className="space-y-4 animate-fade-in w-full">

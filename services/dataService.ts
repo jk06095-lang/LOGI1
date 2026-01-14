@@ -575,6 +575,30 @@ export const dataService = {
       return contactUser;
   },
 
+  removeContact: async (currentUserUid: string, contactUid: string) => {
+      if (!db) return;
+      try {
+          const userRef = doc(db, "users", currentUserUid);
+          await updateDoc(userRef, {
+              contacts: arrayRemove(contactUid)
+          });
+      } catch (e) {
+          console.error("Remove Contact Error", e);
+      }
+  },
+
+  updateContacts: async (currentUserUid: string, newContacts: string[]) => {
+      if (!db) return;
+      try {
+          const userRef = doc(db, "users", currentUserUid);
+          await updateDoc(userRef, {
+              contacts: newContacts
+          });
+      } catch (e) {
+          console.error("Update Contacts Order Error", e);
+      }
+  },
+
   // --- Notifications Setup ---
   setupNotifications: async (user: User) => {
     if (!messaging || !db) {
