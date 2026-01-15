@@ -812,19 +812,6 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                             <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.theme === 'dark' ? 'left-7' : 'left-1'}`}></div>
                         </button>
                     </div>
-                    {/* NEW: View Mode Toggle */}
-                    <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-                        <div className="flex flex-col">
-                            <span className="text-sm font-medium text-slate-700">PC Mode</span>
-                            <span className="text-[10px] text-slate-400">Desktop Interface</span>
-                        </div>
-                        <button 
-                            onClick={() => onUpdateSettings({...settings, viewMode: settings.viewMode === 'mobile' ? 'pc' : 'mobile'})}
-                            className={`w-12 h-6 rounded-full transition-colors relative ${settings.viewMode === 'pc' ? 'bg-blue-600' : 'bg-slate-200'}`}
-                        >
-                            <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.viewMode === 'pc' ? 'left-7' : 'left-1'}`}></div>
-                        </button>
-                    </div>
                     <div className="p-4 flex items-center justify-between">
                         <span className="text-sm font-medium text-slate-700">Language</span>
                         <select 

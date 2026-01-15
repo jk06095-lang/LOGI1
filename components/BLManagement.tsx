@@ -294,7 +294,6 @@ export const BLManagement: React.FC<BLManagementProps> = ({
       }
   };
 
-  // NEW: 2x3 Grid Layout for Status Dots
   const renderDocStatus = (bl: BLData) => {
       const docs = [
           { id: 'BL', label: 'B/L', has: !!bl.fileUrl, color: 'bg-blue-500' },
@@ -305,15 +304,33 @@ export const BLManagement: React.FC<BLManagementProps> = ({
           { id: 'ED', label: 'E/D', has: !!bl.exportDeclaration?.fileUrl, color: 'bg-rose-500' },
       ];
 
+      const total = docs.length;
+      const current = docs.filter(d => d.has).length;
+      const percentage = Math.round((current / total) * 100);
+      
+      let barColor = 'bg-blue-500';
+      if (percentage === 100) barColor = 'bg-emerald-500';
+      else if (percentage < 30) barColor = 'bg-emerald-400'; // Light emerald for low start
+
       return (
-          <div className="grid grid-cols-3 gap-1 w-fit mx-auto" title="BL / AN / CI / PL / MF / ED">
-              {docs.map(doc => (
-                  <div 
-                      key={doc.id} 
-                      className={`w-1.5 h-1.5 rounded-full ${doc.has ? doc.color : 'bg-slate-200 dark:bg-slate-700'}`} 
-                      title={`${doc.label}: ${doc.has ? 'Uploaded' : 'Missing'}`}
-                  />
-              ))}
+          <div className="flex flex-col gap-1.5 w-20 mx-auto">
+              <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-0.5">
+                    {docs.map(doc => (
+                        <div 
+                            key={doc.id} 
+                            className={`w-1.5 h-1.5 rounded-full ${doc.has ? doc.color : 'bg-slate-200 dark:bg-slate-700'}`} 
+                            title={`${doc.label}: ${doc.has ? 'Uploaded' : 'Missing'}`}
+                        />
+                    ))}
+                  </div>
+              </div>
+              <div className="flex items-center gap-2">
+                  <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full transition-all duration-500 ${barColor}`} style={{ width: `${percentage}%` }}></div>
+                  </div>
+                  <span className={`text-[10px] font-bold tabular-nums ${percentage === 100 ? 'text-emerald-600' : 'text-slate-500'}`}>{percentage}%</span>
+              </div>
           </div>
       );
   };
@@ -428,15 +445,13 @@ export const BLManagement: React.FC<BLManagementProps> = ({
            <table className="w-full text-sm text-left border-collapse whitespace-nowrap">
              <thead className="bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-600 font-bold uppercase tracking-widest text-[11px]">
                <tr>
-                 {/* Reduced widths for Status, Type, Category */}
-                 <th onClick={() => handleSort('status')} className="px-4 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors w-16"><div className="flex items-center justify-center">{t.tableHeaders[0]}</div></th>
+                 <th onClick={() => handleSort('status')} className="px-4 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors w-24"><div className="flex items-center">{t.tableHeaders[0]} {renderSortIcon('status')}</div></th>
                  <th onClick={() => handleSort('vesselName')} className="px-4 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center">{t.tableHeaders[1]} {renderSortIcon('vesselName')}</div></th>
-                 <th onClick={() => handleSort('cargoCategory')} className="px-4 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors w-24"><div className="flex items-center">{t.tableHeaders[2]} {renderSortIcon('cargoCategory')}</div></th>
+                 <th onClick={() => handleSort('cargoCategory')} className="px-4 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center">{t.tableHeaders[2]} {renderSortIcon('cargoCategory')}</div></th>
                  <th onClick={() => handleSort('blNumber')} className="px-4 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center">{t.tableHeaders[3]} {renderSortIcon('blNumber')}</div></th>
                  <th onClick={() => handleSort('shipper')} className="px-4 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center">{t.tableHeaders[4]} {renderSortIcon('shipper')}</div></th>
                  <th onClick={() => handleSort('consignee')} className="px-4 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center">{t.tableHeaders[5]} {renderSortIcon('consignee')}</div></th>
-                 {/* Increased width for Description via auto expansion and min-width */}
-                 <th className="px-4 py-4 min-w-[200px]">{t.tableHeaders[6]}</th>
+                 <th className="px-4 py-4">{t.tableHeaders[6]}</th>
                  <th className="px-4 py-4 text-right">{t.tableHeaders[7]}</th>
                  <th className="px-4 py-4 text-right">{t.tableHeaders[8]}</th>
                  <th className="px-4 py-4 text-right">{t.tableHeaders[9]}</th>
@@ -454,7 +469,7 @@ export const BLManagement: React.FC<BLManagementProps> = ({
                  return (
                    <tr key={bl.id} className="hover:bg-blue-50/30 dark:hover:bg-slate-800/50 transition-colors">
                      <td className="px-4 py-4 text-center">
-                        {/* Changed to 2x3 Grid */}
+                        {/* Changed to Doc Status with Bar */}
                         {renderDocStatus(bl)}
                      </td>
                      <td className="px-4 py-4">
@@ -476,7 +491,7 @@ export const BLManagement: React.FC<BLManagementProps> = ({
                      <td className="px-4 py-4 text-slate-600 dark:text-slate-400 truncate max-w-[120px]" title={bl.shipper}>{bl.shipper}</td>
                      <td className="px-4 py-4 text-slate-600 dark:text-slate-400 truncate max-w-[120px]" title={bl.consignee}>{bl.consignee}</td>
                      
-                     <td className="px-4 py-4 text-slate-600 dark:text-slate-400 max-w-[300px] text-xs font-medium" title={displayDesc}>{displayDesc}</td>
+                     <td className="px-4 py-4 text-slate-600 dark:text-slate-400 truncate max-w-[240px] text-xs" title={displayDesc}>{displayDesc}</td>
                      <td className="px-4 py-4 text-right text-slate-700 dark:text-slate-300 tabular-nums font-bold">{totalQty.toLocaleString()}</td>
                      <td className="px-4 py-4 text-right text-slate-600 dark:text-slate-400 font-mono tabular-nums">{totalWeight.toLocaleString()}</td>
                      <td className="px-4 py-4 text-right text-slate-600 dark:text-slate-400 font-mono tabular-nums font-bold">

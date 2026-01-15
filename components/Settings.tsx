@@ -519,7 +519,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdateSettings, 
             </div>
           </div>
           
-          {/* Chat Backup Section (Moved to Bottom) */}
+          {/* Chat Backup Section */}
           <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
              <div className="flex items-center gap-3 mb-4">
                 <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg">
@@ -585,7 +585,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdateSettings, 
             </div>
           </div>
           
-          {/* Data Management Section (Moved to Bottom) */}
+          {/* Data Management Section */}
           <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm relative overflow-hidden">
              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-50 dark:bg-blue-900/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl"></div>
              

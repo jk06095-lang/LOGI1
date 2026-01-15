@@ -33,7 +33,7 @@ const translations = {
     action: '관리',
     status: '문서현황',
     transit: '환적',
-    fisco: '피스코', // Updated from 'FISCO'
+    fisco: '피스코',
     thirdParty: '타사',
     viewDetail: '상세보기',
     andOthers: '외 {count}건',
@@ -211,7 +211,7 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], checklists = {}
       ];
 
       return (
-          <div className="flex items-center gap-1.5" title="BL / AN / CI / PL / MF / ED">
+          <div className="grid grid-cols-3 gap-1 w-fit mx-auto" title="BL / AN / CI / PL / MF / ED">
               {docs.map(doc => (
                   <div 
                       key={doc.id} 
@@ -310,12 +310,14 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], checklists = {}
           <table className="w-full text-sm text-left whitespace-nowrap">
             <thead className="bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-600 font-bold uppercase tracking-widest text-[11px]">
               <tr>
-                <th onClick={() => handleSort('status')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors w-28"><div className="flex items-center gap-1">{t.status} {renderSortIcon('status')}</div></th>
-                <th onClick={() => handleSort('sourceType')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors w-24"><div className="flex items-center gap-1">{t.type} {renderSortIcon('sourceType')}</div></th>
-                <th onClick={() => handleSort('cargoCategory')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.category} {renderSortIcon('cargoCategory')}</div></th>
+                {/* Adjusted widths: Status reduced, Type/Category reduced */}
+                <th onClick={() => handleSort('status')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors w-16 text-center"><div className="flex items-center justify-center gap-1">{t.status} {renderSortIcon('status')}</div></th>
+                <th onClick={() => handleSort('sourceType')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors w-20 text-center"><div className="flex items-center justify-center gap-1">{t.type} {renderSortIcon('sourceType')}</div></th>
+                <th onClick={() => handleSort('cargoCategory')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors w-24 text-center"><div className="flex items-center justify-center gap-1">{t.category} {renderSortIcon('cargoCategory')}</div></th>
                 <th onClick={() => handleSort('blNumber')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.blNo} {renderSortIcon('blNumber')}</div></th>
                 <th onClick={() => handleSort('shipper')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.shipper} {renderSortIcon('shipper')}</div></th>
                 <th onClick={() => handleSort('consignee')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.consignee} {renderSortIcon('consignee')}</div></th>
+                {/* Description column given more priority */}
                 <th onClick={() => handleSort('description')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.desc} {renderSortIcon('description')}</div></th>
                 <th onClick={() => handleSort('quantity')} className="px-2 py-3 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center justify-end gap-1">{t.qty} {renderSortIcon('quantity')}</div></th>
                 <th onClick={() => handleSort('grossWeight')} className="px-2 py-3 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center justify-end gap-1">{t.weight} {renderSortIcon('grossWeight')}</div></th>
@@ -333,7 +335,7 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], checklists = {}
                 return (
                   <tr key={bl.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                     
-                    {/* Status Column (Document Dots) */}
+                    {/* Status Column (Document Dots - Grid) */}
                     <td className="px-2 py-2 whitespace-nowrap text-center">
                         {renderDocDots(bl)}
                     </td>
@@ -355,7 +357,9 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], checklists = {}
                     <td className="px-2 py-2 text-slate-600 dark:text-slate-400 font-medium truncate max-w-[120px]" title={bl.shipper}>{bl.shipper}</td>
                     <td className="px-2 py-2 text-slate-600 dark:text-slate-400 truncate max-w-[120px]" title={bl.consignee}>{bl.consignee}</td>
                     
-                    <td className="px-2 py-2 text-slate-600 dark:text-slate-400 truncate max-w-[180px] text-xs" title={displayDesc}>{displayDesc}</td>
+                    {/* Increased Width for Description */}
+                    <td className="px-2 py-2 text-slate-600 dark:text-slate-400 truncate max-w-[300px] text-xs font-medium" title={displayDesc}>{displayDesc}</td>
+                    
                     <td className="px-2 py-2 text-right text-slate-700 dark:text-slate-300 tabular-nums font-bold">{totalQty.toLocaleString()}</td>
                     <td className="px-2 py-2 text-right text-slate-600 dark:text-slate-400 font-mono tabular-nums">{totalWeight.toLocaleString()}</td>
                     <td className="px-2 py-2 text-right text-slate-600 dark:text-slate-400 font-mono tabular-nums font-bold">
