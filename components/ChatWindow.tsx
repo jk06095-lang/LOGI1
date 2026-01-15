@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useLayoutEffect, useCallback } from 'react';
 import { Send, X, User as UserIcon, MessageCircle, ChevronLeft, Check, CheckCheck, Download, UserPlus, ArrowUpCircle, Settings2, Trash2, ChevronUp, ChevronDown, Smile } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { ChatMessage, ChatUser } from '../types';
@@ -20,7 +20,7 @@ const EMOJIS = ['😀', '😂', '😍', '🥰', '😎', '😭', '😡', '👍', 
 type WindowState = 'default' | 'tall' | 'maximized';
 
 // Global Map to persist scroll positions even when component unmounts (closes)
-const globalChannelScrollPositions = new Map<string, { top: number, atBottom: boolean }>();
+const globalScrollPositions = new Map<string, { top: number, atBottom: boolean }>();
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebarWidth, user }) => {
   const [activeTab, setActiveTab] = useState<'global' | 'dm'>('global');
@@ -118,48 +118,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       prevMessagesLengthRef.current = 0;
       previousScrollHeightRef.current = 0;
       messageRefs.current.clear();
-      // Note: We do NOT clear globalChannelScrollPositions here to remember positions if user switches back
+      // Note: We do NOT clear globalScrollPositions here to remember positions if user switches back
   }, [channelId]);
-
-  // Scroll Logic: Restore Position on Open
-  useLayoutEffect(() => {
-      if (isOpen && scrollRef.current && channelId) {
-          // Use RequestAnimationFrame to ensure DOM is ready and layout is stable
-          requestAnimationFrame(() => {
-              if (!scrollRef.current) return;
-              
-              const saved = globalChannelScrollPositions.get(channelId);
-              
-              if (saved) {
-                  // Restore saved position from global store
-                  if (saved.atBottom) {
-                      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-                  } else {
-                      scrollRef.current.scrollTop = saved.top;
-                  }
-              } else {
-                  // No saved position: Fallback to Smart Scroll (Unread or Bottom)
-                  let firstUnreadIndex = -1;
-                  if (user && messages.length > 0) {
-                      firstUnreadIndex = messages.findIndex(m => m.senderId !== user.uid && (!m.readBy || !m.readBy.includes(user.uid)));
-                  }
-
-                  if (firstUnreadIndex !== -1) {
-                      const targetMsg = messages[firstUnreadIndex];
-                      const el = messageRefs.current.get(targetMsg.id);
-                      if (el) {
-                          el.scrollIntoView({ block: 'center', behavior: 'auto' });
-                      } else {
-                          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-                      }
-                  } else {
-                      // Default to bottom
-                      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-                  }
-              }
-          });
-      }
-  }, [isOpen, channelId]); // Dependency on isOpen triggers this when opening
 
   // Subscription Effect
   useEffect(() => {
@@ -171,20 +131,68 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       return () => unsub();
   }, [isOpen, channelId, messageLimit]);
 
-  // Handle Scroll Events to Save Position
-  const handleScroll = () => {
+  // --- Scroll Management Logic ---
+
+  // Helper: Explicitly save current position
+  const saveCurrentScrollPosition = useCallback(() => {
       if (!scrollRef.current || !channelId) return;
       const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
       
-      // Save scroll position for current channel into GLOBAL variable
-      // Threshold 50px for "at bottom"
+      // Calculate if we are at bottom
       const isNearBottom = scrollHeight - scrollTop - clientHeight < 50;
-      globalChannelScrollPositions.set(channelId, { top: scrollTop, atBottom: isNearBottom });
+      
+      // Save to global map
+      globalScrollPositions.set(channelId, { top: scrollTop, atBottom: isNearBottom });
+  }, [channelId]);
+
+  // Helper: Explicitly restore position
+  const restoreScrollPosition = useCallback(() => {
+      if (!scrollRef.current || !channelId) return;
+      
+      const saved = globalScrollPositions.get(channelId);
+      const currentScrollHeight = scrollRef.current.scrollHeight;
+
+      if (saved) {
+          if (saved.atBottom) {
+              scrollRef.current.scrollTop = currentScrollHeight;
+          } else {
+              scrollRef.current.scrollTop = saved.top;
+          }
+      } else {
+          // Default: Scroll to bottom if no history
+          scrollRef.current.scrollTop = currentScrollHeight;
+      }
+  }, [channelId]);
+
+  // Event: Handle Scroll (Auto-Save)
+  const handleScroll = () => {
+      // CRITICAL: Do not save scroll position if the window is closing or closed.
+      // This prevents the "0" scrollTop from overwriting the valid position during exit animation.
+      if (!isOpen || !scrollRef.current) return;
+
+      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+      
+      // Save scroll position
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 50;
+      if (channelId) {
+          globalScrollPositions.set(channelId, { top: scrollTop, atBottom: isNearBottom });
+      }
       
       // Show "Scroll Down" button if we are more than 150px away from bottom
       const showBtn = scrollHeight - scrollTop - clientHeight > 150;
       setShowScrollDown(showBtn);
   };
+
+  // Effect: Save scroll position on unmount/close
+  useEffect(() => {
+      // When isOpen changes to false (cleanup), save the position immediately.
+      // This runs BEFORE the DOM is destroyed or animated out completely.
+      return () => {
+          if (isOpen) { 
+              saveCurrentScrollPosition();
+          }
+      };
+  }, [isOpen, saveCurrentScrollPosition]);
 
   const scrollToBottom = () => {
       if (scrollRef.current) {
@@ -203,18 +211,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       const isInitialLoad = prevMessagesLengthRef.current === 0;
 
       if (isInitialLoad) {
-          // Only perform smart logic if this is the initial load of messages for this session
-          // (which happens on channel switch or reopen)
-          const saved = globalChannelScrollPositions.get(channelId);
+          // Check global store first
+          const saved = globalScrollPositions.get(channelId);
           
           if (saved) {
-              if (saved.atBottom) {
-                  scrollRef.current.scrollTop = currentScrollHeight;
-              } else {
-                  scrollRef.current.scrollTop = saved.top;
-              }
+              restoreScrollPosition();
           } else {
-              // Smart Scroll Logic (Duplicate of Restore for safety on fresh loads)
+              // Fallback: Smart Scroll Logic (Unread or Bottom)
               let firstUnreadIndex = -1;
               if (user) {
                   firstUnreadIndex = messages.findIndex(m => m.senderId !== user.uid && (!m.readBy || !m.readBy.includes(user.uid)));
@@ -248,7 +251,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       
       prevMessagesLengthRef.current = messages.length;
       previousScrollHeightRef.current = currentScrollHeight;
-  }, [messages, channelId, isOpen]);
+  }, [messages, channelId, isOpen, restoreScrollPosition]);
 
   useEffect(() => {
       if (!isOpen) return;
@@ -399,6 +402,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
     <AnimatePresence>
       {isOpen && (
         <motion.div 
+            key="chat-window-container"
             ref={containerRef}
             drag={windowState === 'default'}
             dragMomentum={false}
@@ -412,6 +416,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                 height: dimensions.height
             }}
             exit={{ opacity: 0, scale: 0.9, y: 15 }}
+            onAnimationComplete={() => {
+                // IMPORTANT: Restore scroll position after animation finishes.
+                // This prevents the scroll position from being wrong because content was squeezed during animation.
+                if (isOpen) {
+                    restoreScrollPosition();
+                }
+            }}
             transition={{ type: "spring", stiffness: 350, damping: 25 }}
             style={{ 
                 position: 'fixed',
