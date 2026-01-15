@@ -47,7 +47,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
   const prevMessagesLengthRef = useRef(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map()); // Track message bubbles
   
+  // Persist scroll positions per channel { top, atBottom }
+  const channelScrollPositions = useRef<Map<string, { top: number, atBottom: boolean }>>(new Map());
+  
+  // Scroll to Bottom Button State
+  const [showScrollDown, setShowScrollDown] = useState(false);
+
   const typingTimeoutRef = useRef<any>(null);
   const lastTypingSentRef = useRef<number>(0);
   const [isTyping, setIsTyping] = useState(false);
@@ -94,38 +101,154 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
              newMap.delete(channelId);
              return newMap;
          });
-         const hasUnread = messages.some(m => m.senderId !== user.uid && (!m.readBy || !m.readBy.includes(user.uid)));
-         if (hasUnread) {
-             dataService.markChannelRead(channelId, user.uid);
-         }
+         // NOTE: Marking read happens slightly delayed to allow UI to scroll to "last read" point first
+         const timer = setTimeout(() => {
+             const hasUnread = messages.some(m => m.senderId !== user.uid && (!m.readBy || !m.readBy.includes(user.uid)));
+             if (hasUnread) {
+                 dataService.markChannelRead(channelId, user.uid);
+             }
+         }, 1000);
+         return () => clearTimeout(timer);
      }
-  }, [isOpen, channelId, user, messages]);
+  }, [isOpen, channelId, user, messages.length]);
 
+  // Reset tracking ONLY when channel changes (Switching tabs/users)
+  useLayoutEffect(() => {
+      setMessageLimit(150);
+      prevMessagesLengthRef.current = 0;
+      previousScrollHeightRef.current = 0;
+      messageRefs.current.clear();
+      // Note: We do NOT clear channelScrollPositions here to remember positions if user switches back
+  }, [channelId]);
+
+  // Scroll Logic: Restore Position on Open
+  useLayoutEffect(() => {
+      if (isOpen && scrollRef.current && channelId) {
+          // Use RequestAnimationFrame to ensure DOM is ready and layout is stable
+          requestAnimationFrame(() => {
+              if (!scrollRef.current) return;
+              
+              const saved = channelScrollPositions.current.get(channelId);
+              
+              if (saved) {
+                  // Restore saved position
+                  if (saved.atBottom) {
+                      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+                  } else {
+                      scrollRef.current.scrollTop = saved.top;
+                  }
+              } else {
+                  // No saved position: Fallback to Smart Scroll (Unread or Bottom)
+                  let firstUnreadIndex = -1;
+                  if (user && messages.length > 0) {
+                      firstUnreadIndex = messages.findIndex(m => m.senderId !== user.uid && (!m.readBy || !m.readBy.includes(user.uid)));
+                  }
+
+                  if (firstUnreadIndex !== -1) {
+                      const targetMsg = messages[firstUnreadIndex];
+                      const el = messageRefs.current.get(targetMsg.id);
+                      if (el) {
+                          el.scrollIntoView({ block: 'center', behavior: 'auto' });
+                      } else {
+                          scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+                      }
+                  } else {
+                      // Default to bottom
+                      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+                  }
+              }
+          });
+      }
+  }, [isOpen, channelId]); // Dependency on isOpen triggers this when opening
+
+  // Subscription Effect
   useEffect(() => {
       if (!isOpen || !channelId) return;
+      
       const unsub = dataService.subscribeChatMessages(channelId, messageLimit, (newMessages) => {
           setMessages(newMessages);
       });
       return () => unsub();
   }, [isOpen, channelId, messageLimit]);
 
+  // Handle Scroll Events to Save Position
+  const handleScroll = () => {
+      if (!scrollRef.current || !channelId) return;
+      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+      
+      // Save scroll position for current channel
+      // Threshold 50px for "at bottom"
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < 50;
+      channelScrollPositions.current.set(channelId, { top: scrollTop, atBottom: isNearBottom });
+      
+      // Show "Scroll Down" button if we are more than 150px away from bottom
+      const showBtn = scrollHeight - scrollTop - clientHeight > 150;
+      setShowScrollDown(showBtn);
+  };
+
+  const scrollToBottom = () => {
+      if (scrollRef.current) {
+          scrollRef.current.scrollTo({
+              top: scrollRef.current.scrollHeight,
+              behavior: 'smooth'
+          });
+      }
+  };
+
+  // Smart Scrolling Layout Effect for Message Updates
   useLayoutEffect(() => {
-      if (!scrollRef.current) return;
+      if (!isOpen || !scrollRef.current || messages.length === 0 || !channelId) return;
+      
       const currentScrollHeight = scrollRef.current.scrollHeight;
-      const isInitialLoad = prevMessagesLengthRef.current === 0 && messages.length > 0;
+      const isInitialLoad = prevMessagesLengthRef.current === 0;
+
       if (isInitialLoad) {
-          scrollRef.current.scrollTop = currentScrollHeight;
+          // Only perform smart logic if this is the initial load of messages for this session
+          // (which happens on channel switch)
+          const saved = channelScrollPositions.current.get(channelId);
+          
+          if (saved) {
+              if (saved.atBottom) {
+                  scrollRef.current.scrollTop = currentScrollHeight;
+              } else {
+                  scrollRef.current.scrollTop = saved.top;
+              }
+          } else {
+              // Smart Scroll Logic (Duplicate of Restore for safety on fresh loads)
+              let firstUnreadIndex = -1;
+              if (user) {
+                  firstUnreadIndex = messages.findIndex(m => m.senderId !== user.uid && (!m.readBy || !m.readBy.includes(user.uid)));
+              }
+
+              if (firstUnreadIndex !== -1) {
+                  const targetMsg = messages[firstUnreadIndex];
+                  const el = messageRefs.current.get(targetMsg.id);
+                  if (el) {
+                      el.scrollIntoView({ block: 'center', behavior: 'auto' });
+                  } else {
+                      scrollRef.current.scrollTop = currentScrollHeight;
+                  }
+              } else {
+                  scrollRef.current.scrollTop = currentScrollHeight;
+              }
+          }
       } else if (isHistoryLoadingRef.current) {
+          // Restore position after loading history
           const heightDiff = currentScrollHeight - previousScrollHeightRef.current;
           if (heightDiff > 0) scrollRef.current.scrollTop += heightDiff;
           isHistoryLoadingRef.current = false;
       } else if (messages.length > prevMessagesLengthRef.current) {
+          // New message received
           const distanceFromBottom = currentScrollHeight - scrollRef.current.scrollTop - scrollRef.current.clientHeight;
-          if (distanceFromBottom < 100) scrollRef.current.scrollTop = currentScrollHeight;
+          // Auto-scroll ONLY if user is already near bottom (prevent distraction)
+          if (distanceFromBottom < 150) {
+              scrollRef.current.scrollTop = currentScrollHeight;
+          }
       }
+      
       prevMessagesLengthRef.current = messages.length;
       previousScrollHeightRef.current = currentScrollHeight;
-  }, [messages]);
+  }, [messages, channelId, isOpen]);
 
   useEffect(() => {
       if (!isOpen) return;
@@ -141,12 +264,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       });
       return () => unsub();
   }, [isOpen, channelId, user?.uid]);
-
-  useEffect(() => {
-      setMessageLimit(150);
-      prevMessagesLengthRef.current = 0;
-      previousScrollHeightRef.current = 0;
-  }, [activeTab, selectedUser]);
 
   // Traffic Light Handlers
   const handleYellowClick = (e: React.MouseEvent) => {
@@ -219,7 +336,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
           timestamp: Date.now(), channelId: channelId, readBy: [user.uid], pending: true
       };
       setMessages(prev => [...prev, optimisticMsg]);
+      
+      // Auto-scroll on send
       setTimeout(() => { if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, 50);
+      
       await dataService.sendChatMessage(optimisticMsg);
   };
 
@@ -283,21 +403,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
             drag={windowState === 'default'}
             dragMomentum={false}
             dragElastic={0.1}
-            // Apple-style Spring Animation (Coming from bottom-left)
-            initial={{ opacity: 0, scale: 0.9, y: 20, x: -20 }}
+            initial={{ opacity: 0, scale: 0.9, y: 15 }}
             animate={{ 
                 opacity: 1, 
                 scale: 1, 
                 y: 0, 
-                x: 0,
                 width: dimensions.width,
                 height: dimensions.height
             }}
-            exit={{ opacity: 0, scale: 0.9, y: 20, x: -20 }}
-            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+            exit={{ opacity: 0, scale: 0.9, y: 15 }}
+            transition={{ type: "spring", stiffness: 350, damping: 25 }}
             style={{ 
                 position: 'fixed',
-                left: sidebarWidth + 20, // Positioned immediately to the right of Sidebar
+                left: sidebarWidth + 20, 
                 bottom: 20,
                 zIndex: 100
             }}
@@ -380,8 +498,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
             )}
 
             {/* Chat Content Area */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar relative p-4 scroll-smooth" ref={scrollRef}>
-                 
+            <div 
+                className="flex-1 overflow-y-auto custom-scrollbar relative p-4 scroll-smooth" 
+                ref={scrollRef}
+                onScroll={handleScroll}
+            >
                  {(activeTab === 'global' || selectedUser) && (
                      <div className="space-y-4 pb-2">
                          <div className="flex justify-center">
@@ -401,7 +522,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                                  const isRead = msg.readBy && msg.readBy.length > 1; 
 
                                  return (
-                                     <div key={msg.id || index} className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end`}>
+                                     <div 
+                                        key={msg.id || index} 
+                                        ref={(el) => {
+                                            if (el && msg.id) messageRefs.current.set(msg.id, el);
+                                        }}
+                                        className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end`}
+                                     >
                                          {!isMe && (
                                              <div className="w-6 h-6 rounded-full bg-white/80 dark:bg-slate-700 flex-shrink-0 overflow-hidden shadow-sm mb-1 ring-2 ring-white/20">
                                                  {msg.senderPhoto ? <img src={msg.senderPhoto} alt="S" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-1 text-slate-500"/>}
@@ -527,6 +654,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                      </div>
                  )}
             </div>
+
+            {/* Scroll to Bottom Button */}
+            <AnimatePresence>
+                {showScrollDown && (
+                    <motion.button
+                        initial={{ opacity: 0, scale: 0.8, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.8, y: 10 }}
+                        onClick={scrollToBottom}
+                        className="absolute bottom-20 left-1/2 -translate-x-1/2 w-10 h-10 bg-white/70 dark:bg-black/70 backdrop-blur-md rounded-full shadow-lg border border-white/20 flex items-center justify-center text-blue-600 dark:text-blue-400 z-30 hover:bg-white/90 transition-colors"
+                    >
+                        <ChevronDown size={20} />
+                    </motion.button>
+                )}
+            </AnimatePresence>
 
             {/* Input Area - Floating Glass Pill */}
             {(activeTab === 'global' || selectedUser) && (
