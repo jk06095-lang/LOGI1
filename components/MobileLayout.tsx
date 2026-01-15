@@ -4,7 +4,7 @@ import { BLData, VesselJob, AppSettings, ChatMessage, ChatUser, CargoSourceType,
 import { 
     Search, Download, FileText, MessageCircle, Settings, LogOut, 
     Monitor, X, Menu, Filter, ArrowLeft, Send, User as UserIcon, 
-    Check, CheckCheck, Grid, List as ListIcon, Ship, Anchor, Box, Home, ExternalLink, ChevronDown, Truck, ArrowUpCircle, Smile
+    Check, CheckCheck, Grid, List as ListIcon, Ship, Anchor, Box, Home, ExternalLink, ChevronDown, Truck, ArrowUpCircle, Smile, LayoutGrid
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { User } from 'firebase/auth';
@@ -260,7 +260,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
 
   if (view === 'list') {
       return (
-          <div className="h-full overflow-y-auto p-4 custom-scrollbar">
+          <div className="h-full overflow-y-auto p-4 custom-scrollbar pb-32">
               <h2 className="font-bold text-slate-800 mb-4 text-lg">Messages</h2>
               
               <div 
@@ -331,7 +331,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
 
   return (
       <div className="flex flex-col h-full bg-slate-100 overflow-hidden">
-          <div className="p-3 bg-white border-b border-slate-200 shadow-sm flex items-center gap-3 z-10 shrink-0">
+          <div className="p-3 bg-white border-b border-slate-200 shadow-sm flex items-center gap-3 z-10 shrink-0 safe-area-top">
               <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
                   {activeChannel.name.substring(0,2).toUpperCase()}
               </div>
@@ -472,7 +472,7 @@ const MobileShipmentDetail = ({ bl, onClose }: { bl: BLData, onClose: () => void
   return (
     <div className="flex flex-col h-full bg-slate-50 animate-fade-in fixed inset-0 z-[60]">
       {/* Header */}
-      <div className="bg-white px-4 py-3 shadow-sm border-b border-slate-200 flex items-center justify-between shrink-0">
+      <div className="bg-white px-4 py-3 shadow-sm border-b border-slate-200 flex items-center justify-between shrink-0 safe-area-top">
          <div className="flex items-center gap-3">
              <button 
                 onClick={onClose} 
@@ -699,7 +699,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
       case 'cargo':
         return (
           <div className="flex flex-col h-full">
-              <div className="p-4 bg-white border-b border-slate-200">
+              <div className="p-4 bg-white border-b border-slate-200 pt-safe-top">
                   <div className="flex justify-between items-center mb-3">
                       <h2 className="font-bold text-lg text-slate-800">Cargo List</h2>
                       <div className="relative">
@@ -732,7 +732,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                       />
                   </div>
               </div>
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-20 custom-scrollbar">
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-32 custom-scrollbar">
                   {filteredBLs.length === 0 ? (
                       <div className="text-center text-slate-400 mt-10">No documents found.</div>
                   ) : (
@@ -782,7 +782,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                 {chatView === 'room' && (
                     <button 
                         onClick={handleCloseChatRoom} 
-                        className="absolute top-3 left-3 z-20 p-2 bg-white/80 backdrop-blur rounded-full shadow-sm"
+                        className="absolute top-3 left-3 z-20 p-2 bg-white/80 backdrop-blur rounded-full shadow-sm top-safe-area"
                     >
                         <ArrowLeft size={20} className="text-slate-700"/>
                     </button>
@@ -800,7 +800,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
           );
       case 'settings':
         return (
-            <div className="p-6 h-full overflow-y-auto custom-scrollbar">
+            <div className="p-6 h-full overflow-y-auto custom-scrollbar pb-32 pt-safe-top">
                 <h2 className="font-bold text-xl text-slate-800 mb-6">Settings</h2>
                 <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden mb-6">
                     <div className="p-4 border-b border-slate-100 flex items-center justify-between">
@@ -879,33 +879,65 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
             {renderContent()}
         </div>
         
+        {/* Apple Style Liquid Glass Floating Dock */}
         {!selectedBLId && !(currentView === 'chat' && chatView === 'room') && (
-            <div 
-                className="bg-white border-t border-slate-200 px-6 pt-3 flex justify-center gap-16 items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-50 shrink-0"
-                style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
-            >
-                <button onClick={() => setCurrentView('cargo')} className={`flex flex-col items-center gap-1 ${currentView === 'cargo' ? 'text-blue-600' : 'text-slate-400'}`}>
-                    <ListIcon size={24} strokeWidth={currentView === 'cargo' ? 2.5 : 2} />
-                    <span className="text-[10px] font-bold">Cargo</span>
-                </button>
-                <button 
-                    onClick={() => {
-                        setCurrentView('chat');
-                        if (onCheckMessages) onCheckMessages(); // Acknowledge messages
-                    }}
-                    className={`flex flex-col items-center gap-1 relative ${currentView === 'chat' ? 'text-blue-600' : 'text-slate-400'}`}
-                >
-                    <div className="relative">
-                        <MessageCircle size={24} strokeWidth={currentView === 'chat' ? 2.5 : 2} />
-                        {/* Only show dot if unread AND NOT currently in chat view */}
-                        {hasUnreadMessages && currentView !== 'chat' && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>}
-                    </div>
-                    <span className="text-[10px] font-bold">Chat</span>
-                </button>
-                <button onClick={() => setCurrentView('settings')} className={`flex flex-col items-center gap-1 ${currentView === 'settings' ? 'text-blue-600' : 'text-slate-400'}`}>
-                    <Settings size={24} strokeWidth={currentView === 'settings' ? 2.5 : 2} />
-                    <span className="text-[10px] font-bold">Menu</span>
-                </button>
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-[320px] z-50 px-4 mb-[env(safe-area-inset-bottom)]">
+                <div className="
+                    relative flex items-center justify-around px-2 py-3.5
+                    bg-white/65 dark:bg-slate-900/60
+                    backdrop-blur-2xl backdrop-saturate-150
+                    rounded-[2.5rem]
+                    shadow-[0_8px_32px_0_rgba(31,38,135,0.15)]
+                    border border-white/40 dark:border-white/10
+                    ring-1 ring-white/30 dark:ring-transparent
+                ">
+                    {/* Glass Shine Effect */}
+                    <div className="absolute inset-x-4 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/70 to-transparent opacity-60 pointer-events-none" />
+
+                    <button 
+                        onClick={() => setCurrentView('cargo')} 
+                        className={`flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all duration-300 relative group ${currentView === 'cargo' ? 'scale-110' : 'hover:bg-white/20'}`}
+                    >
+                        <div className={`absolute inset-0 bg-blue-500/10 rounded-full blur-md transition-opacity duration-300 ${currentView === 'cargo' ? 'opacity-100' : 'opacity-0'}`} />
+                        <ListIcon 
+                            size={24} 
+                            strokeWidth={currentView === 'cargo' ? 2.5 : 2} 
+                            className={`relative z-10 transition-colors duration-300 ${currentView === 'cargo' ? 'text-blue-600 fill-blue-600/10' : 'text-slate-500'}`} 
+                        />
+                    </button>
+
+                    <button 
+                        onClick={() => {
+                            setCurrentView('chat');
+                            if (onCheckMessages) onCheckMessages();
+                        }}
+                        className={`flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all duration-300 relative group ${currentView === 'chat' ? 'scale-110' : 'hover:bg-white/20'}`}
+                    >
+                        <div className={`absolute inset-0 bg-blue-500/10 rounded-full blur-md transition-opacity duration-300 ${currentView === 'chat' ? 'opacity-100' : 'opacity-0'}`} />
+                        <div className="relative z-10">
+                            <MessageCircle 
+                                size={24} 
+                                strokeWidth={currentView === 'chat' ? 2.5 : 2}
+                                className={`transition-colors duration-300 ${currentView === 'chat' ? 'text-blue-600 fill-blue-600/10' : 'text-slate-500'}`} 
+                            />
+                            {hasUnreadMessages && currentView !== 'chat' && (
+                                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-[#FF3B30] rounded-full border border-white shadow-sm animate-pulse"></span>
+                            )}
+                        </div>
+                    </button>
+
+                    <button 
+                        onClick={() => setCurrentView('settings')} 
+                        className={`flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all duration-300 relative group ${currentView === 'settings' ? 'scale-110' : 'hover:bg-white/20'}`}
+                    >
+                        <div className={`absolute inset-0 bg-blue-500/10 rounded-full blur-md transition-opacity duration-300 ${currentView === 'settings' ? 'opacity-100' : 'opacity-0'}`} />
+                        <LayoutGrid 
+                            size={24} 
+                            strokeWidth={currentView === 'settings' ? 2.5 : 2}
+                            className={`relative z-10 transition-colors duration-300 ${currentView === 'settings' ? 'text-blue-600 fill-blue-600/10' : 'text-slate-500'}`} 
+                        />
+                    </button>
+                </div>
             </div>
         )}
     </div>
