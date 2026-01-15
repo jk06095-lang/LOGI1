@@ -1,3 +1,4 @@
+
 import React, { useRef, useState } from 'react';
 import { Moon, Sun, Monitor, Globe, Type, LogOut, Upload, Image as ImageIcon, X, Database, Download, Trash2, AlertTriangle, CheckCircle, Loader2, Settings as SettingsIcon, MessageSquare, Calendar } from 'lucide-react';
 import { AppSettings, Language, Theme, FontSize, FontStyle, BLData, VesselJob } from '../types';
@@ -22,12 +23,6 @@ const translations = {
     desc: '언어, 테마, 데이터 백업 등의 설정을 관리합니다.',
     syncActive: '클라우드 동기화 활성',
     logout: '로그아웃',
-    logoTitle: '회사 로고 설정',
-    logoDesc: '사이드바 및 보고서에 표시할 회사 로고를 업로드하세요.',
-    noLogo: '로고 없음',
-    changeLogo: '로고 변경',
-    uploadLogo: '로고 업로드',
-    logoTip: '추천 크기: 200x200px (PNG, JPG)',
     themeTitle: '테마 설정',
     themeLight: '라이트 (Light)',
     themeDark: '다크 (Dark)',
@@ -64,12 +59,6 @@ const translations = {
     desc: 'Manage settings including language, theme, and data backup.',
     syncActive: 'CLOUD SYNC ACTIVE',
     logout: 'Log Out',
-    logoTitle: 'Company Logo',
-    logoDesc: 'Upload your company logo to display on the sidebar and reports.',
-    noLogo: 'No Logo',
-    changeLogo: 'Change Logo',
-    uploadLogo: 'Upload Logo',
-    logoTip: 'Recommended size: 200x200px. Supports PNG, JPG.',
     themeTitle: 'Theme',
     themeLight: 'Light',
     themeDark: 'Dark',
@@ -106,12 +95,6 @@ const translations = {
     desc: '系统设置：语言、主题风格及数据备份。',
     syncActive: '云同步已激活',
     logout: '退出登录',
-    logoTitle: '公司标志',
-    logoDesc: '上传公司标志以显示在侧边栏和报告上。',
-    noLogo: '无标志',
-    changeLogo: '更换标志',
-    uploadLogo: '上传标志',
-    logoTip: '推荐尺寸：200x200px。支持 PNG, JPG。',
     themeTitle: '界面主题',
     themeLight: '亮色',
     themeDark: '深色',
@@ -172,24 +155,6 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdateSettings, 
   const handleLogout = () => {
       dataService.clearCache(); // Security: clear data before logging out
       if (onLogout) onLogout();
-  };
-
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        update('logoUrl', reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const removeLogo = () => {
-    update('logoUrl', undefined);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
   };
 
   const handleBackup = async () => {
@@ -412,59 +377,6 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdateSettings, 
 
         <div className="space-y-6">
           
-          {/* Company Logo Section */}
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-            <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg">
-                  <ImageIcon size={20} />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-bold text-slate-800 dark:text-white">
-                    {t.logoTitle}
-                  </h3>
-                  <p className="text-xs text-slate-400">{t.logoDesc}</p>
-                </div>
-            </div>
-
-            <div className="flex items-start gap-6">
-                <div className="w-32 h-32 bg-slate-100 dark:bg-slate-700 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600 flex items-center justify-center overflow-hidden relative group">
-                  {settings.logoUrl ? (
-                    <>
-                      <img src={settings.logoUrl} alt="Logo" className="w-full h-full object-contain p-2" />
-                      <button 
-                        onClick={removeLogo}
-                        className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <X size={12} />
-                      </button>
-                    </>
-                  ) : (
-                    <span className="text-slate-400 text-xs text-center px-2">{t.noLogo}</span>
-                  )}
-                </div>
-                
-                <div className="flex-1">
-                  <input 
-                    type="file" 
-                    ref={fileInputRef}
-                    accept="image/*" 
-                    onChange={handleLogoUpload}
-                    className="hidden"
-                  />
-                  <button 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors text-slate-700 dark:text-slate-200"
-                  >
-                    <Upload size={16} />
-                    {settings.logoUrl ? t.changeLogo : t.uploadLogo}
-                  </button>
-                  <p className="text-xs text-slate-500 mt-2">
-                    {t.logoTip}
-                  </p>
-                </div>
-            </div>
-          </div>
-
           {/* Row 1: Theme & Font Size */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Theme */}

@@ -4,10 +4,13 @@ import { BLData, VesselJob, AppSettings, ChatMessage, ChatUser, CargoSourceType,
 import { 
     Search, Download, FileText, MessageCircle, Settings, LogOut, 
     Monitor, X, Menu, Filter, ArrowLeft, Send, User as UserIcon, 
-    Check, CheckCheck, Grid, List as ListIcon, Ship, Anchor, Box, Home, ExternalLink, ChevronDown, Truck, ArrowUpCircle
+    Check, CheckCheck, Grid, List as ListIcon, Ship, Anchor, Box, Home, ExternalLink, ChevronDown, Truck, ArrowUpCircle, Smile
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { User } from 'firebase/auth';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const EMOJIS = ['😀', '😂', '😍', '🥰', '😎', '😭', '😡', '👍', '👎', '🙏', '🔥', '✨', '🎉', '❤️', '💔', '👀', '✅', '❌', '🚀', '💼'];
 
 interface MobileLayoutProps {
   user: User | null;
@@ -43,6 +46,8 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   const [inputText, setInputText] = useState('');
   const [typingUsers, setTypingUsers] = useState<string[]>([]); // Typing state
   const [unreadMap, setUnreadMap] = useState<Set<string>>(new Set()); // New: Unread Map for Dots
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null); // For maintaining focus
   
@@ -166,6 +171,12 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
       }, 3000);
   };
 
+  const handleEmojiClick = (emoji: string) => {
+      setInputText(prev => prev + emoji);
+      setShowEmojiPicker(false);
+      inputRef.current?.focus();
+  };
+
   const handleInputFocus = () => {
       if (!user || !activeChannel.id) return;
       // Mark read again
@@ -195,6 +206,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       dataService.clearTypingStatus(activeChannel.id, user.uid);
       setIsTyping(false);
+      setShowEmojiPicker(false);
 
       const text = inputText.trim();
       setInputText('');
@@ -391,8 +403,36 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
               </div>
           </div>
 
-          <div className="p-3 bg-white border-t border-slate-200 shrink-0 safe-area-bottom">
-              <form onSubmit={handleSend} className="flex gap-2">
+          <div className="p-3 bg-white border-t border-slate-200 shrink-0 safe-area-bottom relative">
+              <AnimatePresence>
+                  {showEmojiPicker && (
+                      <motion.div
+                          initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                          className="absolute bottom-[4.5rem] left-2 right-2 bg-white/95 backdrop-blur-xl border border-slate-200 rounded-2xl p-3 shadow-2xl grid grid-cols-7 sm:grid-cols-10 gap-1 z-30"
+                      >
+                          {EMOJIS.map(emoji => (
+                              <button
+                                  key={emoji}
+                                  onClick={() => handleEmojiClick(emoji)}
+                                  className="w-10 h-10 flex items-center justify-center text-xl hover:bg-slate-100 rounded-lg transition-colors"
+                              >
+                                  {emoji}
+                              </button>
+                          ))}
+                      </motion.div>
+                  )}
+              </AnimatePresence>
+
+              <form onSubmit={handleSend} className="flex gap-2 items-center">
+                  <button 
+                      type="button" 
+                      onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                      className={`p-2 rounded-full transition-colors shrink-0 ${showEmojiPicker ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                  >
+                      <Smile size={20} />
+                  </button>
                   <input 
                       ref={inputRef}
                       type="text" 
@@ -408,7 +448,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                     type="submit" 
                     disabled={!inputText.trim()} 
                     onMouseDown={(e) => e.preventDefault()}
-                    className="p-2 bg-blue-600 text-white rounded-full disabled:opacity-50"
+                    className="p-2 bg-blue-600 text-white rounded-full disabled:opacity-50 shrink-0"
                   >
                       <Send size={18} />
                   </button>
@@ -696,7 +736,17 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                   {filteredBLs.length === 0 ? (
                       <div className="text-center text-slate-400 mt-10">No documents found.</div>
                   ) : (
-                      filteredBLs.map(bl => (
+                      filteredBLs.map(bl => {
+                          const docs = [
+                            { id: 'BL', label: 'B/L', has: !!bl.fileUrl, color: 'bg-blue-500' },
+                            { id: 'AN', label: 'A/N', has: !!bl.arrivalNotice?.fileUrl, color: 'bg-orange-500' },
+                            { id: 'CI', label: 'C/I', has: !!bl.commercialInvoice?.fileUrl, color: 'bg-emerald-500' },
+                            { id: 'PL', label: 'P/L', has: !!bl.packingList?.fileUrl, color: 'bg-purple-500' },
+                            { id: 'MF', label: 'M/F', has: !!bl.manifest?.fileUrl, color: 'bg-cyan-500' },
+                            { id: 'ED', label: 'E/D', has: !!bl.exportDeclaration?.fileUrl, color: 'bg-rose-500' },
+                          ];
+
+                          return (
                           <div 
                             key={bl.id} 
                             onClick={() => handleOpenDetail(bl.id)}
@@ -711,13 +761,17 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                               <h4 className="font-bold text-sm text-slate-800 mb-1 line-clamp-1">{bl.shipper}</h4>
                               <p className="text-xs text-slate-500 mb-3 line-clamp-1">{bl.vesselName}</p>
                               
-                              <div className="flex gap-2">
-                                  {bl.fileUrl && <div className="w-2 h-2 rounded-full bg-blue-500" title="B/L"></div>}
-                                  {bl.commercialInvoice?.fileUrl && <div className="w-2 h-2 rounded-full bg-emerald-500" title="C/I"></div>}
-                                  {bl.packingList?.fileUrl && <div className="w-2 h-2 rounded-full bg-purple-500" title="P/L"></div>}
+                              <div className="flex gap-1.5 mt-2">
+                                  {docs.map(doc => (
+                                      <div 
+                                          key={doc.id} 
+                                          className={`w-2 h-2 rounded-full ${doc.has ? doc.color : 'bg-slate-200'}`} 
+                                          title={doc.label}
+                                      />
+                                  ))}
                               </div>
                           </div>
-                      ))
+                      )})
                   )}
               </div>
           </div>
@@ -810,7 +864,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
         
         {!selectedBLId && !(currentView === 'chat' && chatView === 'room') && (
             <div 
-                className="bg-white border-t border-slate-200 px-6 pt-3 flex justify-between items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-50 shrink-0"
+                className="bg-white border-t border-slate-200 px-6 pt-3 flex justify-center gap-16 items-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-50 shrink-0"
                 style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
             >
                 <button onClick={() => setCurrentView('cargo')} className={`flex flex-col items-center gap-1 ${currentView === 'cargo' ? 'text-blue-600' : 'text-slate-400'}`}>

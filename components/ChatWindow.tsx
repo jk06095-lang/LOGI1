@@ -404,7 +404,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
         <motion.div 
             key="chat-window-container"
             ref={containerRef}
-            drag={windowState === 'default'}
+            drag
             dragMomentum={false}
             dragElastic={0.1}
             initial={{ opacity: 0, scale: 0.9, y: 15 }}
