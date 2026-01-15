@@ -812,17 +812,34 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                             <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.theme === 'dark' ? 'left-7' : 'left-1'}`}></div>
                         </button>
                     </div>
-                    <div className="p-4 flex items-center justify-between">
+                    <div className="p-4 border-b border-slate-100 flex items-center justify-between">
                         <span className="text-sm font-medium text-slate-700">Language</span>
                         <select 
                             value={settings.language}
                             onChange={(e) => onUpdateSettings({...settings, language: e.target.value as any})}
-                            className="bg-slate-50 text-sm border-none rounded-lg p-2 text-slate-700"
+                            className="bg-slate-50 text-sm border-none rounded-lg p-2 text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
                         >
                             <option value="ko">한국어</option>
                             <option value="en">English</option>
                             <option value="cn">中文</option>
                         </select>
+                    </div>
+                    <div className="p-4 flex items-center justify-between">
+                        <span className="text-sm font-medium text-slate-700">View Mode</span>
+                        <div className="flex bg-slate-50 p-1 rounded-lg">
+                            <button 
+                                onClick={() => onUpdateSettings({...settings, viewMode: 'mobile'})}
+                                className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${settings.viewMode === 'mobile' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}
+                            >
+                                Mobile
+                            </button>
+                            <button 
+                                onClick={() => onUpdateSettings({...settings, viewMode: 'pc'})}
+                                className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${settings.viewMode === 'pc' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}
+                            >
+                                PC
+                            </button>
+                        </div>
                     </div>
                 </div>
 
