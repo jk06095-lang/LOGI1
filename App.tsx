@@ -301,13 +301,25 @@ const App: React.FC = () => {
     const tabId = `shipment-${blId}`;
     const existingTab = tabs.find(t => t.id === tabId);
 
+    // Dynamic Title Logic: "0000: B/L No" where 0000 is last 4 chars of vessel name
+    let title = bl.blNumber;
+    if (bl.vesselJobId) {
+        const job = vesselJobs.find(j => j.id === bl.vesselJobId);
+        if (job && job.vesselName) {
+            const vName = job.vesselName.trim();
+            const suffix = vName.length > 4 ? vName.slice(-4) : vName;
+            title = `${suffix}: ${bl.blNumber}`;
+        }
+    }
+
     if (existingTab) {
+      setTabs(prev => prev.map(t => t.id === tabId ? { ...t, title } : t));
       setActiveTabId(tabId);
     } else {
       const newTab: Tab = {
         id: tabId,
         type: 'shipment-detail', 
-        title: `Detail: ${bl.blNumber}`,
+        title: title,
         data: { blId: blId }
       };
       setTabs(prev => [...prev, newTab]);
@@ -575,12 +587,13 @@ const App: React.FC = () => {
          user={user} // Pass user to ChatWindow
       />
 
-      <main className="flex-1 flex flex-col overflow-hidden relative print:overflow-visible print:h-auto print:block">
-        <div className="flex justify-between items-end bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 pr-4 print:hidden">
+      <main className="flex-1 flex flex-col overflow-hidden relative print:overflow-visible print:h-auto">
+        <div className="flex justify-between items-end bg-slate-100 dark:bg-slate-900 pr-4 print:hidden">
+            {/* TabNavigation now handles flex growing/shrinking properly */}
             <TabNavigation tabs={tabs} activeTabId={activeTabId} onTabClick={activateTab} onTabClose={closeTab} />
             
             {/* Notification Bell */}
-            <div className="relative mb-1" ref={notifRef}>
+            <div className="relative mb-1 shrink-0" ref={notifRef}>
                 <button 
                   onClick={() => setShowNotifications(!showNotifications)}
                   className="p-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors relative"

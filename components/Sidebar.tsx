@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Anchor, Settings, Ship, ChevronLeft, ChevronRight, Home, FolderOpen, MessageCircle } from 'lucide-react';
+import { Anchor, Settings, Ship, ChevronLeft, ChevronRight, Home, FolderOpen, MessageCircle, ExternalLink } from 'lucide-react';
 import { ViewState, Language } from '../types';
 import { User } from 'firebase/auth';
 import { dataService } from '../services/dataService';
@@ -26,7 +26,8 @@ const translations = {
     settings: '환경 설정',
     role: '운영자',
     menu: '메인 메뉴',
-    message: '메시지'
+    message: '메시지',
+    manageAccount: 'Google 계정 관리'
   },
   en: {
     dashboard: 'Dashboard',
@@ -35,7 +36,8 @@ const translations = {
     settings: 'Settings',
     role: 'Operator',
     menu: 'Main Menu',
-    message: 'Messages'
+    message: 'Messages',
+    manageAccount: 'Manage Google Account'
   },
   cn: {
     dashboard: '工作台',
@@ -44,7 +46,8 @@ const translations = {
     settings: '系统设置',
     role: '操作员',
     menu: '主菜单',
-    message: '消息'
+    message: '消息',
+    manageAccount: '管理 Google 帐户'
   }
 };
 
@@ -162,8 +165,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
       </div>
 
       <div className="p-4 border-t border-slate-100 dark:border-slate-800">
-        <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-1`}>
-          <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex-shrink-0 flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold text-xs border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+        <a 
+          href="https://myaccount.google.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-1 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-colors p-2 cursor-pointer group`}
+          title={t.manageAccount}
+        >
+          <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex-shrink-0 flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold text-xs border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden group-hover:border-blue-300 transition-colors">
              {user?.photoURL ? (
                <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" />
              ) : (
@@ -172,11 +181,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
           </div>
           {!isCollapsed && (
             <div className="flex-1 overflow-hidden">
-              <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{user?.displayName || t.role}</p>
+              <div className="flex items-center gap-1">
+                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate group-hover:text-blue-600 transition-colors flex-1">
+                    {user?.displayName || t.role}
+                  </p>
+                  <ExternalLink size={10} className="text-slate-400 group-hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100" />
+              </div>
               <p className="text-[10px] text-slate-500 dark:text-slate-500 truncate">{user?.email || 'admin@logi1.com'}</p>
             </div>
           )}
-        </div>
+        </a>
       </div>
     </div>
   );
