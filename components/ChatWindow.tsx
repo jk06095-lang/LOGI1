@@ -19,6 +19,9 @@ const EMOJIS = ['😀', '😂', '😍', '🥰', '😎', '😭', '😡', '👍', 
 
 type WindowState = 'default' | 'tall' | 'maximized';
 
+// Global Map to persist scroll positions even when component unmounts (closes)
+const globalChannelScrollPositions = new Map<string, { top: number, atBottom: boolean }>();
+
 export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebarWidth, user }) => {
   const [activeTab, setActiveTab] = useState<'global' | 'dm'>('global');
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
@@ -48,9 +51,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map()); // Track message bubbles
-  
-  // Persist scroll positions per channel { top, atBottom }
-  const channelScrollPositions = useRef<Map<string, { top: number, atBottom: boolean }>>(new Map());
   
   // Scroll to Bottom Button State
   const [showScrollDown, setShowScrollDown] = useState(false);
@@ -118,7 +118,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       prevMessagesLengthRef.current = 0;
       previousScrollHeightRef.current = 0;
       messageRefs.current.clear();
-      // Note: We do NOT clear channelScrollPositions here to remember positions if user switches back
+      // Note: We do NOT clear globalChannelScrollPositions here to remember positions if user switches back
   }, [channelId]);
 
   // Scroll Logic: Restore Position on Open
@@ -128,10 +128,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
           requestAnimationFrame(() => {
               if (!scrollRef.current) return;
               
-              const saved = channelScrollPositions.current.get(channelId);
+              const saved = globalChannelScrollPositions.get(channelId);
               
               if (saved) {
-                  // Restore saved position
+                  // Restore saved position from global store
                   if (saved.atBottom) {
                       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
                   } else {
@@ -176,10 +176,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       if (!scrollRef.current || !channelId) return;
       const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
       
-      // Save scroll position for current channel
+      // Save scroll position for current channel into GLOBAL variable
       // Threshold 50px for "at bottom"
       const isNearBottom = scrollHeight - scrollTop - clientHeight < 50;
-      channelScrollPositions.current.set(channelId, { top: scrollTop, atBottom: isNearBottom });
+      globalChannelScrollPositions.set(channelId, { top: scrollTop, atBottom: isNearBottom });
       
       // Show "Scroll Down" button if we are more than 150px away from bottom
       const showBtn = scrollHeight - scrollTop - clientHeight > 150;
@@ -204,8 +204,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
 
       if (isInitialLoad) {
           // Only perform smart logic if this is the initial load of messages for this session
-          // (which happens on channel switch)
-          const saved = channelScrollPositions.current.get(channelId);
+          // (which happens on channel switch or reopen)
+          const saved = globalChannelScrollPositions.get(channelId);
           
           if (saved) {
               if (saved.atBottom) {
