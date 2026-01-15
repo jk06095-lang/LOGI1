@@ -879,20 +879,21 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
             {renderContent()}
         </div>
         
-        {/* Apple Style Liquid Glass Floating Dock */}
+        {/* Apple Style Liquid Glass Floating Dock - TRANSPARENT LENS EFFECT */}
         {!selectedBLId && !(currentView === 'chat' && chatView === 'room') && (
             <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-[320px] z-50 px-4 mb-[env(safe-area-inset-bottom)]">
                 <div className="
                     relative flex items-center justify-around px-2 py-3.5
-                    bg-white/65 dark:bg-slate-900/60
-                    backdrop-blur-2xl backdrop-saturate-150
+                    bg-white/10 dark:bg-slate-900/20 
+                    backdrop-blur-3xl backdrop-saturate-200
                     rounded-[2.5rem]
-                    shadow-[0_8px_32px_0_rgba(31,38,135,0.15)]
-                    border border-white/40 dark:border-white/10
-                    ring-1 ring-white/30 dark:ring-transparent
+                    shadow-[0_20px_50px_rgba(0,0,0,0.15),inset_0_0_0_1px_rgba(255,255,255,0.1),inset_0_0_15px_rgba(255,255,255,0.15)]
+                    border-t border-white/20
                 ">
-                    {/* Glass Shine Effect */}
-                    <div className="absolute inset-x-4 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/70 to-transparent opacity-60 pointer-events-none" />
+                    {/* Lens Curvature / Liquid Reflection Effects */}
+                    <div className="absolute inset-x-0 top-0 h-[40%] bg-gradient-to-b from-white/10 to-transparent rounded-t-[2.5rem] pointer-events-none" />
+                    <div className="absolute inset-x-4 top-[0px] h-[1px] bg-gradient-to-r from-transparent via-white/90 to-transparent shadow-[0_1px_2px_rgba(255,255,255,0.5)] pointer-events-none blur-[0.5px]" />
+                    <div className="absolute inset-x-8 bottom-0 h-[1px] bg-gradient-to-r from-transparent via-white/30 to-transparent pointer-events-none" />
 
                     <button 
                         onClick={() => setCurrentView('cargo')} 
