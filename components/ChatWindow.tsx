@@ -480,13 +480,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                      <div className="flex gap-2">
                          <button 
                             onClick={() => setShowAddFriend(true)}
-                            className="flex-1 py-3 bg-white dark:bg-slate-800 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-slate-500 hover:border-blue-500 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 font-bold text-sm"
+                            className="flex-1 py-3 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-slate-500 hover:text-slate-700 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 font-bold text-sm"
                          >
                             <UserPlus size={18} /> Add Friend (친구 추가)
                          </button>
                          <button
                             onClick={() => setIsEditingFriends(!isEditingFriends)}
-                            className={`px-4 py-3 border-2 rounded-xl transition-colors flex items-center justify-center ${isEditingFriends ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-500 hover:text-slate-700'}`}
+                            className={`px-4 py-3 border rounded-xl transition-colors flex items-center justify-center ${isEditingFriends ? 'bg-blue-50 border-blue-500 text-blue-600' : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-500 hover:text-slate-700'}`}
                             title="Edit Friends List"
                          >
                              {isEditingFriends ? <Check size={18} /> : <Settings2 size={18} />}

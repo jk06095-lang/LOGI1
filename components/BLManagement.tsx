@@ -22,7 +22,7 @@ const translations = {
     subtitle: '업로드된 모든 화물 문서를 검색하고 관리합니다.',
     search: 'B/L 번호, 선박명, 화주, 운송사 검색...',
     unassigned: '미배정',
-    tableHeaders: ['진행상황', '캐리어', '화물분류', 'B/L 번호', '화주 (Shipper)', '수하인 (Consignee)', '품명', '수량', '중량(kg)', 'CBM', '관리'],
+    tableHeaders: ['문서현황', '소요 선박', '화물분류', 'B/L 번호', '화주 (Shipper)', '수하인 (Consignee)', '품명', '수량', '중량(kg)', 'CBM', '관리'], // Updated header
     allVessels: '모든 선박',
     allTypes: '모든 화물 유형',
     goToChecklist: '상세보기',
@@ -40,7 +40,7 @@ const translations = {
       E: 'E. 선적 (Load)',
       Done: '완료 (Done)'
     },
-    status: '상태',
+    status: '문서', // Updated
     vesselName: '선박명',
     cargoCategory: '분류',
     blNumber: 'B/L No.',
@@ -54,7 +54,7 @@ const translations = {
     subtitle: 'Search and manage all uploaded cargo documents.',
     search: 'Search B/L, Vessel, Shipper, Transporter...',
     unassigned: 'Unassigned',
-    tableHeaders: ['Status', 'Vessel', 'Category', 'B/L No.', 'Shipper', 'Consignee', 'Description', 'Qty', 'Weight', 'CBM', 'Action'],
+    tableHeaders: ['Docs Status', 'Vessel', 'Category', 'B/L No.', 'Shipper', 'Consignee', 'Description', 'Qty', 'Weight', 'CBM', 'Action'],
     allVessels: 'All Vessels',
     allTypes: 'All Types',
     goToChecklist: 'Detail View',
@@ -72,7 +72,7 @@ const translations = {
         E: 'E. Load',
         Done: 'Completed'
     },
-    status: 'Status',
+    status: 'Docs',
     vesselName: 'Vessel Name',
     cargoCategory: 'Category',
     blNumber: 'B/L No.',
@@ -86,7 +86,7 @@ const translations = {
     subtitle: '搜索并管理所有已上传的单证资料。',
     search: '搜索提单号、船名、发货人、车队...',
     unassigned: '未关联',
-    tableHeaders: ['状态', '船舶', '分类', '提单号', '发货人', '收货人', '描述', '数量', '重量', '体积', '操作'],
+    tableHeaders: ['文档状态', '船舶', '分类', '提单号', '发货人', '收货人', '描述', '数量', '重量', '体积', '操作'],
     allVessels: '所有船舶',
     allTypes: '所有类型',
     goToChecklist: '查看详情',
@@ -104,7 +104,7 @@ const translations = {
         E: 'E. 装船',
         Done: '已完成'
     },
-    status: '状态',
+    status: '文档',
     vesselName: '船名',
     cargoCategory: '分类',
     blNumber: '提单号',
@@ -200,6 +200,18 @@ export const BLManagement: React.FC<BLManagementProps> = ({
       return bl.cargoItems.reduce((acc, item) => acc + (Number(item.grossWeight) || 0), 0);
   };
 
+  // Helper: Count uploaded docs
+  const getDocStatus = (bl: BLData) => {
+    let count = 0;
+    if (bl.fileUrl) count++;
+    if (bl.arrivalNotice?.fileUrl) count++;
+    if (bl.commercialInvoice?.fileUrl) count++;
+    if (bl.packingList?.fileUrl) count++;
+    if (bl.manifest?.fileUrl) count++;
+    if (bl.exportDeclaration?.fileUrl) count++;
+    return count;
+  };
+
   const getJobName = (jobId?: string) => {
       if (!jobId) return undefined;
       return jobs.find(j => j.id === jobId)?.vesselName;
@@ -230,8 +242,9 @@ export const BLManagement: React.FC<BLManagementProps> = ({
         
         switch (sortConfig.key) {
           case 'status': 
-            aValue = getProgressInfo(a).percentage; 
-            bValue = getProgressInfo(b).percentage; 
+            // Sort by Doc Count instead of Progress Percentage
+            aValue = getDocStatus(a); 
+            bValue = getDocStatus(b); 
             break;
           case 'cargoCategory': aValue = a.cargoCategory || ''; bValue = b.cargoCategory || ''; break;
           case 'blNumber': aValue = a.blNumber; bValue = b.blNumber; break;
@@ -281,12 +294,51 @@ export const BLManagement: React.FC<BLManagementProps> = ({
       }
   };
 
+  const renderDocStatus = (bl: BLData) => {
+      const docs = [
+          { id: 'BL', label: 'B/L', has: !!bl.fileUrl, color: 'bg-blue-500' },
+          { id: 'AN', label: 'A/N', has: !!bl.arrivalNotice?.fileUrl, color: 'bg-orange-500' },
+          { id: 'CI', label: 'C/I', has: !!bl.commercialInvoice?.fileUrl, color: 'bg-emerald-500' },
+          { id: 'PL', label: 'P/L', has: !!bl.packingList?.fileUrl, color: 'bg-purple-500' },
+          { id: 'MF', label: 'M/F', has: !!bl.manifest?.fileUrl, color: 'bg-cyan-500' },
+          { id: 'ED', label: 'E/D', has: !!bl.exportDeclaration?.fileUrl, color: 'bg-rose-500' },
+      ];
+
+      const total = docs.length;
+      const current = docs.filter(d => d.has).length;
+      const percentage = Math.round((current / total) * 100);
+      
+      let barColor = 'bg-blue-500';
+      if (percentage === 100) barColor = 'bg-emerald-500';
+      else if (percentage < 30) barColor = 'bg-emerald-400'; // Light emerald for low start
+
+      return (
+          <div className="flex flex-col gap-1.5 w-20 mx-auto">
+              <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-0.5">
+                    {docs.map(doc => (
+                        <div 
+                            key={doc.id} 
+                            className={`w-1.5 h-1.5 rounded-full ${doc.has ? doc.color : 'bg-slate-200 dark:bg-slate-700'}`} 
+                            title={`${doc.label}: ${doc.has ? 'Uploaded' : 'Missing'}`}
+                        />
+                    ))}
+                  </div>
+              </div>
+              <div className="flex items-center gap-2">
+                  <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full transition-all duration-500 ${barColor}`} style={{ width: `${percentage}%` }}></div>
+                  </div>
+                  <span className={`text-[10px] font-bold tabular-nums ${percentage === 100 ? 'text-emerald-600' : 'text-slate-500'}`}>{percentage}%</span>
+              </div>
+          </div>
+      );
+  };
+
   const exportCSV = () => {
-    // Helper to escape CSV fields properly
     const escape = (val: any) => {
       if (val === null || val === undefined) return '';
       const str = String(val);
-      // If the field contains comma, newline or double quote, enclose in double quotes
       if (str.includes(',') || str.includes('"') || str.includes('\n')) {
         return `"${str.replace(/"/g, '""')}"`;
       }
@@ -335,7 +387,6 @@ export const BLManagement: React.FC<BLManagementProps> = ({
       ].map(escape);
     });
 
-    // BOM for Excel to recognize UTF-8
     const csvContent = "\ufeff" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -409,53 +460,20 @@ export const BLManagement: React.FC<BLManagementProps> = ({
              </thead>
              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                {filteredBLs.map(bl => {
-                 const { percentage, currentStageLabel, isUnassigned } = getProgressInfo(bl);
                  const totalQty = getQty(bl);
                  const totalWeight = getWeight(bl);
                  const totalCbm = getCbm(bl);
                  const displayDesc = bl.cargoItems.length > 0 ? bl.cargoItems[0].description : '-';
-                 
-                 // Color coding based on stage roughly
-                 let stageColor = 'text-slate-600 dark:text-slate-300';
-                 let barColor = 'bg-blue-500';
-
-                 if (isUnassigned) {
-                     stageColor = 'text-red-500';
-                     barColor = 'bg-slate-200 dark:bg-slate-600';
-                 } else if (percentage === 100) {
-                     stageColor = 'text-emerald-600 dark:text-emerald-400';
-                     barColor = 'bg-emerald-500';
-                 } else if (percentage === 0) {
-                     stageColor = 'text-slate-500';
-                     barColor = 'bg-slate-300 dark:bg-slate-600';
-                 }
-
-                 // Resolve Job Name
                  const jobName = getJobName(bl.vesselJobId);
 
                  return (
                    <tr key={bl.id} className="hover:bg-blue-50/30 dark:hover:bg-slate-800/50 transition-colors">
-                     <td className="px-4 py-4">
-                       {isUnassigned ? (
-                          <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
-                              {t.unassigned}
-                          </span>
-                       ) : (
-                          <div className="flex flex-col gap-1.5 w-24">
-                             <div className="flex justify-between items-end">
-                                <span className={`text-[10px] font-bold uppercase truncate ${stageColor} max-w-[80px]`} title={currentStageLabel}>
-                                   {currentStageLabel}
-                                </span>
-                                <span className="text-[10px] font-mono text-slate-400">{percentage}%</span>
-                             </div>
-                             <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                <div style={{ width: `${percentage}%` }} className={`h-full rounded-full transition-all duration-500 ${barColor}`}></div>
-                             </div>
-                          </div>
-                       )}
+                     <td className="px-4 py-4 text-center">
+                        {/* Changed to Doc Status with Bar */}
+                        {renderDocStatus(bl)}
                      </td>
                      <td className="px-4 py-4">
-                       <div className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[150px]" title={jobName || bl.vesselName}>
+                       <div className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[120px]" title={jobName || bl.vesselName}>
                            {jobName || bl.vesselName}
                        </div>
                        <div className="text-[10px] text-slate-400 font-medium tabular-nums mt-0.5">{bl.voyageNo}</div>
@@ -473,7 +491,7 @@ export const BLManagement: React.FC<BLManagementProps> = ({
                      <td className="px-4 py-4 text-slate-600 dark:text-slate-400 truncate max-w-[120px]" title={bl.shipper}>{bl.shipper}</td>
                      <td className="px-4 py-4 text-slate-600 dark:text-slate-400 truncate max-w-[120px]" title={bl.consignee}>{bl.consignee}</td>
                      
-                     <td className="px-4 py-4 text-slate-600 dark:text-slate-400 truncate max-w-[150px] text-xs" title={displayDesc}>{displayDesc}</td>
+                     <td className="px-4 py-4 text-slate-600 dark:text-slate-400 truncate max-w-[240px] text-xs" title={displayDesc}>{displayDesc}</td>
                      <td className="px-4 py-4 text-right text-slate-700 dark:text-slate-300 tabular-nums font-bold">{totalQty.toLocaleString()}</td>
                      <td className="px-4 py-4 text-right text-slate-600 dark:text-slate-400 font-mono tabular-nums">{totalWeight.toLocaleString()}</td>
                      <td className="px-4 py-4 text-right text-slate-600 dark:text-slate-400 font-mono tabular-nums font-bold">

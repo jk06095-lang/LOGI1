@@ -41,15 +41,14 @@ const translations = {
     pod: 'Port of Discharge (양하항)',
     eta: 'ETA (입항일)',
     voyage: 'Voyage No',
-    financials: 'Financials',
-    invAmount: 'Invoice Amt',
-    currency: 'Currency',
+    invAmount: '인보이스 금액',
+    currency: '통화',
     totalPkgs: 'Total Pkgs',
     totalWeight: 'Total Weight',
     totalCbm: 'Total CBM',
     hsCode: 'HS Code',
     remarks: 'Remarks',
-    items: 'Cargo Description & Details',
+    items: '화물 상세',
     desc: 'Description',
     qty: 'Qty',
     pkg: 'Unit',
@@ -61,23 +60,21 @@ const translations = {
     runOCR: 'AI 분석',
     deleteFile: '삭제',
     anInfo: 'A/N Info',
-    location: 'Location',
-    freight: 'Freight',
-    otherCost: 'Other Cost',
+    location: '보세창고',
     copyRow: '행 복사',
     copySpec: '내용복사',
     copied: '복사됨',
     deleteConfirm: '문서를 삭제하시겠습니까?',
-    logistics: 'Logistics Info',
-    koreanForwarder: 'Korean Forwarder',
+    logistics: '화물 정보',
+    koreanForwarder: '국내 포워더',
     transporter: 'Transporter (운송사)',
-    storageLoc: 'Storage / Warehouse',
-    storagePeriod: 'Storage Period',
+    storageLoc: '장치장',
+    storagePeriod: '입고날짜',
     documents: 'Attached Documents',
     arrivalNotice: 'Arrival Notice',
     manifest: 'Manifest',
     exportDec: 'Export Dec',
-    category: 'Category (화물 분류)',
+    category: '화물 분류 (Category)',
     importSub: {
         general: '일반수입',
         return: '반송수출',
@@ -135,7 +132,6 @@ const translations = {
     pod: 'Port of Discharge',
     eta: 'ETA',
     voyage: 'Voyage No',
-    financials: 'Financials',
     invAmount: 'Invoice Amt',
     currency: 'Currency',
     totalPkgs: 'Total Pkgs',
@@ -143,7 +139,7 @@ const translations = {
     totalCbm: 'Total CBM',
     hsCode: 'HS Code',
     remarks: 'Remarks',
-    items: 'Cargo Description & Details',
+    items: 'Cargo Details',
     desc: 'Description',
     qty: 'Qty',
     pkg: 'Unit',
@@ -156,13 +152,11 @@ const translations = {
     deleteFile: 'Delete',
     anInfo: 'A/N Info',
     location: 'Location',
-    freight: 'Freight',
-    otherCost: 'Other Cost',
     copyRow: 'Copy Row',
     copySpec: 'Copy Content',
     copied: 'Copied',
     deleteConfirm: 'Delete this document?',
-    logistics: 'Logistics Info',
+    logistics: 'Cargo Info',
     koreanForwarder: 'Korean Forwarder',
     transporter: 'Transporter',
     storageLoc: 'Storage / Warehouse',
@@ -229,7 +223,6 @@ const translations = {
     pod: '卸货港',
     eta: '抵港日',
     voyage: '航次',
-    financials: '财务信息',
     invAmount: '金额',
     currency: '币种',
     totalPkgs: '总件数',
@@ -237,7 +230,7 @@ const translations = {
     totalCbm: '总体积',
     hsCode: 'HS编码',
     remarks: '备注',
-    items: '货物明细',
+    items: '货物详情',
     desc: '品名',
     qty: '数量',
     pkg: '单位',
@@ -250,13 +243,11 @@ const translations = {
     deleteFile: '删除',
     anInfo: '到货通知',
     location: '存放地',
-    freight: '运费',
-    otherCost: '杂费',
     copyRow: '复制',
     copySpec: '复制内容',
     copied: '已复制',
     deleteConfirm: '删除文档?',
-    logistics: '物流信息',
+    logistics: '货物信息',
     koreanForwarder: '韩国货代',
     transporter: '运输公司',
     storageLoc: '仓库/地点',
@@ -951,7 +942,13 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
                        </div>
                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                            <DetailInput label={t.storageLoc} value={formData.storageLocation} onChange={(e: any) => handleInputChange('storageLocation', e.target.value)} placeholder={t.placeholders.warehouse} />
-                           <DetailInput label={t.storagePeriod} value={formData.storagePeriod} onChange={(e: any) => handleInputChange('storagePeriod', e.target.value)} placeholder={t.placeholders.date + " ~ " + t.placeholders.date} />
+                           <div className="grid grid-cols-2 gap-4">
+                                <DetailInput label={t.storagePeriod} value={formData.storagePeriod} onChange={(e: any) => handleInputChange('storagePeriod', e.target.value)} placeholder={t.placeholders.date + " ~ " + t.placeholders.date} />
+                                <div className="grid grid-cols-2 gap-2">
+                                    <DetailInput label={t.invAmount} value={formData.commercialInvoice?.totalAmount} onChange={(e: any) => handleNestedChange('commercialInvoice', 'totalAmount', e.target.value)} />
+                                    <DetailInput label={t.currency} value={formData.commercialInvoice?.currency} onChange={(e: any) => handleNestedChange('commercialInvoice', 'currency', e.target.value)} />
+                                </div>
+                           </div>
                        </div>
                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pt-6 border-t border-slate-100 dark:border-slate-700 bg-blue-50/50 dark:bg-blue-900/10 -mx-6 px-6 pb-2">
                            <DetailInput label={t.totalPkgs} value={formData.packingList?.totalPackageCount} onChange={(e: any) => handleNestedChange('packingList', 'totalPackageCount', e.target.value)} />
@@ -1070,23 +1067,6 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
                          {t.checklistView} <ArrowRight size={14} />
                       </button>
                    </div>
-
-                  {/* Financials Summary (Compact) */}
-                  <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-5">
-                      <h3 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest mb-4 flex items-center gap-2">
-                         <DollarSign size={16} /> {t.financials}
-                      </h3>
-                      <div className="space-y-4">
-                          <div className="grid grid-cols-2 gap-4">
-                             <DetailInput label={t.invAmount} value={formData.commercialInvoice?.totalAmount} onChange={(e: any) => handleNestedChange('commercialInvoice', 'totalAmount', e.target.value)} />
-                             <DetailInput label={t.currency} value={formData.commercialInvoice?.currency} onChange={(e: any) => handleNestedChange('commercialInvoice', 'currency', e.target.value)} />
-                          </div>
-                          <div className="grid grid-cols-2 gap-4">
-                              <DetailInput label={t.freight} value={formData.arrivalNotice?.freightCost} onChange={(e: any) => handleNestedChange('arrivalNotice', 'freightCost', e.target.value)} />
-                              <DetailInput label={t.otherCost} value={formData.arrivalNotice?.otherCosts} onChange={(e: any) => handleNestedChange('arrivalNotice', 'otherCosts', e.target.value)} />
-                          </div>
-                      </div>
-                  </div>
 
                   {/* Remarks Field (Restored) */}
                   <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-5">

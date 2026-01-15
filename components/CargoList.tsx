@@ -33,7 +33,7 @@ const translations = {
     action: '관리',
     status: '문서현황',
     transit: '환적',
-    fisco: 'FISCO', // Changed from LOGI1
+    fisco: '피스코', // Updated from 'FISCO'
     thirdParty: '타사',
     viewDetail: '상세보기',
     andOthers: '외 {count}건',
