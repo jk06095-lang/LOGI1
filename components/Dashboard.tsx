@@ -1,11 +1,12 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { VesselJob, BLData, Language, CargoSourceType, ResourceLock } from '../types';
-import { Folder, Ship, Calendar as CalendarIcon, FileText, List, ChevronLeft, ChevronRight, Package, ArrowRight, Printer, PieChart, ArrowUpDown, ArrowUp, ArrowDown, ZoomIn, ZoomOut, Save, Layers, Home, Filter, X, Lock, Users, ChevronDown, Check, Waves, CloudRain } from 'lucide-react';
+import { Folder, Ship, Calendar as CalendarIcon, FileText, List, ChevronLeft, ChevronRight, Package, ArrowRight, Printer, PieChart, ArrowUpDown, ArrowUp, ArrowDown, ZoomIn, ZoomOut, Save, Layers, Home, Filter, X, Lock, Users, ChevronDown, Check, Waves, CloudRain, Edit2, GripVertical } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { auth } from '../lib/firebase';
 import { dataService } from '../services/dataService';
 import { fetchBusanWeather, WeatherData } from '../services/weatherService';
+import { motion, AnimatePresence } from "framer-motion";
 
 // --- Types ---
 interface DashboardProps {
@@ -15,6 +16,7 @@ interface DashboardProps {
   language: Language;
   logoUrl?: string;
   onUpdateBL?: (blId: string, updates: Partial<BLData>) => Promise<void>;
+  onUpdateJob?: (jobId: string, updates: Partial<VesselJob>) => void; // Added for Drag n Drop
   onOpenBriefing: (date: Date) => void; // Trigger for new tab
   onUploadBLs?: (files: File[], sourceType: CargoSourceType) => void;
 }
@@ -92,6 +94,10 @@ const translations = {
     lockedBy: '편집 중인 사용자: ',
     forceEdit: '편집 권한 가져오기 (주의)',
     today: '오늘',
+    editMode: '일정 편집',
+    doneMode: '완료',
+    dragTip: '드래그하여 날짜를 변경하세요.',
+    cancel: '취소',
   },
   en: {
     title: 'Dashboard',
@@ -156,6 +162,10 @@ const translations = {
     lockedBy: 'Edited by: ',
     forceEdit: 'Take Over Edit (Caution)',
     today: 'Today',
+    editMode: 'Edit Schedule',
+    doneMode: 'Done',
+    dragTip: 'Drag items to change date.',
+    cancel: 'Cancel',
   },
   cn: {
     title: '工作台',
@@ -220,6 +230,10 @@ const translations = {
     lockedBy: '编辑者：',
     forceEdit: '强制获取编辑权 (慎用)',
     today: '今天',
+    editMode: '编辑日程',
+    doneMode: '完成',
+    dragTip: '拖动项目以更改日期。',
+    cancel: '取消',
   }
 };
 
@@ -249,11 +263,14 @@ const AutoResizeTextarea = ({ value, onChange, className, placeholder, readOnly 
   );
 };
 
-export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, language, onOpenBriefing }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, language, onOpenBriefing, onUpdateJob }) => {
   const t = translations[language];
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDateForModal, setSelectedDateForModal] = useState<string | null>(null);
   const [weatherData, setWeatherData] = useState<Record<string, WeatherData>>({});
+  const [isEditing, setIsEditing] = useState(false); // Edit Mode State
+  const dragHighlightRef = useRef<HTMLDivElement | null>(null);
+  const snapshotRef = useRef<VesselJob[]>([]); // Snapshot for Undo functionality
 
   // Today's date for highlighting
   const today = useMemo(() => new Date(), []);
@@ -294,6 +311,111 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
       return { eta, etd };
   };
 
+  // Drag Handlers
+  const handleDragStart = () => {
+      // Potentially disable scroll or add global class
+  };
+
+  const handleDrag = (event: any, info: any) => {
+      // Highlight the drop zone efficiently using DOM manipulation (avoiding state re-renders)
+      // This requires the underlying elements to have a way to be identified
+      const elements = document.elementsFromPoint(info.point.x, info.point.y);
+      const cell = elements.find(el => el.hasAttribute('data-date')) as HTMLDivElement | undefined;
+      
+      if (dragHighlightRef.current && dragHighlightRef.current !== cell) {
+          dragHighlightRef.current.classList.remove('bg-blue-100', 'dark:bg-blue-800/50', 'ring-2', 'ring-blue-400');
+          dragHighlightRef.current = null;
+      }
+
+      if (cell) {
+          cell.classList.add('bg-blue-100', 'dark:bg-blue-800/50', 'ring-2', 'ring-blue-400');
+          dragHighlightRef.current = cell;
+      }
+  };
+
+  const handleDragEnd = (event: any, info: any, job: VesselJob, type: 'eta' | 'etd') => {
+      // Clear highlights
+      if (dragHighlightRef.current) {
+          dragHighlightRef.current.classList.remove('bg-blue-100', 'dark:bg-blue-800/50', 'ring-2', 'ring-blue-400');
+          dragHighlightRef.current = null;
+      }
+
+      const elements = document.elementsFromPoint(info.point.x, info.point.y);
+      const cell = elements.find(el => el.hasAttribute('data-date')) as HTMLDivElement | undefined;
+
+      if (cell) {
+          const newDate = cell.getAttribute('data-date');
+          if (newDate && onUpdateJob) {
+              const updates: Partial<VesselJob> = {};
+              if (type === 'eta' && job.eta !== newDate) {
+                  updates.eta = newDate;
+              } else if (type === 'etd' && job.etd !== newDate) {
+                  updates.etd = newDate;
+              }
+
+              if (Object.keys(updates).length > 0) {
+                  onUpdateJob(job.id, updates);
+              }
+          }
+      }
+  };
+
+  // Logic to Enter Edit Mode with Snapshot
+  const handleEnterEditMode = () => {
+      snapshotRef.current = JSON.parse(JSON.stringify(jobs));
+      setIsEditing(true);
+  };
+
+  // Save changes (just exit mode, as changes are real-time)
+  const handleSaveEdit = () => {
+      setIsEditing(false);
+      snapshotRef.current = [];
+  };
+
+  // Cancel changes (revert using snapshot)
+  const handleCancelEdit = () => {
+      if (onUpdateJob && snapshotRef.current.length > 0) {
+          jobs.forEach(currentJob => {
+              const original = snapshotRef.current.find(j => j.id === currentJob.id);
+              if (original) {
+                  const updates: Partial<VesselJob> = {};
+                  let needsRevert = false;
+
+                  if (original.eta !== currentJob.eta) {
+                      updates.eta = original.eta;
+                      needsRevert = true;
+                  }
+                  if (original.etd !== currentJob.etd) {
+                      updates.etd = original.etd;
+                      needsRevert = true;
+                  }
+
+                  if (needsRevert) {
+                      onUpdateJob(currentJob.id, updates);
+                  }
+              }
+          });
+      }
+      setIsEditing(false);
+      snapshotRef.current = [];
+  };
+
+  // Sophisticated Jiggle Animation (Subtle Vibration)
+  const jiggleVariant = {
+      animate: {
+          rotate: [-0.5, 0.5], // Reduced angle for sophisticated tremble
+          transition: {
+              duration: 0.15, // Fast frequency
+              repeat: Infinity,
+              repeatType: "mirror" as const, // Smooth ping-pong
+              ease: "easeInOut",
+              // Random delay so they don't all jiggle in sync
+              delay: Math.random() * 0.1
+          }
+      },
+      initial: { rotate: 0 }
+  };
+
   const renderJobItem = (job: VesselJob, type: 'eta' | 'etd') => {
        const blCount = bls.filter(b => b.vesselJobId === job.id).length;
        let statusClasses = "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-600";
@@ -306,17 +428,32 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
        }
 
        return (
-         <button 
-           key={`${type}-${job.id}`} 
-           onClick={(e) => { e.stopPropagation(); onSelectJob(job.id); setSelectedDateForModal(null); }}
-           className={`block w-full text-left p-1.5 rounded border ${statusClasses} hover:opacity-80 transition-opacity group shadow-sm mb-1.5`}
+         <motion.div
+           key={`${type}-${job.id}`}
+           layoutId={`${type}-${job.id}`} // Magic Move
+           drag={isEditing}
+           dragSnapToOrigin
+           whileDrag={{ scale: 1.05, zIndex: 50, opacity: 0.9, rotate: 0 }}
+           variants={isEditing ? jiggleVariant : undefined}
+           animate={isEditing ? "animate" : "initial"}
+           onDragStart={handleDragStart}
+           onDrag={(e, info) => handleDrag(e, info)}
+           onDragEnd={(e, info) => handleDragEnd(e, info, job, type)}
+           onClick={(e) => { 
+               if (!isEditing) {
+                   e.stopPropagation(); 
+                   onSelectJob(job.id); 
+                   setSelectedDateForModal(null); 
+               }
+           }}
+           className={`block w-full text-left p-1.5 rounded border ${statusClasses} hover:opacity-80 transition-opacity group shadow-sm mb-1.5 cursor-pointer relative touch-none select-none`}
            title={`${type.toUpperCase()}: ${job.vesselName}`}
          >
-           <div className="font-bold text-[10px] truncate leading-tight flex items-center gap-1">
+           <div className="font-bold text-[10px] truncate leading-tight flex items-center gap-1 pointer-events-none">
               <span className="text-[8px] bg-white/50 px-0.5 rounded text-inherit">{type.toUpperCase()}</span>
               {job.vesselName}
            </div>
-           <div className="flex justify-between items-center mt-1 text-[9px] opacity-80 font-medium">
+           <div className="flex justify-between items-center mt-1 text-[9px] opacity-80 font-medium pointer-events-none">
               <span className="truncate max-w-[60%] tracking-tight">{job.voyageNo}</span>
               {type === 'eta' && (
                   <span className="font-mono bg-white/50 dark:bg-black/20 px-1 rounded flex items-center gap-0.5">
@@ -324,7 +461,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
                   </span>
               )}
            </div>
-         </button>
+           
+           {/* Edit Indicator */}
+           {isEditing && (
+               <div className="absolute -top-1.5 -right-1.5 bg-slate-400 text-white rounded-full p-0.5 shadow-sm z-10 animate-bounce">
+                   <GripVertical size={8} />
+               </div>
+           )}
+         </motion.div>
        );
   };
 
@@ -339,7 +483,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
       const allDayJobs = [...eta.map(j => ({...j, _type: 'eta' as const})), ...etd.map(j => ({...j, _type: 'etd' as const}))];
       const hasJobs = allDayJobs.length > 0;
       
-      const MAX_DISPLAY = 2;
+      const MAX_DISPLAY = 4; // Increased for better visibility in edit mode if needed
       const displayJobs = allDayJobs.slice(0, MAX_DISPLAY);
       const remainingCount = allDayJobs.length - MAX_DISPLAY;
 
@@ -353,15 +497,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
       dayCells.push(
         <div 
             key={d} 
-            onClick={() => hasJobs && setSelectedDateForModal(dateStr)}
-            className={`min-h-[8rem] border p-2 relative group transition-colors 
+            data-date={dateStr} // Droppable target
+            onClick={() => !isEditing && hasJobs && setSelectedDateForModal(dateStr)}
+            className={`min-h-[8rem] border p-2 relative group transition-colors calendar-day-cell
                 ${isToday 
                     ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-500 ring-1 ring-inset ring-blue-200 dark:ring-blue-700' 
                     : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700'
                 } 
-                ${hasJobs ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50' : ''}`}
+                ${hasJobs && !isEditing ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700/50' : ''}`}
         >
-          <div className="flex justify-between items-start mb-2">
+          <div className="flex justify-between items-start mb-2 pointer-events-none">
               <div className="flex items-center gap-2">
                   <span className={`text-sm font-bold ${isToday ? 'text-blue-700 dark:text-blue-300 bg-white dark:bg-blue-800 px-2 py-0.5 rounded-full shadow-sm' : (eta.length > 0 || etd.length > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400')}`}>
                       {d}
@@ -384,11 +529,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
                   </span>
               )}
           </div>
-          <div className="mt-1">
-             {displayJobs.map(j => renderJobItem(j, j._type))}
+          <div className="mt-1 space-y-1">
+             <AnimatePresence>
+                 {displayJobs.map(j => renderJobItem(j, j._type))}
+             </AnimatePresence>
              
              {remainingCount > 0 && (
-                 <div className="text-[10px] text-slate-500 font-bold text-center mt-1 bg-slate-100 dark:bg-slate-700 rounded py-1">
+                 <div className="text-[10px] text-slate-500 font-bold text-center mt-1 bg-slate-100 dark:bg-slate-700 rounded py-1 pointer-events-none">
                      {t.moreVessels.replace('{count}', remainingCount.toString())}
                  </div>
              )}
@@ -448,7 +595,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
                    <CalendarIcon size={18} className="text-blue-500" /> 
                    {t.calendarTitle}
                 </h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">{t.calendarSubtitle}</p>
+                <div className="flex items-center gap-2">
+                    <p className="text-sm text-slate-500 dark:text-slate-400">{t.calendarSubtitle}</p>
+                    {isEditing && (
+                        <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full animate-pulse">{t.dragTip}</span>
+                    )}
+                </div>
                 
                 {/* Legend */}
                 <div className="flex items-center gap-4 mt-2">
@@ -468,7 +620,35 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
              </div>
              
              <div className="flex items-center gap-4 self-end md:self-auto">
-                 <button onClick={() => onOpenBriefing(currentDate)} className="flex items-center gap-2 text-sm font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-300 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors">
+                 {/* Smart Edit Toggle with Cancel */}
+                 {!isEditing ? (
+                     <button 
+                        onClick={handleEnterEditMode} 
+                        className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-lg transition-all active:scale-95 shadow-sm bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600"
+                     >
+                        <Edit2 size={16} />
+                        {t.editMode}
+                     </button>
+                 ) : (
+                     <div className="flex items-center gap-2">
+                         <button 
+                            onClick={handleCancelEdit} 
+                            className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-lg transition-all active:scale-95 shadow-sm bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
+                         >
+                            <X size={16} />
+                            {t.cancel}
+                         </button>
+                         <button 
+                            onClick={handleSaveEdit} 
+                            className="flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-lg transition-all active:scale-95 shadow-sm bg-blue-600 text-white hover:bg-blue-700 ring-2 ring-blue-300"
+                         >
+                            <Check size={16} />
+                            {t.doneMode}
+                         </button>
+                     </div>
+                 )}
+
+                 <button onClick={() => onOpenBriefing(currentDate)} className="flex items-center gap-2 text-sm font-bold text-blue-600 bg-blue-50 dark:bg-blue-900/20 dark:text-blue-300 px-3 py-2 rounded-lg hover:bg-blue-100 transition-colors">
                     <Printer size={16} /> {t.briefingMode}
                  </button>
                  <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded-lg p-1">

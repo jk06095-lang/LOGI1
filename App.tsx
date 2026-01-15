@@ -427,6 +427,7 @@ const App: React.FC = () => {
                 onUpdateBL={dataService.updateBL} 
                 onOpenBriefing={openBriefingTab}
                 onUploadBLs={handleBLUpload}
+                onUpdateJob={dataService.updateJob}
             />
         );
       case 'briefing':
