@@ -301,7 +301,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                 bottom: 20,
                 zIndex: 100
             }}
-            className="flex flex-col rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] border border-white/20 dark:border-white/10 bg-white/5 dark:bg-black/20 backdrop-blur-3xl backdrop-saturate-150 overflow-hidden"
+            className="flex flex-col rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] border border-white/30 dark:border-white/20 bg-white/15 dark:bg-black/20 backdrop-blur-xl backdrop-saturate-150 overflow-hidden"
         >
             {/* Header - Apple Style Traffic Lights & Drag Area */}
             <div className="h-12 bg-gradient-to-b from-white/10 to-transparent flex items-center px-5 justify-between cursor-grab active:cursor-grabbing shrink-0 backdrop-blur-sm border-b border-white/10">
@@ -349,17 +349,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
 
             {/* Sub-Header / Navigation */}
             {!selectedUser && (
-                <div className="flex p-1 mx-4 mt-2 bg-slate-200/50 dark:bg-black/40 rounded-lg p-1 shrink-0 backdrop-blur-md">
+                <div className="flex p-1 mx-4 mt-2 bg-white/20 dark:bg-black/30 rounded-lg p-1 shrink-0 backdrop-blur-md">
                     <button 
                         onClick={() => handleTabSwitch('global')}
-                        className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all relative ${activeTab === 'global' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'}`}
+                        className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all relative ${activeTab === 'global' ? 'bg-white/80 text-blue-600 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'}`}
                     >
                         Global
                         {unreadMap.has('global') && <span className="absolute top-1 right-2 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>}
                     </button>
                     <button 
                         onClick={() => handleTabSwitch('dm')}
-                        className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all relative ${activeTab === 'dm' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'}`}
+                        className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all relative ${activeTab === 'dm' ? 'bg-white/80 text-blue-600 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'}`}
                     >
                         Direct Messages
                         {Array.from(unreadMap).some(id => id !== 'global') && <span className="absolute top-1 right-2 w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span>}
@@ -487,7 +487,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                                         className={`flex items-center gap-3 p-3 rounded-2xl cursor-pointer relative group ${
                                             isEditingFriends 
                                             ? 'bg-red-50/50 border border-red-200' 
-                                            : 'bg-white/40 dark:bg-white/5 hover:bg-white/60 border border-white/20 shadow-sm'
+                                            : 'bg-white/20 dark:bg-white/5 hover:bg-white/40 border border-white/10 shadow-sm'
                                         }`}
                                     >
                                         <div className="relative">
@@ -538,7 +538,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                                 initial={{ opacity: 0, scale: 0.9, y: 10 }}
                                 animate={{ opacity: 1, scale: 1, y: 0 }}
                                 exit={{ opacity: 0, scale: 0.9, y: 10 }}
-                                className="absolute bottom-16 left-3 bg-white/80 dark:bg-black/80 backdrop-blur-xl border border-white/20 rounded-2xl p-2 shadow-2xl grid grid-cols-5 gap-1 z-30"
+                                className="absolute bottom-16 left-3 bg-white/60 dark:bg-black/60 backdrop-blur-xl border border-white/20 rounded-2xl p-2 shadow-2xl grid grid-cols-5 gap-1 z-30"
                             >
                                 {EMOJIS.map(emoji => (
                                     <button
@@ -553,7 +553,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                         )}
                     </AnimatePresence>
 
-                    <form onSubmit={handleSend} className="flex gap-2 bg-white/60 dark:bg-black/40 backdrop-blur-xl border border-white/20 rounded-full p-1.5 shadow-lg relative z-20">
+                    <form onSubmit={handleSend} className="flex gap-2 bg-white/40 dark:bg-black/40 backdrop-blur-md border border-white/20 rounded-full p-1.5 shadow-lg relative z-20">
                         {/* Emoji Button */}
                         <button 
                             type="button" 
