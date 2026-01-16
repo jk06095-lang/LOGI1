@@ -520,10 +520,10 @@ const MobileShipmentDetail = ({ bl, onClose }: { bl: BLData, onClose: () => void
   ];
 
   return (
-    // Updated: More transparent background (60 opacity with blur)
+    // Updated: More transparent background (30% opacity with strong blur)
     <div className="flex flex-col h-full bg-slate-50/30 dark:bg-slate-900/30 backdrop-blur-2xl animate-fade-in fixed inset-0 z-[60]">
-      {/* Header - Transparent Glass (20% Opacity) */}
-      <div className="absolute top-0 left-0 right-0 z-20 px-4 py-3 bg-white/20 dark:bg-black/20 backdrop-blur-xl backdrop-saturate-150 border-b border-white/20 dark:border-white/10 shadow-sm flex items-center justify-between shrink-0 safe-area-top transition-all">
+      {/* Header - Transparent Glass with Frosted Effect */}
+      <div className="absolute top-0 left-0 right-0 z-20 px-4 py-3 bg-white/40 dark:bg-black/40 backdrop-blur-2xl backdrop-saturate-150 border-b border-white/30 dark:border-white/20 shadow-sm flex items-center justify-between shrink-0 safe-area-top transition-all">
          <div className="flex items-center gap-3">
              <button 
                 onClick={onClose} 
@@ -543,7 +543,7 @@ const MobileShipmentDetail = ({ bl, onClose }: { bl: BLData, onClose: () => void
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar pb-20 pt-20">
          
-         {/* 1. DOCUMENTS SECTION - Updated to Glass Card (60% Opacity) */}
+         {/* 1. DOCUMENTS SECTION - Glass Card */}
          <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-xl shadow-sm border border-white/20 dark:border-white/10 overflow-hidden">
             <div className="px-4 py-3 border-b border-slate-100/50 dark:border-slate-700/50 bg-slate-50/30 dark:bg-slate-700/30 flex items-center gap-2">
                 <FileText size={16} className="text-slate-500 dark:text-slate-400"/>
@@ -750,7 +750,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
       case 'cargo':
         return (
           <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900">
-              {/* Sticky Glass Header for Cargo - Updated Transparency */}
+              {/* Sticky Glass Header for Cargo */}
               <div className="absolute top-0 left-0 right-0 z-20 p-4 bg-white/20 dark:bg-black/20 backdrop-blur-xl backdrop-saturate-150 border-b border-white/20 dark:border-white/10 pt-safe-top shadow-sm transition-all">
                   <div className="flex justify-between items-center mb-3">
                       <h2 className="font-bold text-lg text-slate-800 dark:text-white">Cargo List</h2>
@@ -932,16 +932,16 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
             {renderContent()}
         </div>
         
-        {/* Transparent Floating Dock */}
+        {/* Transparent Floating Dock - ENHANCED LIQUID GLASS */}
         {!selectedBLId && !(currentView === 'chat' && chatView === 'room') && (
             <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-[320px] z-50 px-4 mb-[env(safe-area-inset-bottom)]">
                 <div className="
                     relative flex items-center justify-around px-2 py-3.5
-                    bg-white/20 dark:bg-black/30
-                    backdrop-blur-xl
+                    bg-white/30 dark:bg-black/40
+                    backdrop-blur-2xl backdrop-saturate-150
                     rounded-full
-                    shadow-sm
-                    border border-white/10 dark:border-white/5
+                    shadow-lg shadow-blue-900/5
+                    border border-white/40 dark:border-white/20
                 ">
                     <button 
                         onClick={() => setCurrentView('cargo')} 
