@@ -520,7 +520,7 @@ const MobileShipmentDetail = ({ bl, onClose }: { bl: BLData, onClose: () => void
   ];
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900 animate-fade-in fixed inset-0 z-[60]">
+    <div className="flex flex-col h-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl animate-fade-in fixed inset-0 z-[60]">
       {/* Header - Liquid Glass */}
       <div className="absolute top-0 left-0 right-0 z-20 px-4 py-3 bg-white/75 dark:bg-black/40 backdrop-blur-xl backdrop-saturate-150 border-b border-white/20 dark:border-white/10 shadow-sm flex items-center justify-between shrink-0 safe-area-top transition-all">
          <div className="flex items-center gap-3">
@@ -750,7 +750,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
         return (
           <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900">
               {/* Sticky Glass Header for Cargo */}
-              <div className="absolute top-0 left-0 right-0 z-20 p-4 bg-white/75 dark:bg-black/40 backdrop-blur-xl backdrop-saturate-150 border-b border-white/20 dark:border-white/10 pt-safe-top shadow-sm transition-all">
+              <div className="absolute top-0 left-0 right-0 z-20 p-4 bg-white/75 dark:bg-black/40 backdrop-blur-xl backdrop-saturate-150 border-b border-slate-200 dark:border-slate-700 pt-safe-top shadow-sm transition-all">
                   <div className="flex justify-between items-center mb-3">
                       <h2 className="font-bold text-lg text-slate-800 dark:text-white">Cargo List</h2>
                       <div className="relative">
@@ -779,7 +779,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                         placeholder="Search B/L, Shipper..." 
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 bg-white/50 dark:bg-slate-800/50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 backdrop-blur-sm border border-white/20 dark:border-white/10"
+                        className="w-full pl-10 pr-4 py-2.5 bg-white/50 dark:bg-slate-800/50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 backdrop-blur-sm border border-slate-300 dark:border-slate-600 shadow-sm"
                       />
                   </div>
               </div>
