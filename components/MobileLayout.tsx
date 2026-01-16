@@ -32,6 +32,7 @@ const mobileTranslations = {
     pc: 'PC / 태블릿',
     logout: '로그아웃',
     attachedDocs: '첨부 문서',
+    arrivalNotice: 'Arrival Notice',
     logisticsInfo: '물류 정보',
     cargoItems: '화물 상세',
     vessel: '선박',
@@ -73,6 +74,7 @@ const mobileTranslations = {
     pc: 'PC',
     logout: 'Log Out',
     attachedDocs: 'Attached Documents',
+    arrivalNotice: 'Arrival Notice',
     logisticsInfo: 'Logistics Info',
     cargoItems: 'Cargo Items',
     vessel: 'Vessel',
@@ -114,6 +116,7 @@ const mobileTranslations = {
     pc: '电脑',
     logout: '退出登录',
     attachedDocs: '附件文档',
+    arrivalNotice: '到货通知书',
     logisticsInfo: '物流信息',
     cargoItems: '货物详情',
     vessel: '船舶',
@@ -616,7 +619,7 @@ const MobileShipmentDetail = ({ bl, onClose, language }: { bl: BLData, onClose: 
   const t = mobileTranslations[language];
   const docs = [
     { label: 'Bill of Lading', fileUrl: bl.fileUrl },
-    { label: t.attachedDocs, fileUrl: bl.arrivalNotice?.fileUrl }, // Reusing keys or mapping specific docs if needed
+    { label: t.arrivalNotice, fileUrl: bl.arrivalNotice?.fileUrl }, 
     { label: 'Commercial Invoice', fileUrl: bl.commercialInvoice?.fileUrl },
     { label: 'Packing List', fileUrl: bl.packingList?.fileUrl },
     { label: 'Manifest', fileUrl: bl.manifest?.fileUrl },
