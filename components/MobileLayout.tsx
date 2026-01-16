@@ -278,7 +278,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   if (view === 'list') {
       return (
           <div className="h-full overflow-y-auto p-4 custom-scrollbar pb-32">
-              <h2 className="font-bold text-slate-800 mb-4 text-lg">Messages</h2>
+              <h2 className="font-bold text-slate-800 dark:text-white mb-4 text-lg">Messages</h2>
               
               <div 
                 onClick={() => {
@@ -288,14 +288,14 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                     previousScrollHeightRef.current = 0;
                     onNavigateToRoom(); // Use handler
                 }}
-                className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4 mb-6 cursor-pointer active:scale-95 transition-transform relative"
+                className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-4 mb-6 cursor-pointer active:scale-95 transition-transform relative"
               >
-                  <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center">
+                  <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center">
                       <MessageCircle size={24} />
                   </div>
                   <div>
-                      <h3 className="font-bold text-slate-800">Global Chat</h3>
-                      <p className="text-xs text-slate-500">Public Team Channel</p>
+                      <h3 className="font-bold text-slate-800 dark:text-white">Global Chat</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Public Team Channel</p>
                   </div>
               </div>
 
@@ -318,24 +318,24 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                                     previousScrollHeightRef.current = 0;
                                     onNavigateToRoom(); // Use handler
                                 }}
-                                className="bg-white p-3 rounded-xl border border-slate-100 flex items-center gap-3 cursor-pointer active:scale-95 transition-transform relative"
+                                className="bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700 flex items-center gap-3 cursor-pointer active:scale-95 transition-transform relative"
                               >
                                   <div className="relative">
-                                      <div className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden">
+                                      <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
                                           {friend.photoURL ? <img src={friend.photoURL} alt={friend.displayName} className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-2 text-slate-400"/>}
                                       </div>
-                                      <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
+                                      <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white dark:border-slate-800 ${
                                           friend.status === 'online' ? 'bg-emerald-500' : friend.status === 'away' ? 'bg-amber-500' : 'bg-slate-300'
                                       }`}></div>
                                       
                                       {/* NEW: Unread Dot on Profile Picture */}
                                       {hasUnread && (
-                                          <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white animate-pulse"></div>
+                                          <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-800 animate-pulse"></div>
                                       )}
                                   </div>
                                   <div>
-                                      <p className="font-bold text-sm text-slate-800">{friend.displayName}</p>
-                                      <p className="text-xs text-slate-500">{friend.status}</p>
+                                      <p className="font-bold text-sm text-slate-800 dark:text-white">{friend.displayName}</p>
+                                      <p className="text-xs text-slate-500 dark:text-slate-400">{friend.status}</p>
                                   </div>
                               </div>
                           )
@@ -349,24 +349,26 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   const getDateString = (ts: number) => new Date(ts).toLocaleDateString();
 
   return (
-      <div className="flex flex-col h-full bg-slate-100 overflow-hidden relative">
-          <div className="p-3 bg-white border-b border-slate-200 shadow-sm flex items-center gap-3 z-10 shrink-0 safe-area-top">
-              <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
+      <div className="flex flex-col h-full bg-slate-100 dark:bg-slate-900 overflow-hidden relative">
+          {/* Chat Header - Liquid Glass */}
+          <div className="absolute top-0 left-0 right-0 z-20 p-3 bg-white/75 dark:bg-black/40 backdrop-blur-xl border-b border-white/20 dark:border-white/10 shadow-sm flex items-center gap-3 shrink-0 safe-area-top">
+              <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs">
                   {activeChannel.name.substring(0,2).toUpperCase()}
               </div>
               <div className="flex-1">
-                  <h3 className="font-bold text-sm text-slate-800">{activeChannel.name}</h3>
-                  <p className="text-[10px] text-slate-500">{activeChannel.type === 'global' ? 'Team Channel' : 'Direct Message'}</p>
+                  <h3 className="font-bold text-sm text-slate-800 dark:text-white">{activeChannel.name}</h3>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">{activeChannel.type === 'global' ? 'Team Channel' : 'Direct Message'}</p>
               </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 custom-scrollbar" ref={scrollRef} onScroll={handleScroll} style={{ WebkitOverflowScrolling: 'touch' }}>
+          {/* Chat Content - Padded for floating header/footer */}
+          <div className="flex-1 overflow-y-auto p-4 pt-20 pb-24 custom-scrollbar" ref={scrollRef} onScroll={handleScroll} style={{ WebkitOverflowScrolling: 'touch' }}>
               
               {/* Load More Button */}
               <div className="flex justify-center mb-4">
                   <button 
                     onClick={loadMoreHistory}
-                    className="text-xs bg-slate-200 text-slate-600 px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-slate-300 active:scale-95 transition-transform"
+                    className="text-xs bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-slate-300 dark:hover:bg-slate-600 active:scale-95 transition-transform"
                   >
                       <ArrowUpCircle size={12} /> Load Previous Messages
                   </button>
@@ -385,20 +387,20 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                           <React.Fragment key={msg.id || idx}>
                               {showDate && (
                                   <div className="flex justify-center my-4">
-                                      <div className="bg-slate-200 text-slate-500 text-[10px] font-bold px-3 py-1 rounded-full">
+                                      <div className="bg-slate-200/50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-300 text-[10px] font-bold px-3 py-1 rounded-full backdrop-blur-md">
                                           {new Date(msg.timestamp).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
                                       </div>
                                   </div>
                               )}
                               <div className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
                                   {!isMe && (
-                                      <div className="w-8 h-8 rounded-full bg-slate-200 flex-shrink-0 overflow-hidden mt-1">
+                                      <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex-shrink-0 overflow-hidden mt-1 shadow-sm">
                                           {msg.senderPhoto ? <img src={msg.senderPhoto} alt="U" /> : <UserIcon className="w-full h-full p-1.5 text-slate-400"/>}
                                       </div>
                                   )}
                                   <div className={`max-w-[80%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
-                                      {!isMe && <span className="text-[10px] text-slate-500 ml-1 mb-0.5">{msg.senderName}</span>}
-                                      <div className={`px-3 py-2 rounded-2xl text-sm shadow-sm ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white text-slate-800 rounded-tl-none'}`}>
+                                      {!isMe && <span className="text-[10px] text-slate-500 dark:text-slate-400 ml-1 mb-0.5">{msg.senderName}</span>}
+                                      <div className={`px-3 py-2 rounded-2xl text-sm shadow-sm ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-none'}`}>
                                           {msg.text}
                                       </div>
                                       <div className="flex items-center gap-1 mt-1 px-1">
@@ -406,7 +408,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                                               {new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
                                           </span>
                                           {isMe && (
-                                              <span className={`${isRead ? 'text-blue-500' : 'text-slate-300'}`}>
+                                              <span className={`${isRead ? 'text-blue-500' : 'text-slate-300 dark:text-slate-600'}`}>
                                                   {isRead ? <CheckCheck size={12} /> : <Check size={12} />}
                                               </span>
                                           )}
@@ -420,11 +422,11 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                   {/* Mobile Typing Indicator */}
                   {typingUsers.length > 0 && (
                      <div className="flex gap-2 animate-fade-in-up">
-                         <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center">
+                         <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
                              <div className="flex gap-0.5">
-                                 <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce"></span>
-                                 <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce delay-100"></span>
-                                 <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce delay-200"></span>
+                                 <span className="w-1 h-1 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce"></span>
+                                 <span className="w-1 h-1 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce delay-100"></span>
+                                 <span className="w-1 h-1 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce delay-200"></span>
                              </div>
                          </div>
                          <span className="text-xs text-slate-400 self-center">
@@ -443,27 +445,28 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.8, y: 10 }}
                         onClick={scrollToBottom}
-                        className="absolute bottom-20 left-1/2 -translate-x-1/2 w-10 h-10 bg-white/70 backdrop-blur-md rounded-full shadow-lg border border-slate-200 flex items-center justify-center text-blue-600 z-30 hover:bg-white/90 transition-colors"
+                        className="absolute bottom-20 left-1/2 -translate-x-1/2 w-10 h-10 bg-white/70 dark:bg-black/70 backdrop-blur-md rounded-full shadow-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-blue-600 dark:text-blue-400 z-30 hover:bg-white/90 dark:hover:bg-black/90 transition-colors"
                     >
                         <ChevronDown size={20} />
                     </motion.button>
                 )}
           </AnimatePresence>
 
-          <div className="p-3 bg-white border-t border-slate-200 shrink-0 safe-area-bottom relative">
+          {/* Chat Footer (Input) - Liquid Glass */}
+          <div className="absolute bottom-0 left-0 right-0 z-20 p-3 bg-white/75 dark:bg-black/40 backdrop-blur-xl border-t border-white/20 dark:border-white/10 shrink-0 safe-area-bottom shadow-[0_-5px_15px_rgba(0,0,0,0.05)]">
               <AnimatePresence>
                   {showEmojiPicker && (
                       <motion.div
                           initial={{ opacity: 0, scale: 0.9, y: 10 }}
                           animate={{ opacity: 1, scale: 1, y: 0 }}
                           exit={{ opacity: 0, scale: 0.9, y: 10 }}
-                          className="absolute bottom-[4.5rem] left-2 right-2 bg-white/95 backdrop-blur-xl border border-slate-200 rounded-2xl p-3 shadow-2xl grid grid-cols-7 sm:grid-cols-10 gap-1 z-30"
+                          className="absolute bottom-[4.5rem] left-2 right-2 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border border-slate-200 dark:border-slate-700 rounded-2xl p-3 shadow-2xl grid grid-cols-7 sm:grid-cols-10 gap-1 z-30"
                       >
                           {EMOJIS.map(emoji => (
                               <button
                                   key={emoji}
                                   onClick={() => handleEmojiClick(emoji)}
-                                  className="w-10 h-10 flex items-center justify-center text-xl hover:bg-slate-100 rounded-lg transition-colors"
+                                  className="w-10 h-10 flex items-center justify-center text-xl hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                               >
                                   {emoji}
                               </button>
@@ -476,7 +479,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                   <button 
                       type="button" 
                       onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                      className={`p-2 rounded-full transition-colors shrink-0 ${showEmojiPicker ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                      className={`p-2 rounded-full transition-colors shrink-0 ${showEmojiPicker ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
                   >
                       <Smile size={20} />
                   </button>
@@ -488,14 +491,14 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                       onFocus={handleInputFocus}
                       onBlur={handleInputBlur}
                       placeholder="Type a message..."
-                      className="flex-1 bg-slate-100 border-none rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                      className="flex-1 bg-slate-100 dark:bg-slate-700 border-none rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-slate-800 dark:text-white placeholder-slate-500 dark:placeholder-slate-400"
                   />
                   {/* PreventDefault on MouseDown prevents focus loss from input */}
                   <button 
                     type="submit" 
                     disabled={!inputText.trim()} 
                     onMouseDown={(e) => e.preventDefault()}
-                    className="p-2 bg-blue-600 text-white rounded-full disabled:opacity-50 shrink-0"
+                    className="p-2 bg-blue-600 text-white rounded-full disabled:opacity-50 shrink-0 shadow-md"
                   >
                       <Send size={18} />
                   </button>
@@ -517,22 +520,22 @@ const MobileShipmentDetail = ({ bl, onClose }: { bl: BLData, onClose: () => void
   ];
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 animate-fade-in fixed inset-0 z-[60]">
+    <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900 animate-fade-in fixed inset-0 z-[60]">
       {/* Header */}
-      <div className="bg-white px-4 py-3 shadow-sm border-b border-slate-200 flex items-center justify-between shrink-0 safe-area-top">
+      <div className="bg-white dark:bg-slate-800 px-4 py-3 shadow-sm border-b border-slate-200 dark:border-slate-700 flex items-center justify-between shrink-0 safe-area-top">
          <div className="flex items-center gap-3">
              <button 
                 onClick={onClose} 
-                className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+                className="p-2 -ml-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
              >
                 <ArrowLeft size={20} />
              </button>
              <div className="overflow-hidden">
-                <h2 className="font-bold text-slate-800 text-lg leading-none truncate max-w-[200px]">{bl.blNumber}</h2>
-                <p className="text-[10px] text-slate-500 font-medium mt-0.5 truncate max-w-[200px]">{bl.shipper}</p>
+                <h2 className="font-bold text-slate-800 dark:text-white text-lg leading-none truncate max-w-[200px]">{bl.blNumber}</h2>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5 truncate max-w-[200px]">{bl.shipper}</p>
              </div>
          </div>
-         <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase whitespace-nowrap ${bl.sourceType === 'TRANSIT' ? 'bg-slate-100 text-slate-600' : 'bg-blue-100 text-blue-600'}`}>
+         <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase whitespace-nowrap ${bl.sourceType === 'TRANSIT' ? 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300'}`}>
             {bl.sourceType}
          </div>
       </div>
@@ -540,19 +543,19 @@ const MobileShipmentDetail = ({ bl, onClose }: { bl: BLData, onClose: () => void
       <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar pb-20">
          
          {/* 1. DOCUMENTS SECTION (Top Priority) */}
-         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
-                <FileText size={16} className="text-slate-500"/>
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Attached Documents</span>
+         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-700/50 flex items-center gap-2">
+                <FileText size={16} className="text-slate-500 dark:text-slate-400"/>
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Attached Documents</span>
             </div>
-            <div className="divide-y divide-slate-50">
+            <div className="divide-y divide-slate-50 dark:divide-slate-700">
                {docs.map((doc, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3 hover:bg-slate-50 transition-colors">
+                  <div key={idx} className="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${doc.fileUrl ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-300'}`}>
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${doc.fileUrl ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-300 dark:text-slate-500'}`}>
                            <FileText size={16} />
                         </div>
-                        <span className={`text-sm font-bold ${doc.fileUrl ? 'text-slate-700' : 'text-slate-400'}`}>
+                        <span className={`text-sm font-bold ${doc.fileUrl ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500'}`}>
                             {doc.label}
                         </span>
                      </div>
@@ -560,12 +563,12 @@ const MobileShipmentDetail = ({ bl, onClose }: { bl: BLData, onClose: () => void
                      {doc.fileUrl ? (
                         <button 
                             onClick={() => window.open(doc.fileUrl, '_blank')}
-                            className="p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                            className="p-2 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-lg transition-colors"
                         >
                             <ExternalLink size={16} />
                         </button>
                      ) : (
-                        <span className="text-[10px] text-slate-300 italic px-2">Empty</span>
+                        <span className="text-[10px] text-slate-300 dark:text-slate-600 italic px-2">Empty</span>
                      )}
                   </div>
                ))}
@@ -573,59 +576,59 @@ const MobileShipmentDetail = ({ bl, onClose }: { bl: BLData, onClose: () => void
          </div>
 
          {/* 2. LOGISTICS INFO */}
-         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-             <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
-                <Truck size={16} className="text-slate-500"/>
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Logistics Info</span>
+         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+             <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-700/50 flex items-center gap-2">
+                <Truck size={16} className="text-slate-500 dark:text-slate-400"/>
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Logistics Info</span>
             </div>
             <div className="p-4 grid grid-cols-2 gap-y-4 gap-x-2 text-sm">
                  <div>
-                    <p className="text-[10px] text-slate-400 uppercase font-bold mb-0.5">Vessel</p>
-                    <p className="font-bold text-slate-800 truncate">{bl.vesselName || '-'}</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold mb-0.5">Vessel</p>
+                    <p className="font-bold text-slate-800 dark:text-slate-200 truncate">{bl.vesselName || '-'}</p>
                  </div>
                  <div>
-                    <p className="text-[10px] text-slate-400 uppercase font-bold mb-0.5">Voyage</p>
-                    <p className="font-bold text-slate-800 truncate">{bl.voyageNo || '-'}</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold mb-0.5">Voyage</p>
+                    <p className="font-bold text-slate-800 dark:text-slate-200 truncate">{bl.voyageNo || '-'}</p>
                  </div>
                  <div>
-                    <p className="text-[10px] text-slate-400 uppercase font-bold mb-0.5">POL</p>
-                    <p className="font-medium text-slate-700 truncate">{bl.portOfLoading || '-'}</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold mb-0.5">POL</p>
+                    <p className="font-medium text-slate-700 dark:text-slate-300 truncate">{bl.portOfLoading || '-'}</p>
                  </div>
                  <div>
-                    <p className="text-[10px] text-slate-400 uppercase font-bold mb-0.5">POD</p>
-                    <p className="font-medium text-slate-700 truncate">{bl.portOfDischarge || '-'}</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold mb-0.5">POD</p>
+                    <p className="font-medium text-slate-700 dark:text-slate-300 truncate">{bl.portOfDischarge || '-'}</p>
                  </div>
                  <div className="col-span-2">
-                    <p className="text-[10px] text-slate-400 uppercase font-bold mb-0.5">Consignee</p>
-                    <p className="font-medium text-slate-700 truncate">{bl.consignee || '-'}</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold mb-0.5">Consignee</p>
+                    <p className="font-medium text-slate-700 dark:text-slate-300 truncate">{bl.consignee || '-'}</p>
                  </div>
             </div>
          </div>
 
          {/* 3. CARGO ITEMS */}
-         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-             <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
-                <Box size={16} className="text-slate-500"/>
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Cargo Items</span>
+         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+             <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-700/50 flex items-center gap-2">
+                <Box size={16} className="text-slate-500 dark:text-slate-400"/>
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Cargo Items</span>
             </div>
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-slate-100 dark:divide-slate-700">
                {bl.cargoItems.map((item, i) => (
                    <div key={i} className="p-4">
                        <div className="flex justify-between items-start mb-1">
-                           <span className="font-bold text-slate-800 text-sm line-clamp-2">{item.description}</span>
-                           <span className="font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-xs whitespace-nowrap ml-2">
+                           <span className="font-bold text-slate-800 dark:text-slate-200 text-sm line-clamp-2">{item.description}</span>
+                           <span className="font-mono font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded text-xs whitespace-nowrap ml-2">
                                {item.quantity} {item.packageType}
                            </span>
                        </div>
-                       <div className="flex items-center gap-3 text-xs text-slate-500 mt-2 flex-wrap">
-                           {item.containerNo && <span className="bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-mono">{item.containerNo}</span>}
-                           <span>Weight: <strong className="text-slate-700">{item.grossWeight}</strong> kg</span>
-                           <span>Vol: <strong className="text-slate-700">{item.measurement}</strong> CBM</span>
+                       <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-2 flex-wrap">
+                           {item.containerNo && <span className="bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-[10px] font-mono">{item.containerNo}</span>}
+                           <span>Weight: <strong className="text-slate-700 dark:text-slate-300">{item.grossWeight}</strong> kg</span>
+                           <span>Vol: <strong className="text-slate-700 dark:text-slate-300">{item.measurement}</strong> CBM</span>
                        </div>
                    </div>
                ))}
                {bl.cargoItems.length === 0 && (
-                   <div className="p-6 text-center text-slate-400 text-sm italic">No items listed.</div>
+                   <div className="p-6 text-center text-slate-400 dark:text-slate-500 text-sm italic">No items listed.</div>
                )}
             </div>
          </div>
@@ -746,14 +749,15 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
       case 'cargo':
         return (
           <div className="flex flex-col h-full">
-              <div className="p-4 bg-white border-b border-slate-200 pt-safe-top">
+              {/* Sticky Glass Header for Cargo */}
+              <div className="p-4 bg-white/75 dark:bg-black/40 backdrop-blur-xl border-b border-white/20 dark:border-white/10 pt-safe-top sticky top-0 z-20 shadow-sm">
                   <div className="flex justify-between items-center mb-3">
-                      <h2 className="font-bold text-lg text-slate-800">Cargo List</h2>
+                      <h2 className="font-bold text-lg text-slate-800 dark:text-white">Cargo List</h2>
                       <div className="relative">
                           <select 
                               value={vesselFilter}
                               onChange={(e) => setVesselFilter(e.target.value)}
-                              className="pl-3 pr-6 py-1.5 bg-slate-50 text-xs font-bold border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none max-w-[200px] truncate"
+                              className="pl-3 pr-6 py-1.5 bg-slate-50 dark:bg-slate-700 text-xs font-bold border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none max-w-[200px] truncate"
                               style={{ backgroundImage: 'none' }} 
                           >
                               <option value="all">All Vessels</option>
@@ -769,19 +773,20 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                   </div>
 
                   <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500" size={18} />
                       <input 
                         type="text" 
                         placeholder="Search B/L, Shipper..." 
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 bg-slate-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full pl-10 pr-4 py-2.5 bg-slate-100 dark:bg-slate-900 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
                       />
                   </div>
               </div>
+              
               <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-32 custom-scrollbar">
                   {filteredBLs.length === 0 ? (
-                      <div className="text-center text-slate-400 mt-10">No documents found.</div>
+                      <div className="text-center text-slate-400 dark:text-slate-500 mt-10">No documents found.</div>
                   ) : (
                       filteredBLs.map(bl => {
                           const docs = [
@@ -797,22 +802,22 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                           <div 
                             key={bl.id} 
                             onClick={() => handleOpenDetail(bl.id)}
-                            className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm active:scale-95 transition-transform"
+                            className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm active:scale-95 transition-transform"
                           >
                               <div className="flex justify-between items-start mb-2">
-                                  <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
+                                  <span className="text-[10px] font-bold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded">
                                       {bl.blNumber}
                                   </span>
                                   {bl.fileUrl && <ExternalLink size={14} className="text-blue-500" onClick={(e) => { e.stopPropagation(); window.open(bl.fileUrl, '_blank'); }} />}
                               </div>
-                              <h4 className="font-bold text-sm text-slate-800 mb-1 line-clamp-1">{bl.shipper}</h4>
-                              <p className="text-xs text-slate-500 mb-3 line-clamp-1">{bl.vesselName}</p>
+                              <h4 className="font-bold text-sm text-slate-800 dark:text-white mb-1 line-clamp-1">{bl.shipper}</h4>
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 line-clamp-1">{bl.vesselName}</p>
                               
                               <div className="flex gap-1.5 mt-2">
                                   {docs.map(doc => (
                                       <div 
                                           key={doc.id} 
-                                          className={`w-2 h-2 rounded-full ${doc.has ? doc.color : 'bg-slate-200'}`} 
+                                          className={`w-2 h-2 rounded-full ${doc.has ? doc.color : 'bg-slate-200 dark:bg-slate-700'}`} 
                                           title={doc.label}
                                       />
                                   ))}
@@ -829,9 +834,9 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                 {chatView === 'room' && (
                     <button 
                         onClick={handleCloseChatRoom} 
-                        className="absolute top-3 left-3 z-20 p-2 bg-white/80 backdrop-blur rounded-full shadow-sm top-safe-area"
+                        className="absolute top-3 left-3 z-30 p-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur rounded-full shadow-sm top-safe-area"
                     >
-                        <ArrowLeft size={20} className="text-slate-700"/>
+                        <ArrowLeft size={20} className="text-slate-700 dark:text-slate-200"/>
                     </button>
                 )}
                 <MobileChatView 
@@ -848,23 +853,23 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
       case 'settings':
         return (
             <div className="p-6 h-full overflow-y-auto custom-scrollbar pb-32 pt-safe-top">
-                <h2 className="font-bold text-xl text-slate-800 mb-6">Settings</h2>
-                <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden mb-6">
-                    <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-                        <span className="text-sm font-medium text-slate-700">Dark Mode</span>
+                <h2 className="font-bold text-xl text-slate-800 dark:text-white mb-6">Settings</h2>
+                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden mb-6">
+                    <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Dark Mode</span>
                         <button 
                             onClick={() => onUpdateSettings({...settings, theme: settings.theme === 'dark' ? 'light' : 'dark'})}
-                            className={`w-12 h-6 rounded-full transition-colors relative ${settings.theme === 'dark' ? 'bg-blue-600' : 'bg-slate-200'}`}
+                            className={`w-12 h-6 rounded-full transition-colors relative ${settings.theme === 'dark' ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-600'}`}
                         >
                             <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.theme === 'dark' ? 'left-7' : 'left-1'}`}></div>
                         </button>
                     </div>
-                    <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-                        <span className="text-sm font-medium text-slate-700">Language</span>
+                    <div className="p-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Language</span>
                         <select 
                             value={settings.language}
                             onChange={(e) => onUpdateSettings({...settings, language: e.target.value as any})}
-                            className="bg-slate-50 text-sm border-none rounded-lg p-2 text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+                            className="bg-slate-50 dark:bg-slate-700 text-sm border-none rounded-lg p-2 text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-blue-500"
                         >
                             <option value="ko">한국어</option>
                             <option value="en">English</option>
@@ -872,17 +877,17 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                         </select>
                     </div>
                     <div className="p-4 flex items-center justify-between">
-                        <span className="text-sm font-medium text-slate-700">View Mode</span>
-                        <div className="flex bg-slate-50 p-1 rounded-lg">
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300">View Mode</span>
+                        <div className="flex bg-slate-50 dark:bg-slate-700 p-1 rounded-lg">
                             <button 
                                 onClick={() => onUpdateSettings({...settings, viewMode: 'mobile'})}
-                                className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${settings.viewMode === 'mobile' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}
+                                className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${settings.viewMode === 'mobile' ? 'bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-300' : 'text-slate-500 dark:text-slate-400'}`}
                             >
                                 Mobile
                             </button>
                             <button 
                                 onClick={() => onUpdateSettings({...settings, viewMode: 'pc'})}
-                                className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${settings.viewMode === 'pc' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'}`}
+                                className={`px-4 py-1.5 text-xs font-bold rounded-md transition-all ${settings.viewMode === 'pc' ? 'bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-300' : 'text-slate-500 dark:text-slate-400'}`}
                             >
                                 PC
                             </button>
@@ -891,8 +896,8 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                 </div>
 
                 {user && (
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 mb-6 flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-slate-100 overflow-hidden flex-shrink-0 flex items-center justify-center border border-slate-200">
+                    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 p-4 mb-6 flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden flex-shrink-0 flex items-center justify-center border border-slate-200 dark:border-slate-600">
                             {user.photoURL ? (
                                 <img src={user.photoURL} alt={user.displayName || 'User'} className="w-full h-full object-cover" />
                             ) : (
@@ -900,19 +905,19 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                             )}
                         </div>
                         <div className="flex-1 min-w-0">
-                            <p className="font-bold text-slate-800 truncate text-sm">{user.displayName || 'User'}</p>
-                            <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                            <p className="font-bold text-slate-800 dark:text-white truncate text-sm">{user.displayName || 'User'}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{user.email}</p>
                         </div>
                     </div>
                 )}
 
                 <button 
                     onClick={onLogout}
-                    className="w-full py-3 bg-red-50 text-red-600 font-bold rounded-xl flex items-center justify-center gap-2 mb-8"
+                    className="w-full py-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 font-bold rounded-xl flex items-center justify-center gap-2 mb-8"
                 >
                     <LogOut size={18} /> Log Out
                 </button>
-                <p className="text-center text-xs text-slate-400 mt-auto pb-6">
+                <p className="text-center text-xs text-slate-400 dark:text-slate-600 mt-auto pb-6">
                     LOGI1 Mobile v1.0.0
                 </p>
             </div>
@@ -921,7 +926,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-slate-50 text-slate-900 overflow-hidden z-[100]">
+    <div className="fixed inset-0 flex flex-col bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 overflow-hidden z-[100]">
         <div className="flex-1 overflow-hidden relative w-full">
             {renderContent()}
         </div>
@@ -935,17 +940,17 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                     backdrop-blur-xl
                     rounded-full
                     shadow-sm
-                    border border-white/10
+                    border border-white/10 dark:border-white/5
                 ">
                     <button 
                         onClick={() => setCurrentView('cargo')} 
-                        className={`flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all duration-300 relative group ${currentView === 'cargo' ? 'scale-110' : 'hover:bg-white/20'}`}
+                        className={`flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all duration-300 relative group ${currentView === 'cargo' ? 'scale-110' : 'hover:bg-white/20 dark:hover:bg-white/10'}`}
                     >
-                        <div className={`absolute inset-0 bg-blue-500/10 rounded-full blur-md transition-opacity duration-300 ${currentView === 'cargo' ? 'opacity-100' : 'opacity-0'}`} />
+                        <div className={`absolute inset-0 bg-blue-500/10 dark:bg-blue-500/20 rounded-full blur-md transition-opacity duration-300 ${currentView === 'cargo' ? 'opacity-100' : 'opacity-0'}`} />
                         <ListIcon 
                             size={24} 
                             strokeWidth={currentView === 'cargo' ? 2.5 : 2} 
-                            className={`relative z-10 transition-colors duration-300 ${currentView === 'cargo' ? 'text-blue-600 fill-blue-600/10' : 'text-slate-500'}`} 
+                            className={`relative z-10 transition-colors duration-300 ${currentView === 'cargo' ? 'text-blue-600 dark:text-blue-400 fill-blue-600/10' : 'text-slate-500 dark:text-slate-400'}`} 
                         />
                     </button>
 
@@ -954,30 +959,30 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                             setCurrentView('chat');
                             if (onCheckMessages) onCheckMessages();
                         }}
-                        className={`flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all duration-300 relative group ${currentView === 'chat' ? 'scale-110' : 'hover:bg-white/20'}`}
+                        className={`flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all duration-300 relative group ${currentView === 'chat' ? 'scale-110' : 'hover:bg-white/20 dark:hover:bg-white/10'}`}
                     >
-                        <div className={`absolute inset-0 bg-blue-500/10 rounded-full blur-md transition-opacity duration-300 ${currentView === 'chat' ? 'opacity-100' : 'opacity-0'}`} />
+                        <div className={`absolute inset-0 bg-blue-500/10 dark:bg-blue-500/20 rounded-full blur-md transition-opacity duration-300 ${currentView === 'chat' ? 'opacity-100' : 'opacity-0'}`} />
                         <div className="relative z-10">
                             <MessageCircle 
                                 size={24} 
                                 strokeWidth={currentView === 'chat' ? 2.5 : 2}
-                                className={`transition-colors duration-300 ${currentView === 'chat' ? 'text-blue-600 fill-blue-600/10' : 'text-slate-500'}`} 
+                                className={`transition-colors duration-300 ${currentView === 'chat' ? 'text-blue-600 dark:text-blue-400 fill-blue-600/10' : 'text-slate-500 dark:text-slate-400'}`} 
                             />
                             {hasUnreadMessages && currentView !== 'chat' && (
-                                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-[#FF3B30] rounded-full border border-white shadow-sm animate-pulse"></span>
+                                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-[#FF3B30] rounded-full border border-white dark:border-black shadow-sm animate-pulse"></span>
                             )}
                         </div>
                     </button>
 
                     <button 
                         onClick={() => setCurrentView('settings')} 
-                        className={`flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all duration-300 relative group ${currentView === 'settings' ? 'scale-110' : 'hover:bg-white/20'}`}
+                        className={`flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all duration-300 relative group ${currentView === 'settings' ? 'scale-110' : 'hover:bg-white/20 dark:hover:bg-white/10'}`}
                     >
-                        <div className={`absolute inset-0 bg-blue-500/10 rounded-full blur-md transition-opacity duration-300 ${currentView === 'settings' ? 'opacity-100' : 'opacity-0'}`} />
+                        <div className={`absolute inset-0 bg-blue-500/10 dark:bg-blue-500/20 rounded-full blur-md transition-opacity duration-300 ${currentView === 'settings' ? 'opacity-100' : 'opacity-0'}`} />
                         <LayoutGrid 
                             size={24} 
                             strokeWidth={currentView === 'settings' ? 2.5 : 2}
-                            className={`relative z-10 transition-colors duration-300 ${currentView === 'settings' ? 'text-blue-600 fill-blue-600/10' : 'text-slate-500'}`} 
+                            className={`relative z-10 transition-colors duration-300 ${currentView === 'settings' ? 'text-blue-600 dark:text-blue-400 fill-blue-600/10' : 'text-slate-500 dark:text-slate-400'}`} 
                         />
                     </button>
                 </div>
