@@ -47,6 +47,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   const [typingUsers, setTypingUsers] = useState<string[]>([]); // Typing state
   const [unreadMap, setUnreadMap] = useState<Set<string>>(new Set()); // New: Unread Map for Dots
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showScrollDown, setShowScrollDown] = useState(false);
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null); // For maintaining focus
@@ -136,6 +137,22 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
       });
       return () => unsub();
   }, [view, activeChannel.id, user?.uid]);
+
+  const handleScroll = () => {
+      if (!scrollRef.current) return;
+      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      setShowScrollDown(distanceFromBottom > 150);
+  };
+
+  const scrollToBottom = () => {
+      if (scrollRef.current) {
+          scrollRef.current.scrollTo({
+              top: scrollRef.current.scrollHeight,
+              behavior: 'smooth'
+          });
+      }
+  };
 
   // Typing Handlers
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -329,8 +346,10 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
       );
   }
 
+  const getDateString = (ts: number) => new Date(ts).toLocaleDateString();
+
   return (
-      <div className="flex flex-col h-full bg-slate-100 overflow-hidden">
+      <div className="flex flex-col h-full bg-slate-100 overflow-hidden relative">
           <div className="p-3 bg-white border-b border-slate-200 shadow-sm flex items-center gap-3 z-10 shrink-0 safe-area-top">
               <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
                   {activeChannel.name.substring(0,2).toUpperCase()}
@@ -341,7 +360,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
               </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 custom-scrollbar" ref={scrollRef} style={{ WebkitOverflowScrolling: 'touch' }}>
+          <div className="flex-1 overflow-y-auto p-4 custom-scrollbar" ref={scrollRef} onScroll={handleScroll} style={{ WebkitOverflowScrolling: 'touch' }}>
               
               {/* Load More Button */}
               <div className="flex justify-center mb-4">
@@ -358,30 +377,43 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                       const isMe = msg.senderId === user?.uid;
                       const isRead = msg.readBy && msg.readBy.length > 1;
 
+                      const currentDate = getDateString(msg.timestamp);
+                      const prevDate = idx > 0 ? getDateString(messages[idx-1].timestamp) : null;
+                      const showDate = currentDate !== prevDate;
+
                       return (
-                          <div key={msg.id || idx} className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                              {!isMe && (
-                                  <div className="w-8 h-8 rounded-full bg-slate-200 flex-shrink-0 overflow-hidden mt-1">
-                                      {msg.senderPhoto ? <img src={msg.senderPhoto} alt="U" /> : <UserIcon className="w-full h-full p-1.5 text-slate-400"/>}
+                          <React.Fragment key={msg.id || idx}>
+                              {showDate && (
+                                  <div className="flex justify-center my-4">
+                                      <div className="bg-slate-200 text-slate-500 text-[10px] font-bold px-3 py-1 rounded-full">
+                                          {new Date(msg.timestamp).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
+                                      </div>
                                   </div>
                               )}
-                              <div className={`max-w-[80%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
-                                  {!isMe && <span className="text-[10px] text-slate-500 ml-1 mb-0.5">{msg.senderName}</span>}
-                                  <div className={`px-3 py-2 rounded-2xl text-sm shadow-sm ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white text-slate-800 rounded-tl-none'}`}>
-                                      {msg.text}
-                                  </div>
-                                  <div className="flex items-center gap-1 mt-1 px-1">
-                                      <span className="text-[10px] text-slate-400">
-                                          {new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
-                                      </span>
-                                      {isMe && (
-                                          <span className={`${isRead ? 'text-blue-500' : 'text-slate-300'}`}>
-                                              {isRead ? <CheckCheck size={12} /> : <Check size={12} />}
+                              <div className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                                  {!isMe && (
+                                      <div className="w-8 h-8 rounded-full bg-slate-200 flex-shrink-0 overflow-hidden mt-1">
+                                          {msg.senderPhoto ? <img src={msg.senderPhoto} alt="U" /> : <UserIcon className="w-full h-full p-1.5 text-slate-400"/>}
+                                      </div>
+                                  )}
+                                  <div className={`max-w-[80%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
+                                      {!isMe && <span className="text-[10px] text-slate-500 ml-1 mb-0.5">{msg.senderName}</span>}
+                                      <div className={`px-3 py-2 rounded-2xl text-sm shadow-sm ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white text-slate-800 rounded-tl-none'}`}>
+                                          {msg.text}
+                                      </div>
+                                      <div className="flex items-center gap-1 mt-1 px-1">
+                                          <span className="text-[10px] text-slate-400">
+                                              {new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
                                           </span>
-                                      )}
+                                          {isMe && (
+                                              <span className={`${isRead ? 'text-blue-500' : 'text-slate-300'}`}>
+                                                  {isRead ? <CheckCheck size={12} /> : <Check size={12} />}
+                                              </span>
+                                          )}
+                                      </div>
                                   </div>
                               </div>
-                          </div>
+                          </React.Fragment>
                       )
                   })}
 
@@ -402,6 +434,21 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                   )}
               </div>
           </div>
+
+          {/* Scroll to Bottom Button */}
+          <AnimatePresence>
+                {showScrollDown && (
+                    <motion.button
+                        initial={{ opacity: 0, scale: 0.8, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.8, y: 10 }}
+                        onClick={scrollToBottom}
+                        className="absolute bottom-20 left-1/2 -translate-x-1/2 w-10 h-10 bg-white/70 backdrop-blur-md rounded-full shadow-lg border border-slate-200 flex items-center justify-center text-blue-600 z-30 hover:bg-white/90 transition-colors"
+                    >
+                        <ChevronDown size={20} />
+                    </motion.button>
+                )}
+          </AnimatePresence>
 
           <div className="p-3 bg-white border-t border-slate-200 shrink-0 safe-area-bottom relative">
               <AnimatePresence>

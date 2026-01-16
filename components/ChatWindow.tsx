@@ -398,6 +398,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       if (window.confirm("Remove this friend from your list?")) { await dataService.removeContact(user.uid, friendUid); }
   };
 
+  const getDateString = (ts: number) => new Date(ts).toLocaleDateString();
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -531,41 +533,53 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                              messages.map((msg, index) => {
                                  const isMe = msg.senderId === user?.uid;
                                  const isRead = msg.readBy && msg.readBy.length > 1; 
+                                 
+                                 const currentDate = getDateString(msg.timestamp);
+                                 const prevDate = index > 0 ? getDateString(messages[index-1].timestamp) : null;
+                                 const showDate = currentDate !== prevDate;
 
                                  return (
-                                     <div 
-                                        key={msg.id || index} 
-                                        ref={(el) => {
-                                            if (el && msg.id) messageRefs.current.set(msg.id, el);
-                                        }}
-                                        className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end`}
-                                     >
-                                         {!isMe && (
-                                             <div className="w-6 h-6 rounded-full bg-white/80 dark:bg-slate-700 flex-shrink-0 overflow-hidden shadow-sm mb-1 ring-2 ring-white/20">
-                                                 {msg.senderPhoto ? <img src={msg.senderPhoto} alt="S" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-1 text-slate-500"/>}
+                                     <React.Fragment key={msg.id || index}>
+                                         {showDate && (
+                                             <div className="flex justify-center my-4">
+                                                 <div className="bg-slate-200/60 dark:bg-slate-700/60 text-slate-500 dark:text-slate-300 text-[10px] font-bold px-3 py-1 rounded-full backdrop-blur-sm">
+                                                     {new Date(msg.timestamp).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' })}
+                                                 </div>
                                              </div>
                                          )}
-                                         <div className={`max-w-[75%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                                             {!isMe && <span className="text-[9px] text-slate-500 dark:text-slate-400 ml-1 mb-0.5 font-bold">{msg.senderName}</span>}
-                                             <div className={`px-3 py-2 rounded-2xl text-sm shadow-sm backdrop-blur-md border border-white/10 relative ${
-                                                 isMe 
-                                                    ? 'bg-blue-600/90 text-white rounded-br-none' 
-                                                    : 'bg-white/60 dark:bg-slate-800/60 text-slate-800 dark:text-slate-100 rounded-bl-none'
-                                                 } ${msg.pending ? 'opacity-70' : ''}`}>
-                                                 {msg.text}
-                                             </div>
-                                             <div className="flex items-center gap-1 mt-0.5 px-1">
-                                                 <span className="text-[9px] text-slate-500/80 dark:text-slate-400/80 font-medium">
-                                                     {formatTime(msg.timestamp)}
-                                                 </span>
-                                                 {isMe && (
-                                                    <span className={`${isRead ? 'text-blue-500' : 'text-slate-400/70'}`}>
-                                                        {isRead ? <CheckCheck size={12} /> : <Check size={12} />}
-                                                    </span>
-                                                 )}
+                                         <div 
+                                            ref={(el) => {
+                                                if (el && msg.id) messageRefs.current.set(msg.id, el);
+                                            }}
+                                            className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end`}
+                                         >
+                                             {!isMe && (
+                                                 <div className="w-6 h-6 rounded-full bg-white/80 dark:bg-slate-700 flex-shrink-0 overflow-hidden shadow-sm mb-1 ring-2 ring-white/20">
+                                                     {msg.senderPhoto ? <img src={msg.senderPhoto} alt="S" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-1 text-slate-500"/>}
+                                                 </div>
+                                             )}
+                                             <div className={`max-w-[75%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                                                 {!isMe && <span className="text-[9px] text-slate-500 dark:text-slate-400 ml-1 mb-0.5 font-bold">{msg.senderName}</span>}
+                                                 <div className={`px-3 py-2 rounded-2xl text-sm shadow-sm backdrop-blur-md border border-white/10 relative ${
+                                                     isMe 
+                                                        ? 'bg-blue-600/90 text-white rounded-br-none' 
+                                                        : 'bg-white/60 dark:bg-slate-800/60 text-slate-800 dark:text-slate-100 rounded-bl-none'
+                                                     } ${msg.pending ? 'opacity-70' : ''}`}>
+                                                     {msg.text}
+                                                 </div>
+                                                 <div className="flex items-center gap-1 mt-0.5 px-1">
+                                                     <span className="text-[9px] text-slate-500/80 dark:text-slate-400/80 font-medium">
+                                                         {formatTime(msg.timestamp)}
+                                                     </span>
+                                                     {isMe && (
+                                                        <span className={`${isRead ? 'text-blue-500' : 'text-slate-400/70'}`}>
+                                                            {isRead ? <CheckCheck size={12} /> : <Check size={12} />}
+                                                        </span>
+                                                     )}
+                                                 </div>
                                              </div>
                                          </div>
-                                     </div>
+                                     </React.Fragment>
                                  );
                              })
                          )}
