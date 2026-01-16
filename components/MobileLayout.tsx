@@ -521,12 +521,12 @@ const MobileShipmentDetail = ({ bl, onClose }: { bl: BLData, onClose: () => void
 
   return (
     <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900 animate-fade-in fixed inset-0 z-[60]">
-      {/* Header */}
-      <div className="bg-white dark:bg-slate-800 px-4 py-3 shadow-sm border-b border-slate-200 dark:border-slate-700 flex items-center justify-between shrink-0 safe-area-top">
+      {/* Header - Liquid Glass */}
+      <div className="absolute top-0 left-0 right-0 z-20 px-4 py-3 bg-white/75 dark:bg-black/40 backdrop-blur-xl backdrop-saturate-150 border-b border-white/20 dark:border-white/10 shadow-sm flex items-center justify-between shrink-0 safe-area-top transition-all">
          <div className="flex items-center gap-3">
              <button 
                 onClick={onClose} 
-                className="p-2 -ml-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
+                className="p-2 -ml-2 text-slate-600 dark:text-slate-300 hover:bg-white/20 dark:hover:bg-white/10 rounded-full transition-colors"
              >
                 <ArrowLeft size={20} />
              </button>
@@ -535,12 +535,12 @@ const MobileShipmentDetail = ({ bl, onClose }: { bl: BLData, onClose: () => void
                 <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5 truncate max-w-[200px]">{bl.shipper}</p>
              </div>
          </div>
-         <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase whitespace-nowrap ${bl.sourceType === 'TRANSIT' ? 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300'}`}>
+         <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase whitespace-nowrap ${bl.sourceType === 'TRANSIT' ? 'bg-slate-100/50 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300' : 'bg-blue-100/50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300'}`}>
             {bl.sourceType}
          </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar pb-20">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar pb-20 pt-20">
          
          {/* 1. DOCUMENTS SECTION (Top Priority) */}
          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
@@ -748,16 +748,16 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
     switch(currentView) {
       case 'cargo':
         return (
-          <div className="flex flex-col h-full">
+          <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900">
               {/* Sticky Glass Header for Cargo */}
-              <div className="p-4 bg-white/75 dark:bg-black/40 backdrop-blur-xl border-b border-white/20 dark:border-white/10 pt-safe-top sticky top-0 z-20 shadow-sm">
+              <div className="absolute top-0 left-0 right-0 z-20 p-4 bg-white/75 dark:bg-black/40 backdrop-blur-xl backdrop-saturate-150 border-b border-white/20 dark:border-white/10 pt-safe-top shadow-sm transition-all">
                   <div className="flex justify-between items-center mb-3">
                       <h2 className="font-bold text-lg text-slate-800 dark:text-white">Cargo List</h2>
                       <div className="relative">
                           <select 
                               value={vesselFilter}
                               onChange={(e) => setVesselFilter(e.target.value)}
-                              className="pl-3 pr-6 py-1.5 bg-slate-50 dark:bg-slate-700 text-xs font-bold border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none max-w-[200px] truncate"
+                              className="pl-3 pr-6 py-1.5 bg-white/50 dark:bg-slate-700/50 text-xs font-bold border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none max-w-[200px] truncate backdrop-blur-sm"
                               style={{ backgroundImage: 'none' }} 
                           >
                               <option value="all">All Vessels</option>
@@ -779,12 +779,12 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                         placeholder="Search B/L, Shipper..." 
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 bg-slate-100 dark:bg-slate-900 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500"
+                        className="w-full pl-10 pr-4 py-2.5 bg-white/50 dark:bg-slate-800/50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 backdrop-blur-sm border border-white/20 dark:border-white/10"
                       />
                   </div>
               </div>
               
-              <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-32 custom-scrollbar">
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-32 pt-36 custom-scrollbar">
                   {filteredBLs.length === 0 ? (
                       <div className="text-center text-slate-400 dark:text-slate-500 mt-10">No documents found.</div>
                   ) : (
