@@ -520,9 +520,10 @@ const MobileShipmentDetail = ({ bl, onClose }: { bl: BLData, onClose: () => void
   ];
 
   return (
-    <div className="flex flex-col h-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl animate-fade-in fixed inset-0 z-[60]">
-      {/* Header - Liquid Glass */}
-      <div className="absolute top-0 left-0 right-0 z-20 px-4 py-3 bg-white/75 dark:bg-black/40 backdrop-blur-xl backdrop-saturate-150 border-b border-white/20 dark:border-white/10 shadow-sm flex items-center justify-between shrink-0 safe-area-top transition-all">
+    // Updated: More transparent background (60 opacity with blur)
+    <div className="flex flex-col h-full bg-slate-50/30 dark:bg-slate-900/30 backdrop-blur-2xl animate-fade-in fixed inset-0 z-[60]">
+      {/* Header - Transparent Glass (20% Opacity) */}
+      <div className="absolute top-0 left-0 right-0 z-20 px-4 py-3 bg-white/20 dark:bg-black/20 backdrop-blur-xl backdrop-saturate-150 border-b border-white/20 dark:border-white/10 shadow-sm flex items-center justify-between shrink-0 safe-area-top transition-all">
          <div className="flex items-center gap-3">
              <button 
                 onClick={onClose} 
@@ -542,17 +543,17 @@ const MobileShipmentDetail = ({ bl, onClose }: { bl: BLData, onClose: () => void
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar pb-20 pt-20">
          
-         {/* 1. DOCUMENTS SECTION (Top Priority) */}
-         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-700/50 flex items-center gap-2">
+         {/* 1. DOCUMENTS SECTION - Updated to Glass Card (60% Opacity) */}
+         <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-xl shadow-sm border border-white/20 dark:border-white/10 overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-100/50 dark:border-slate-700/50 bg-slate-50/30 dark:bg-slate-700/30 flex items-center gap-2">
                 <FileText size={16} className="text-slate-500 dark:text-slate-400"/>
                 <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Attached Documents</span>
             </div>
-            <div className="divide-y divide-slate-50 dark:divide-slate-700">
+            <div className="divide-y divide-slate-50/50 dark:divide-slate-700/50">
                {docs.map((doc, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                  <div key={idx} className="flex items-center justify-between p-3 hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors">
                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${doc.fileUrl ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-300 dark:text-slate-500'}`}>
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${doc.fileUrl ? 'bg-blue-100/80 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400' : 'bg-slate-100/80 dark:bg-slate-700/50 text-slate-300 dark:text-slate-500'}`}>
                            <FileText size={16} />
                         </div>
                         <span className={`text-sm font-bold ${doc.fileUrl ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500'}`}>
@@ -563,7 +564,7 @@ const MobileShipmentDetail = ({ bl, onClose }: { bl: BLData, onClose: () => void
                      {doc.fileUrl ? (
                         <button 
                             onClick={() => window.open(doc.fileUrl, '_blank')}
-                            className="p-2 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-lg transition-colors"
+                            className="p-2 text-blue-600 dark:text-blue-400 bg-blue-50/80 dark:bg-blue-900/40 hover:bg-blue-100/80 dark:hover:bg-blue-900/60 rounded-lg transition-colors"
                         >
                             <ExternalLink size={16} />
                         </button>
@@ -575,9 +576,9 @@ const MobileShipmentDetail = ({ bl, onClose }: { bl: BLData, onClose: () => void
             </div>
          </div>
 
-         {/* 2. LOGISTICS INFO */}
-         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-             <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-700/50 flex items-center gap-2">
+         {/* 2. LOGISTICS INFO - Glass Card */}
+         <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-xl shadow-sm border border-white/20 dark:border-white/10 overflow-hidden">
+             <div className="px-4 py-3 border-b border-slate-100/50 dark:border-slate-700/50 bg-slate-50/30 dark:bg-slate-700/30 flex items-center gap-2">
                 <Truck size={16} className="text-slate-500 dark:text-slate-400"/>
                 <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Logistics Info</span>
             </div>
@@ -605,23 +606,23 @@ const MobileShipmentDetail = ({ bl, onClose }: { bl: BLData, onClose: () => void
             </div>
          </div>
 
-         {/* 3. CARGO ITEMS */}
-         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-             <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-700/50 flex items-center gap-2">
+         {/* 3. CARGO ITEMS - Glass Card */}
+         <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-xl shadow-sm border border-white/20 dark:border-white/10 overflow-hidden">
+             <div className="px-4 py-3 border-b border-slate-100/50 dark:border-slate-700/50 bg-slate-50/30 dark:bg-slate-700/30 flex items-center gap-2">
                 <Box size={16} className="text-slate-500 dark:text-slate-400"/>
                 <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Cargo Items</span>
             </div>
-            <div className="divide-y divide-slate-100 dark:divide-slate-700">
+            <div className="divide-y divide-slate-100/50 dark:divide-slate-700/50">
                {bl.cargoItems.map((item, i) => (
                    <div key={i} className="p-4">
                        <div className="flex justify-between items-start mb-1">
                            <span className="font-bold text-slate-800 dark:text-slate-200 text-sm line-clamp-2">{item.description}</span>
-                           <span className="font-mono font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded text-xs whitespace-nowrap ml-2">
+                           <span className="font-mono font-bold text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/30 px-2 py-0.5 rounded text-xs whitespace-nowrap ml-2">
                                {item.quantity} {item.packageType}
                            </span>
                        </div>
                        <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-2 flex-wrap">
-                           {item.containerNo && <span className="bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-[10px] font-mono">{item.containerNo}</span>}
+                           {item.containerNo && <span className="bg-slate-100/50 dark:bg-slate-700/50 px-1.5 py-0.5 rounded text-[10px] font-mono">{item.containerNo}</span>}
                            <span>Weight: <strong className="text-slate-700 dark:text-slate-300">{item.grossWeight}</strong> kg</span>
                            <span>Vol: <strong className="text-slate-700 dark:text-slate-300">{item.measurement}</strong> CBM</span>
                        </div>
@@ -749,15 +750,15 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
       case 'cargo':
         return (
           <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900">
-              {/* Sticky Glass Header for Cargo */}
-              <div className="absolute top-0 left-0 right-0 z-20 p-4 bg-white/75 dark:bg-black/40 backdrop-blur-xl backdrop-saturate-150 border-b border-slate-200 dark:border-slate-700 pt-safe-top shadow-sm transition-all">
+              {/* Sticky Glass Header for Cargo - Updated Transparency */}
+              <div className="absolute top-0 left-0 right-0 z-20 p-4 bg-white/20 dark:bg-black/20 backdrop-blur-xl backdrop-saturate-150 border-b border-white/20 dark:border-white/10 pt-safe-top shadow-sm transition-all">
                   <div className="flex justify-between items-center mb-3">
                       <h2 className="font-bold text-lg text-slate-800 dark:text-white">Cargo List</h2>
                       <div className="relative">
                           <select 
                               value={vesselFilter}
                               onChange={(e) => setVesselFilter(e.target.value)}
-                              className="pl-3 pr-6 py-1.5 bg-white/50 dark:bg-slate-700/50 text-xs font-bold border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none max-w-[200px] truncate backdrop-blur-sm"
+                              className="pl-3 pr-6 py-1.5 bg-white/30 dark:bg-slate-700/30 text-xs font-bold border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none max-w-[200px] truncate backdrop-blur-sm"
                               style={{ backgroundImage: 'none' }} 
                           >
                               <option value="all">All Vessels</option>
@@ -779,7 +780,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                         placeholder="Search B/L, Shipper..." 
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 bg-white/50 dark:bg-slate-800/50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 backdrop-blur-sm border border-slate-300 dark:border-slate-600 shadow-sm"
+                        className="w-full pl-10 pr-4 py-2.5 bg-white/30 dark:bg-slate-800/30 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 backdrop-blur-sm border border-slate-300 dark:border-slate-600 shadow-sm"
                       />
                   </div>
               </div>
