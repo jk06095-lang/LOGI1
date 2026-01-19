@@ -414,6 +414,9 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
   // Resolve Assigned Job Name
   const assignedJob = jobs?.find(j => j.id === formData.vesselJobId);
 
+  // Calculate attached file count for badge
+  const attachmentCount = formData.attachments?.length || 0;
+
   useEffect(() => { setFormData(bl); }, [bl]);
 
   useEffect(() => {
@@ -1087,10 +1090,15 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
                           </h3>
                           <button 
                             onClick={() => setIsCloudManagerOpen(true)}
-                            className="p-1 hover:bg-blue-100 dark:hover:bg-slate-600 text-blue-600 dark:text-blue-400 rounded-md transition-colors"
+                            className="p-1.5 hover:bg-blue-100 dark:hover:bg-slate-600 text-blue-600 dark:text-blue-400 rounded-lg transition-colors relative group"
                             title="Cloud File Manager"
                           >
-                              <FolderPlus size={16} />
+                              <FolderPlus size={18} />
+                              {attachmentCount > 0 && (
+                                <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[9px] font-bold text-white shadow-sm ring-2 ring-white dark:ring-slate-800 animate-fade-in">
+                                    {attachmentCount}
+                                </span>
+                              )}
                           </button>
                       </div>
                       <div className="flex flex-col gap-3">

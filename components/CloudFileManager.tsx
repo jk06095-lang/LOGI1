@@ -1,8 +1,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Attachment } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, FileImage, X, Download, Trash2, Edit2, UploadCloud, FolderOpen, Check } from 'lucide-react';
+import { FileText, FileImage, FileSpreadsheet, X, Download, Trash2, Edit2, UploadCloud, FolderOpen, Check } from 'lucide-react';
 
 interface CloudFileManagerProps {
   isOpen: boolean;
@@ -175,10 +176,33 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
       return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
-  const getFileIcon = (type: string) => {
-      if (type.includes('image')) return <FileImage size={32} className="text-purple-500" />;
-      if (type.includes('pdf')) return <FileText size={32} className="text-red-500" />;
-      return <FileText size={32} className="text-blue-500" />;
+  const getFileIcon = (file: Attachment) => {
+      const type = (file.type || '').toLowerCase();
+      const name = (file.name || '').toLowerCase();
+
+      // Excel (Green)
+      if (type.includes('excel') || type.includes('spreadsheet') || type.includes('csv') || 
+          name.endsWith('.xlsx') || name.endsWith('.xls') || name.endsWith('.csv')) {
+          return <FileSpreadsheet size={32} className="text-emerald-600" />;
+      }
+      
+      // Word (Blue)
+      if (type.includes('word') || type.includes('document') || name.endsWith('.docx') || name.endsWith('.doc')) {
+          return <FileText size={32} className="text-blue-600" />;
+      }
+
+      // PDF (Red)
+      if (type.includes('pdf') || name.endsWith('.pdf')) {
+          return <FileText size={32} className="text-red-500" />;
+      }
+
+      // Image (Purple)
+      if (type.includes('image') || name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.png') || name.endsWith('.gif') || name.endsWith('.webp')) {
+          return <FileImage size={32} className="text-purple-500" />;
+      }
+
+      // Default (Generic File - Grey)
+      return <FileText size={32} className="text-slate-400" />;
   };
 
   return (
@@ -277,7 +301,7 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
                                     title={file.name}
                                 >
                                     <div className="w-16 h-16 flex items-center justify-center bg-white/80 dark:bg-slate-800/80 rounded-2xl shadow-sm group-hover:scale-105 transition-transform group-hover:shadow-md border border-white/30 dark:border-white/10 backdrop-blur-sm pointer-events-none">
-                                        {getFileIcon(file.type)}
+                                        {getFileIcon(file)}
                                     </div>
                                     
                                     {editingId === file.id ? (
@@ -307,12 +331,13 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
                 )}
             </div>
 
-            {/* Context Menu (Liquid Glass Style) */}
-            {contextMenu && (
+            {/* Context Menu - Rendered via Portal to escape overflow/transform clipping */}
+            {contextMenu && createPortal(
                 <div 
-                    className="fixed z-[9999] min-w-[160px] bg-white/80 dark:bg-slate-900/90 backdrop-blur-xl border border-white/40 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden animate-fade-in text-xs font-medium"
+                    className="fixed z-[9999] min-w-[160px] bg-white/90 dark:bg-slate-900/95 backdrop-blur-xl border border-white/40 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden animate-fade-in text-xs font-medium"
                     style={{ top: contextMenu.y, left: contextMenu.x }}
                     onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside
+                    onContextMenu={(e) => e.preventDefault()} // Prevent browser menu on custom menu
                 >
                     <div className="px-3 py-2 text-[10px] text-slate-500 uppercase font-bold border-b border-slate-200/50 dark:border-slate-700/50 mb-1 bg-white/20 dark:bg-black/20">
                         {selectedIds.length} Selected
@@ -342,7 +367,8 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
                     >
                         <Trash2 size={14} /> Delete
                     </button>
-                </div>
+                </div>,
+                document.body
             )}
         </motion.div>
       )}
