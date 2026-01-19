@@ -149,6 +149,8 @@ export interface BLData {
   remarks?: string; // Used for Main Detail Remarks
   reportRemarks?: string; // Legacy: Used for Report Remarks if needed, but mapped to Main Remarks now
   reportDescription?: string; // New: Custom description for Report View
+  reportTransporter?: string; // New: Report Override for Transporter
+  reportStorageLocation?: string; // New: Report Override for Storage/Location
   note?: string; // New: Additional Note column (비고)
   reportSortOrder?: number; // New: For persisting manual order in reports
 

@@ -1,4 +1,5 @@
 
+
 // ... (imports remain the same)
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { VesselJob, BLData, Language, CargoSourceType, ResourceLock } from '../types';
@@ -61,7 +62,7 @@ const translations = {
     reportHeaderWeight: '重量',
     reportHeaderVolume: '体积',
     reportHeaderBlCont: "B/L NO. 提单号\nCONT' /NO. 集装箱/号",
-    reportHeaderDocs: '문서현황',
+    reportHeaderDocs: '문서\n현황', // Updated with newline
     reportHeaderVessel: '본선명',
     reportHeaderType: 'TYPE',
     reportHeaderTransporter: 'TRANSPORTER',
@@ -884,72 +885,80 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
         });
 
         return jobBLs.map(bl => {
+           // Priority Logic: Active Local Edit -> Saved Override (in BL) -> Calculated/Default
            const edits = modifiedBLs[bl.id] || {};
-           const mergedBL = { ...bl, ...edits }; // User edits override BL data
-           const items = mergedBL.cargoItems || [];
+           
+           const items = bl.cargoItems || [];
            
            let totalQty = 0;
            let totalWeight = 0;
            let totalCbm = 0;
 
-           if (mergedBL.packingList && mergedBL.packingList.totalPackageCount) {
-               totalQty = mergedBL.packingList.totalPackageCount;
+           if (bl.packingList && bl.packingList.totalPackageCount) {
+               totalQty = bl.packingList.totalPackageCount;
            } else {
                totalQty = items.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0);
            }
 
-           if (mergedBL.packingList && mergedBL.packingList.totalGrossWeight) {
-               totalWeight = mergedBL.packingList.totalGrossWeight;
+           if (bl.packingList && bl.packingList.totalGrossWeight) {
+               totalWeight = bl.packingList.totalGrossWeight;
            } else {
                totalWeight = items.reduce((sum, i) => sum + (Number(i.grossWeight) || 0), 0);
            }
 
-           if (mergedBL.packingList && mergedBL.packingList.totalCbm) {
-                totalCbm = mergedBL.packingList.totalCbm;
+           if (bl.packingList && bl.packingList.totalCbm) {
+                totalCbm = bl.packingList.totalCbm;
            } else {
                 totalCbm = items.reduce((sum, i) => sum + (Number(i.measurement) || 0), 0);
            }
            
-           const location = mergedBL.storageLocation || mergedBL.arrivalNotice?.location || '';
            const containerList = items.map(i => i.containerNo ? `${i.containerNo}${i.containerType ? ` (${i.containerType})` : ''}` : '').filter(Boolean).join('\n');
 
-           const finalQty = edits.quantity !== undefined ? edits.quantity : totalQty;
-           const finalWeight = edits.grossWeight !== undefined ? edits.grossWeight : totalWeight;
-           const finalVolume = edits.volume !== undefined ? edits.volume : totalCbm;
-           const finalPkgType = edits.packageType || (items.length > 0 ? items[0].packageType : 'PKGS');
+           // PRIORITY CHAIN
+           const finalQty = edits.quantity !== undefined ? edits.quantity : (bl.quantity !== undefined ? bl.quantity : totalQty);
+           const finalWeight = edits.grossWeight !== undefined ? edits.grossWeight : (bl.grossWeight !== undefined ? bl.grossWeight : totalWeight);
+           const finalVolume = edits.volume !== undefined ? edits.volume : (bl.volume !== undefined ? bl.volume : totalCbm);
+           const finalPkgType = edits.packageType || bl.packageType || (items.length > 0 ? items[0].packageType : 'PKGS');
 
-           // Logic:
-           // Description: Defaults to first cargo item's description if reportDescription is empty.
-           // Edits go to `reportDescription` (which we handle via the `remarks` field in previous context or new `reportDescription` prop). 
-           // In this implementation, we use `mergedBL.reportDescription` which maps to the Description cell.
-           // Fallback: items[0].description.
-           const displayDescription = (mergedBL.reportDescription || (items.length > 0 ? items[0].description : '') || '').toString();
+           const displayDescription = (edits.reportDescription || bl.reportDescription || (items.length > 0 ? items[0].description : '') || '').toString();
+           
+           // Location: Edit > Report Override > Main Data > Arrival Notice
+           const location = (edits.reportStorageLocation || bl.reportStorageLocation || bl.storageLocation || bl.arrivalNotice?.location || '').toString();
+           
+           // Transporter: Edit > Report Override > Main Data
+           const transporter = (edits.reportTransporter || bl.reportTransporter || bl.transporterName || '').toString();
+           
+           // Remark: Edit > Report Override > Main Remark
+           const reportRemark = (edits.reportRemarks || bl.reportRemarks || bl.remarks || '').toString();
+
+           const note = (edits.note || bl.note || '').toString();
+           const forwarder = (edits.koreanForwarder || bl.koreanForwarder || '').toString();
+           const shipper = (edits.shipper || bl.shipper || '').toString();
 
            return {
              blId: bl.id,
              jobId: job.id,
              // ETA: Use BL Date (Cargo Arrival) or Arrival Notice ETA, fallback to Job ETA.
-             eta: mergedBL.date || mergedBL.arrivalNotice?.eta || job.eta, 
+             eta: bl.date || bl.arrivalNotice?.eta || job.eta, 
              jobVesselName: job.vesselName,
              jobVoyage: job.voyageNo,
-             blNumber: mergedBL.blNumber,
-             shipper: (mergedBL.shipper || '').toString(),
+             blNumber: bl.blNumber,
+             shipper: shipper,
              description: displayDescription, 
              quantity: finalQty,
              packageType: finalPkgType,
              grossWeight: finalWeight,
              volume: finalVolume,
              containerStr: containerList,
-             hasBL: !!mergedBL.fileUrl,
-             hasINV: !!mergedBL.commercialInvoice?.fileUrl,
-             hasPL: !!mergedBL.packingList?.fileUrl,
-             itemVesselName: (mergedBL.note || '').toString(),
-             typeAlias: getTypeAlias(mergedBL), 
-             koreanForwarder: (mergedBL.koreanForwarder || '').toString(),
-             transporter: (mergedBL.transporterName || '').toString(),
-             location: location.toString(),
-             // Remark Column: Maps to 'reportRemarks' (specific override) or `bl.remarks` (Main remark sync)
-             reportRemark: (mergedBL.reportRemarks || mergedBL.remarks || '').toString() 
+             hasBL: !!bl.fileUrl,
+             hasINV: !!bl.commercialInvoice?.fileUrl,
+             hasPL: !!bl.packingList?.fileUrl,
+             itemVesselName: note,
+             typeAlias: getTypeAlias(bl), 
+             koreanForwarder: forwarder,
+             transporter: transporter,
+             location: location,
+             reportRemark: reportRemark 
            };
         });
      });
@@ -1457,7 +1466,7 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
                                                             <input 
                                                                 className="flex-1 bg-transparent outline-none focus:bg-yellow-50 min-w-0"
                                                                 value={item.transporter}
-                                                                onChange={(e) => handleCellEdit(item.blId, 'transporterName', e.target.value)}
+                                                                onChange={(e) => handleCellEdit(item.blId, 'reportTransporter', e.target.value)}
                                                                 readOnly={isReadOnly}
                                                             />
                                                         </div>
@@ -1467,7 +1476,7 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
                                                 <td className="border border-black p-0 align-middle">
                                                     <AutoResizeTextarea 
                                                         value={item.location}
-                                                        onChange={(e) => handleCellEdit(item.blId, 'storageLocation', e.target.value)}
+                                                        onChange={(e) => handleCellEdit(item.blId, 'reportStorageLocation', e.target.value)}
                                                         readOnly={isReadOnly}
                                                         className="w-full h-full bg-transparent p-1 text-center focus:bg-yellow-50 outline-none text-[9px] break-words"
                                                     />

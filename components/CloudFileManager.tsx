@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Attachment } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, FileImage, X, Download, Trash2, Edit2, UploadCloud, FolderOpen } from 'lucide-react';
+import { FileText, FileImage, X, Download, Trash2, Edit2, UploadCloud, FolderOpen, Check } from 'lucide-react';
 
 interface CloudFileManagerProps {
   isOpen: boolean;
@@ -19,7 +19,8 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
   isOpen, onClose, attachments, onUpload, onDelete, onRename 
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
-  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, fileId: string } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; fileId: string | null } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   
@@ -33,7 +34,12 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
   useEffect(() => {
     const handleClick = () => setContextMenu(null);
     window.addEventListener('click', handleClick);
-    return () => window.removeEventListener('click', handleClick);
+    // Also close on resize/scroll to avoid floating menu detachment
+    window.addEventListener('resize', handleClick);
+    return () => {
+        window.removeEventListener('click', handleClick);
+        window.removeEventListener('resize', handleClick);
+    };
   }, []);
 
   // Handlers for Traffic Lights
@@ -65,9 +71,54 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
     }
   };
 
-  const handleContextMenu = (e: React.MouseEvent, fileId: string) => {
-      e.preventDefault();
+  const handleContainerClick = (e: React.MouseEvent) => {
+      // Clear selection only if clicking directly on the container background
+      if (e.target === containerRef.current) {
+          setSelectedIds([]);
+          setContextMenu(null);
+          if (editingId) {
+              handleSubmitRename();
+          }
+      }
+  };
+
+  const handleFileClick = (e: React.MouseEvent, fileId: string) => {
       e.stopPropagation();
+      // If editing another file, commit that edit first
+      if (editingId && editingId !== fileId) {
+          handleSubmitRename();
+      }
+
+      // Multi-selection logic
+      if (e.ctrlKey || e.metaKey) {
+          setSelectedIds(prev => {
+              if (prev.includes(fileId)) return prev.filter(id => id !== fileId);
+              return [...prev, fileId];
+          });
+      } else {
+          // Single selection (unless already editing this one)
+          if (editingId !== fileId) {
+              setSelectedIds([fileId]);
+          }
+      }
+  };
+
+  const handleFileDoubleClick = (e: React.MouseEvent, file: Attachment) => {
+      e.stopPropagation();
+      handleDownload(file);
+  };
+
+  // Critical: Context Menu Handler
+  const handleContextMenu = (e: React.MouseEvent, fileId: string) => {
+      e.preventDefault(); // Prevent browser default context menu
+      e.stopPropagation(); // Stop bubbling
+      
+      // Auto-select if right-clicked item is not in current selection
+      if (!selectedIds.includes(fileId)) {
+          setSelectedIds([fileId]);
+      }
+      
+      // Set coordinates for custom menu
       setContextMenu({ x: e.clientX, y: e.clientY, fileId });
   };
 
@@ -75,9 +126,28 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
       window.open(attachment.url, '_blank');
   };
 
-  const handleStartRename = (attachment: Attachment) => {
-      setEditingId(attachment.id);
-      setEditName(attachment.name);
+  const handleBulkDownload = () => {
+      const filesToDownload = attachments.filter(a => selectedIds.includes(a.id));
+      filesToDownload.forEach(file => {
+          // Trigger download in new tab/window
+          window.open(file.url, '_blank');
+      });
+      setContextMenu(null);
+  };
+
+  const handleStartRename = () => {
+      // We prioritize the file that was right-clicked if tracked in contextMenu, otherwise use single selection logic
+      const targetId = (contextMenu?.fileId && selectedIds.includes(contextMenu.fileId)) 
+          ? contextMenu.fileId 
+          : selectedIds[0];
+
+      if (targetId) {
+          const file = attachments.find(a => a.id === targetId);
+          if (file) {
+              setEditingId(file.id);
+              setEditName(file.name);
+          }
+      }
       setContextMenu(null);
   };
 
@@ -87,6 +157,14 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
           onRename(editingId, editName.trim());
       }
       setEditingId(null);
+  };
+
+  const handleBulkDelete = () => {
+      if (window.confirm(`Are you sure you want to delete ${selectedIds.length} item(s)?`)) {
+          selectedIds.forEach(id => onDelete(id));
+          setSelectedIds([]);
+      }
+      setContextMenu(null);
   };
 
   const formatSize = (bytes: number) => {
@@ -158,7 +236,7 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
             {/* Toolbar */}
             <div className="px-4 py-2 border-b border-white/10 flex justify-between items-center bg-white/5">
                 <div className="text-xs text-slate-600 dark:text-slate-300 font-medium ml-1">
-                    {attachments.length} Files
+                    {attachments.length} Files {selectedIds.length > 0 && <span className="text-blue-500 font-bold">({selectedIds.length} Selected)</span>}
                 </div>
                 <button 
                     onClick={() => fileInputRef.current?.click()}
@@ -172,6 +250,7 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
             {/* Content Grid */}
             <div 
                 ref={containerRef}
+                onClick={handleContainerClick}
                 className={`flex-1 overflow-y-auto p-6 relative transition-colors custom-scrollbar ${isDragOver ? 'bg-blue-500/10' : ''}`}
             >
                 {attachments.length === 0 ? (
@@ -181,72 +260,84 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
                     </div>
                 ) : (
                     <div className="grid grid-cols-4 sm:grid-cols-5 gap-4">
-                        {attachments.map(file => (
-                            <div 
-                                key={file.id}
-                                onContextMenu={(e) => handleContextMenu(e, file.id)}
-                                className="group flex flex-col items-center gap-2 p-3 rounded-2xl hover:bg-white/40 dark:hover:bg-black/40 transition-colors cursor-pointer relative"
-                                title={file.name}
-                                onClick={() => handleDownload(file)}
-                            >
-                                <div className="w-16 h-16 flex items-center justify-center bg-white/80 dark:bg-slate-800/80 rounded-2xl shadow-sm group-hover:scale-105 transition-transform group-hover:shadow-md border border-white/30 dark:border-white/10 backdrop-blur-sm">
-                                    {getFileIcon(file.type)}
-                                </div>
-                                
-                                {editingId === file.id ? (
-                                    <form onSubmit={handleSubmitRename} className="w-full" onClick={e => e.stopPropagation()}>
-                                        <input 
-                                            autoFocus
-                                            value={editName}
-                                            onChange={(e) => setEditName(e.target.value)}
-                                            onBlur={() => handleSubmitRename()}
-                                            className="w-full text-center text-xs bg-white dark:bg-black border border-blue-500 rounded px-1 py-0.5 outline-none"
-                                        />
-                                    </form>
-                                ) : (
-                                    <div className="text-center w-full">
-                                        <p className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate w-full px-1">{file.name}</p>
-                                        <p className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">{formatSize(file.size)}</p>
+                        {attachments.map(file => {
+                            const isSelected = selectedIds.includes(file.id);
+                            return (
+                                <div 
+                                    key={file.id}
+                                    onContextMenu={(e) => handleContextMenu(e, file.id)}
+                                    onClick={(e) => handleFileClick(e, file.id)}
+                                    onDoubleClick={(e) => handleFileDoubleClick(e, file)}
+                                    onPointerDown={(e) => e.stopPropagation()} // Prevent dragging the window when clicking a file
+                                    className={`group flex flex-col items-center gap-2 p-3 rounded-2xl transition-all cursor-pointer relative border ${
+                                        isSelected 
+                                        ? 'bg-blue-100/50 border-blue-500 dark:bg-blue-900/40 dark:border-blue-400 shadow-md ring-1 ring-blue-500/50' 
+                                        : 'border-transparent hover:bg-white/40 dark:hover:bg-black/40'
+                                    }`}
+                                    title={file.name}
+                                >
+                                    <div className="w-16 h-16 flex items-center justify-center bg-white/80 dark:bg-slate-800/80 rounded-2xl shadow-sm group-hover:scale-105 transition-transform group-hover:shadow-md border border-white/30 dark:border-white/10 backdrop-blur-sm pointer-events-none">
+                                        {getFileIcon(file.type)}
                                     </div>
-                                )}
-                            </div>
-                        ))}
+                                    
+                                    {editingId === file.id ? (
+                                        <form onSubmit={handleSubmitRename} className="w-full relative z-10" onClick={e => e.stopPropagation()}>
+                                            <input 
+                                                autoFocus
+                                                value={editName}
+                                                onChange={(e) => setEditName(e.target.value)}
+                                                onBlur={() => handleSubmitRename()}
+                                                className="w-full text-center text-xs bg-white dark:bg-black border border-blue-500 rounded px-1 py-0.5 outline-none shadow-sm text-slate-900 dark:text-white"
+                                            />
+                                        </form>
+                                    ) : (
+                                        <div className="text-center w-full">
+                                            <p className={`text-xs font-bold truncate w-full px-1 ${isSelected ? 'text-blue-700 dark:text-blue-200' : 'text-slate-700 dark:text-slate-200'}`}>
+                                                {file.name}
+                                            </p>
+                                            <p className={`text-[9px] font-medium ${isSelected ? 'text-blue-600 dark:text-blue-300' : 'text-slate-500 dark:text-slate-400'}`}>
+                                                {formatSize(file.size)}
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </div>
 
-            {/* Context Menu */}
+            {/* Context Menu (Liquid Glass Style) */}
             {contextMenu && (
                 <div 
-                    className="fixed z-[120] bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-xl shadow-2xl py-1 w-40 overflow-hidden text-xs font-medium"
+                    className="fixed z-[9999] min-w-[160px] bg-white/80 dark:bg-slate-900/90 backdrop-blur-xl border border-white/40 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden animate-fade-in text-xs font-medium"
                     style={{ top: contextMenu.y, left: contextMenu.x }}
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside
                 >
+                    <div className="px-3 py-2 text-[10px] text-slate-500 uppercase font-bold border-b border-slate-200/50 dark:border-slate-700/50 mb-1 bg-white/20 dark:bg-black/20">
+                        {selectedIds.length} Selected
+                    </div>
+                    
                     <button 
-                        onClick={() => {
-                            const f = attachments.find(a => a.id === contextMenu.fileId);
-                            if(f) handleDownload(f);
-                            setContextMenu(null);
-                        }} 
+                        onClick={handleBulkDownload} 
                         className="w-full text-left px-3 py-2 hover:bg-blue-500 hover:text-white dark:text-slate-200 flex items-center gap-2 transition-colors"
                     >
                         <Download size={14} /> Download
                     </button>
+                    
+                    {selectedIds.length === 1 && (
+                        <button 
+                            onClick={handleStartRename}
+                            className="w-full text-left px-3 py-2 hover:bg-blue-500 hover:text-white dark:text-slate-200 flex items-center gap-2 transition-colors"
+                        >
+                            <Edit2 size={14} /> Rename
+                        </button>
+                    )}
+                    
+                    <div className="h-px bg-slate-200/50 dark:bg-slate-700/50 my-1 mx-2"></div>
+                    
                     <button 
-                        onClick={() => {
-                            const f = attachments.find(a => a.id === contextMenu.fileId);
-                            if(f) handleStartRename(f);
-                        }}
-                        className="w-full text-left px-3 py-2 hover:bg-blue-500 hover:text-white dark:text-slate-200 flex items-center gap-2 transition-colors"
-                    >
-                        <Edit2 size={14} /> Rename
-                    </button>
-                    <div className="h-px bg-slate-200 dark:bg-slate-700 my-1"></div>
-                    <button 
-                        onClick={() => {
-                            onDelete(contextMenu.fileId);
-                            setContextMenu(null);
-                        }}
+                        onClick={handleBulkDelete}
                         className="w-full text-left px-3 py-2 hover:bg-red-500 hover:text-white text-red-500 flex items-center gap-2 transition-colors"
                     >
                         <Trash2 size={14} /> Delete
