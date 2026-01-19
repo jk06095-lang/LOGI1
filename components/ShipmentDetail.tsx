@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { BLData, Language, DocumentScanType, BLChecklist, CargoItem, BackgroundTask, ImportSubClass, VesselJob } from '../types';
-import { Save, Upload, FileText, ExternalLink, X, Trash2, Plus, BrainCircuit, Box, DollarSign, Loader2, Copy, Ship, Truck, CheckCircle2, CircleDashed, ArrowRight, MessageSquare, ChevronDown, Pencil, Check } from 'lucide-react';
+import { BLData, Language, DocumentScanType, BLChecklist, CargoItem, BackgroundTask, ImportSubClass, VesselJob, Attachment } from '../types';
+import { Save, Upload, FileText, ExternalLink, X, Trash2, Plus, BrainCircuit, Box, DollarSign, Loader2, Copy, Ship, Truck, CheckCircle2, CircleDashed, ArrowRight, MessageSquare, ChevronDown, Pencil, Check, FolderPlus } from 'lucide-react';
 import { parseDocument } from '../services/geminiService';
 import { uploadFileToStorage } from '../services/storageService';
 import { dataService } from '../services/dataService';
+import { CloudFileManager } from './CloudFileManager';
 
 interface ShipmentDetailProps {
   bl: BLData;
@@ -398,6 +399,9 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
   const [categories, setCategories] = useState<string[]>([]);
   const [isManualCategory, setIsManualCategory] = useState(false);
   const [headerCopied, setHeaderCopied] = useState(false);
+  
+  // Cloud File Manager State
+  const [isCloudManagerOpen, setIsCloudManagerOpen] = useState(false);
 
   // Category Dropdown State
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
@@ -523,6 +527,65 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
     } finally {
         setUploadingDoc(null);
     }
+  };
+
+  // --- Cloud File Manager Handlers ---
+
+  const handleGenericUpload = async (files: File[]) => {
+      const taskId = `cloud-upload-${Date.now()}`;
+      onAddTask({ id: taskId, title: `Uploading ${files.length} files...`, status: 'processing', progress: 0, message: 'Starting...' });
+      
+      const newAttachments: Attachment[] = [...(formData.attachments || [])];
+      let successCount = 0;
+
+      for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          try {
+              const url = await uploadFileToStorage(file);
+              newAttachments.push({
+                  id: Date.now().toString() + i,
+                  name: file.name,
+                  url: url,
+                  type: file.type,
+                  size: file.size,
+                  uploadDate: new Date().toISOString()
+              });
+              successCount++;
+              onUpdateTask(taskId, { progress: Math.round(((i + 1) / files.length) * 100) });
+          } catch (e) {
+              console.error(e);
+          }
+      }
+
+      if (successCount > 0) {
+          const updates = { attachments: newAttachments };
+          setFormData(prev => ({ ...prev, attachments: newAttachments }));
+          await onUpdateBL(bl.id, updates);
+          onUpdateTask(taskId, { status: 'success', message: 'Files uploaded' });
+      } else {
+          onUpdateTask(taskId, { status: 'error', message: 'Upload failed' });
+      }
+  };
+
+  const handleAttachmentDelete = async (attachmentId: string) => {
+      if(!window.confirm("Delete this file?")) return;
+      
+      const newAttachments = (formData.attachments || []).filter(a => a.id !== attachmentId);
+      const updates = { attachments: newAttachments };
+      
+      setFormData(prev => ({ ...prev, attachments: newAttachments }));
+      await onUpdateBL(bl.id, updates);
+  };
+
+  const handleAttachmentRename = async (attachmentId: string, newName: string) => {
+      const newAttachments = (formData.attachments || []).map(a => {
+          if (a.id === attachmentId) return { ...a, name: newName };
+          return a;
+      });
+      const updates = { attachments: newAttachments };
+      
+      setFormData(prev => ({ ...prev, attachments: newAttachments }));
+      await onUpdateBL(bl.id, updates);
   };
 
   const handleRunOCR = async (type: DocumentScanType, url: string) => {
@@ -671,7 +734,17 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
   }, [checklist, language]);
 
   return (
-    <div className="h-full flex flex-col bg-slate-100 dark:bg-slate-900 overflow-hidden">
+    <div className="h-full flex flex-col bg-slate-100 dark:bg-slate-900 overflow-hidden relative">
+       
+       <CloudFileManager 
+          isOpen={isCloudManagerOpen} 
+          onClose={() => setIsCloudManagerOpen(false)}
+          attachments={formData.attachments || []}
+          onUpload={handleGenericUpload}
+          onDelete={handleAttachmentDelete}
+          onRename={handleAttachmentRename}
+       />
+
        {/* Top Bar with B/L No and Classification */}
        <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-4 flex justify-between items-center shadow-sm z-10 flex-shrink-0">
           <div className="flex items-center gap-6">
@@ -696,13 +769,13 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
                       <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded-lg p-0.5 ml-2">
                          <button 
                             onClick={() => handleInputChange('blType', 'MASTER')} 
-                            className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all ${formData.blType === 'MASTER' ? 'bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-300' : 'text-slate-400'}`}
+                            className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all ${formData.blType === 'MASTER' ? 'bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-300' : 'text-slate-400'} `}
                          >
                             {t.master}
                          </button>
                          <button 
                             onClick={() => handleInputChange('blType', 'HOUSE')} 
-                            className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all ${formData.blType === 'HOUSE' ? 'bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-300' : 'text-slate-400'}`}
+                            className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all ${formData.blType === 'HOUSE' ? 'bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-300' : 'text-slate-400'} `}
                          >
                             {t.house}
                          </button>
@@ -1008,9 +1081,18 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
                   
                   {/* Documents Grid */}
                   <div className="bg-slate-50 dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-5">
-                      <h3 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest mb-4 flex items-center gap-2">
-                         <FileText size={16} /> {t.documents}
-                      </h3>
+                      <div className="flex justify-between items-center mb-4">
+                          <h3 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest flex items-center gap-2">
+                             <FileText size={16} /> {t.documents}
+                          </h3>
+                          <button 
+                            onClick={() => setIsCloudManagerOpen(true)}
+                            className="p-1 hover:bg-blue-100 dark:hover:bg-slate-600 text-blue-600 dark:text-blue-400 rounded-md transition-colors"
+                            title="Cloud File Manager"
+                          >
+                              <FolderPlus size={16} />
+                          </button>
+                      </div>
                       <div className="flex flex-col gap-3">
                           <DocSlot title="Bill of Lading" type="BL" fileUrl={formData.fileUrl} isUploading={uploadingDoc === 'BL'} onRunOCR={handleRunOCR} onRemove={handleFileRemove} onUpload={handleFileUpload} />
                           <DocSlot title={t.arrivalNotice} type="AN" fileUrl={formData.arrivalNotice?.fileUrl} isUploading={uploadingDoc === 'AN'} onRunOCR={handleRunOCR} onRemove={handleFileRemove} onUpload={handleFileUpload} />

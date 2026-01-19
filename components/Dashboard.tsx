@@ -1,14 +1,15 @@
 
+// ... (imports remain the same)
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { VesselJob, BLData, Language, CargoSourceType, ResourceLock } from '../types';
-import { Folder, Ship, Calendar as CalendarIcon, FileText, List, ChevronLeft, ChevronRight, Package, ArrowRight, Printer, PieChart, ArrowUpDown, ArrowUp, ArrowDown, ZoomIn, ZoomOut, Save, Layers, Home, Filter, X, Lock, Users, ChevronDown, Check, Waves, CloudRain, Edit2, GripVertical } from 'lucide-react';
+import { Folder, Ship, Calendar as CalendarIcon, FileText, List, ChevronLeft, ChevronRight, Package, ArrowRight, Printer, PieChart, ArrowUpDown, ArrowUp, ArrowDown, ZoomIn, ZoomOut, Save, Layers, Home, Filter, X, Lock, Users, ChevronDown, Check, Waves, CloudRain, Edit2, GripVertical, ChevronUp } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { auth } from '../lib/firebase';
 import { dataService } from '../services/dataService';
 import { fetchBusanWeather, WeatherData } from '../services/weatherService';
 import { motion, AnimatePresence } from "framer-motion";
 
-// --- Types ---
+// ... (Interfaces remain the same)
 interface DashboardProps {
   jobs: VesselJob[];
   bls: BLData[];
@@ -16,8 +17,8 @@ interface DashboardProps {
   language: Language;
   logoUrl?: string;
   onUpdateBL?: (blId: string, updates: Partial<BLData>) => Promise<void>;
-  onUpdateJob?: (jobId: string, updates: Partial<VesselJob>) => void; // Added for Drag n Drop
-  onOpenBriefing: (date: Date) => void; // Trigger for new tab
+  onUpdateJob?: (jobId: string, updates: Partial<VesselJob>) => void; 
+  onOpenBriefing: (date: Date) => void; 
   onUploadBLs?: (files: File[], sourceType: CargoSourceType) => void;
 }
 
@@ -31,6 +32,7 @@ interface BriefingReportProps {
 }
 
 const translations = {
+  // ... (Keep existing translations)
   ko: {
     title: '대시보드',
     subtitle: '전체 선박 업무 현황 및 화물 일정을 관리합니다.',
@@ -52,18 +54,19 @@ const translations = {
     totalItems: '총 건수 (Docs)',
     ton: '톤',
     noItems: '일정이 없습니다.',
-    reportHeaderNo: 'NO.',
-    reportHeaderEta: 'ETA',
-    reportHeaderVessel: 'VESSEL / VOYAGE',
-    reportHeaderShipper: 'SHIPPER',
-    reportHeaderTransporter: 'TRANSPORTER',
-    reportHeaderLocation: 'CY/CFS', // New
-    reportHeaderDesc: 'DESCRIPTION',
-    reportHeaderRemark: 'REMARKS',
-    reportHeaderNote: 'NOTE',
-    reportHeaderQty: 'QTY',
-    reportHeaderWeight: 'WEIGHT (KG)',
+    reportHeaderNo: 'NO',
+    reportHeaderEta: 'ETA\n到达日期',
+    reportHeaderShipperDesc: 'SHIPPER 托运人\nDESCRIPTION 物品',
+    reportHeaderQty: "Q'TY 数量",
+    reportHeaderWeight: '重量',
+    reportHeaderVolume: '体积',
+    reportHeaderBlCont: "B/L NO. 提单号\nCONT' /NO. 集装箱/号",
+    reportHeaderDocs: '문서현황',
+    reportHeaderVessel: '본선명',
     reportHeaderType: 'TYPE',
+    reportHeaderTransporter: 'TRANSPORTER',
+    reportHeaderWarehouse: '창고',
+    reportHeaderRemark: 'REMARK',
     back: '뒤로가기',
     copyLink: '공유 링크 복사',
     linkCopied: '복사됨!',
@@ -120,18 +123,19 @@ const translations = {
     totalItems: 'Total Docs',
     ton: 'ton',
     noItems: 'No items scheduled.',
-    reportHeaderNo: 'NO.',
+    reportHeaderNo: 'NO',
     reportHeaderEta: 'ETA',
-    reportHeaderVessel: 'VESSEL / VOYAGE',
-    reportHeaderShipper: 'SHIPPER',
-    reportHeaderTransporter: 'TRANSPORTER',
-    reportHeaderLocation: 'CY/CFS',
-    reportHeaderDesc: 'DESCRIPTION',
-    reportHeaderRemark: 'REMARKS',
-    reportHeaderNote: 'NOTE',
-    reportHeaderQty: 'QTY',
-    reportHeaderWeight: 'WEIGHT (KG)',
+    reportHeaderShipperDesc: 'SHIPPER\nDESCRIPTION',
+    reportHeaderQty: "Q'TY",
+    reportHeaderWeight: 'Weight',
+    reportHeaderVolume: 'Volume',
+    reportHeaderBlCont: "B/L NO.\nCONT' NO.",
+    reportHeaderDocs: 'Docs',
+    reportHeaderVessel: 'Vessel',
     reportHeaderType: 'TYPE',
+    reportHeaderTransporter: 'TRANSPORTER',
+    reportHeaderWarehouse: 'Warehouse',
+    reportHeaderRemark: 'REMARK',
     back: 'Back',
     copyLink: 'Copy Link',
     linkCopied: 'Copied!',
@@ -190,16 +194,17 @@ const translations = {
     noItems: '暂无计划。',
     reportHeaderNo: '序号',
     reportHeaderEta: '预计抵港',
-    reportHeaderVessel: '船名 / 航次',
-    reportHeaderShipper: '发货人',
-    reportHeaderTransporter: '运输公司',
-    reportHeaderLocation: '仓库/场站',
-    reportHeaderDesc: '货物名称与描述',
-    reportHeaderRemark: '备注',
-    reportHeaderNote: '笔记',
+    reportHeaderShipperDesc: '发货人/描述',
     reportHeaderQty: '数量',
-    reportHeaderWeight: '重量 (KG)',
+    reportHeaderWeight: '重量',
+    reportHeaderVolume: '体积',
+    reportHeaderBlCont: '提单/箱号',
+    reportHeaderDocs: '文档',
+    reportHeaderVessel: '船名',
     reportHeaderType: '类型',
+    reportHeaderTransporter: '运输公司',
+    reportHeaderWarehouse: '仓库',
+    reportHeaderRemark: '备注',
     back: '返回',
     copyLink: '复制链接',
     linkCopied: '已复制!',
@@ -237,23 +242,21 @@ const translations = {
   }
 };
 
-// Helper Component for Auto-Resizing Textarea
+// ... (AutoResizeTextarea remains the same)
 const AutoResizeTextarea = ({ value, onChange, className, placeholder, readOnly }: { value: string, onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void, className?: string, placeholder?: string, readOnly?: boolean }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (textareaRef.current) {
-      // Reset height to auto to get the correct scrollHeight for shrinking
       textareaRef.current.style.height = 'auto';
-      // Set height to scrollHeight to expand with a small buffer for descenders
-      textareaRef.current.style.height = (textareaRef.current.scrollHeight + 2) + 'px';
+      textareaRef.current.style.height = (textareaRef.current.scrollHeight) + 'px';
     }
   }, [value]);
 
   return (
     <textarea
       ref={textareaRef}
-      value={value}
+      value={value ?? ''}
       onChange={onChange}
       className={`${className} overflow-hidden resize-none font-sans`} 
       placeholder={placeholder}
@@ -263,19 +266,20 @@ const AutoResizeTextarea = ({ value, onChange, className, placeholder, readOnly 
   );
 };
 
+// ... (Dashboard Component Logic remains largely same, just referencing it)
 export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, language, onOpenBriefing, onUpdateJob }) => {
+  // ... (dashboard implementation same as previous)
   const t = translations[language];
   const [currentDate, setCurrentDate] = useState(new Date());
+  // ... (rest of dashboard logic)
   const [selectedDateForModal, setSelectedDateForModal] = useState<string | null>(null);
   const [weatherData, setWeatherData] = useState<Record<string, WeatherData>>({});
-  const [isEditing, setIsEditing] = useState(false); // Edit Mode State
+  const [isEditing, setIsEditing] = useState(false); 
   const dragHighlightRef = useRef<HTMLDivElement | null>(null);
-  const snapshotRef = useRef<VesselJob[]>([]); // Snapshot for Undo functionality
+  const snapshotRef = useRef<VesselJob[]>([]); 
 
-  // Today's date for highlighting
   const today = useMemo(() => new Date(), []);
 
-  // Fetch weather when currentDate (month) changes
   useEffect(() => {
     const loadWeather = async () => {
         const data = await fetchBusanWeather(currentDate.getFullYear(), currentDate.getMonth());
@@ -311,14 +315,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
       return { eta, etd };
   };
 
-  // Drag Handlers
-  const handleDragStart = () => {
-      // Potentially disable scroll or add global class
-  };
+  const handleDragStart = () => {};
 
   const handleDrag = (event: any, info: any) => {
-      // Highlight the drop zone efficiently using DOM manipulation (avoiding state re-renders)
-      // This requires the underlying elements to have a way to be identified
       const elements = document.elementsFromPoint(info.point.x, info.point.y);
       const cell = elements.find(el => el.hasAttribute('data-date')) as HTMLDivElement | undefined;
       
@@ -334,7 +333,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
   };
 
   const handleDragEnd = (event: any, info: any, job: VesselJob, type: 'eta' | 'etd') => {
-      // Clear highlights
       if (dragHighlightRef.current) {
           dragHighlightRef.current.classList.remove('bg-blue-100', 'dark:bg-blue-800/50', 'ring-2', 'ring-blue-400');
           dragHighlightRef.current = null;
@@ -360,19 +358,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
       }
   };
 
-  // Logic to Enter Edit Mode with Snapshot
   const handleEnterEditMode = () => {
       snapshotRef.current = JSON.parse(JSON.stringify(jobs));
       setIsEditing(true);
   };
 
-  // Save changes (just exit mode, as changes are real-time)
   const handleSaveEdit = () => {
       setIsEditing(false);
       snapshotRef.current = [];
   };
 
-  // Cancel changes (revert using snapshot)
   const handleCancelEdit = () => {
       if (onUpdateJob && snapshotRef.current.length > 0) {
           jobs.forEach(currentJob => {
@@ -400,16 +395,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
       snapshotRef.current = [];
   };
 
-  // Sophisticated Jiggle Animation (Subtle Vibration)
   const jiggleVariant = {
       animate: {
-          rotate: [-0.5, 0.5], // Reduced angle for sophisticated tremble
+          rotate: [-0.5, 0.5], 
           transition: {
-              duration: 0.15, // Fast frequency
+              duration: 0.15, 
               repeat: Infinity,
-              repeatType: "mirror" as const, // Smooth ping-pong
+              repeatType: "mirror" as const, 
               ease: "easeInOut",
-              // Random delay so they don't all jiggle in sync
               delay: Math.random() * 0.1
           }
       },
@@ -430,7 +423,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
        return (
          <motion.div
            key={`${type}-${job.id}`}
-           layoutId={`${type}-${job.id}`} // Magic Move
+           layoutId={`${type}-${job.id}`} 
            drag={isEditing}
            dragSnapToOrigin
            whileDrag={{ scale: 1.05, zIndex: 50, opacity: 0.9, rotate: 0 }}
@@ -462,7 +455,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
               )}
            </div>
            
-           {/* Edit Indicator */}
            {isEditing && (
                <div className="absolute -top-1.5 -right-1.5 bg-slate-400 text-white rounded-full p-0.5 shadow-sm z-10 animate-bounce">
                    <GripVertical size={8} />
@@ -483,11 +475,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
       const allDayJobs = [...eta.map(j => ({...j, _type: 'eta' as const})), ...etd.map(j => ({...j, _type: 'etd' as const}))];
       const hasJobs = allDayJobs.length > 0;
       
-      const MAX_DISPLAY = 4; // Increased for better visibility in edit mode if needed
+      const MAX_DISPLAY = 4; 
       const displayJobs = allDayJobs.slice(0, MAX_DISPLAY);
       const remainingCount = allDayJobs.length - MAX_DISPLAY;
 
-      // Check if this cell represents today
       const isToday = today.getFullYear() === currentDate.getFullYear() &&
                       today.getMonth() === currentDate.getMonth() &&
                       today.getDate() === d;
@@ -497,7 +488,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
       dayCells.push(
         <div 
             key={d} 
-            data-date={dateStr} // Droppable target
+            data-date={dateStr}
             onClick={() => !isEditing && hasJobs && setSelectedDateForModal(dateStr)}
             className={`min-h-[8rem] border p-2 relative group transition-colors calendar-day-cell
                 ${isToday 
@@ -513,10 +504,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
                   </span>
                   {w && (
                       <div className="flex items-center gap-1.5 text-[9px] font-medium bg-slate-100 dark:bg-slate-700/50 px-1.5 py-0.5 rounded-md" title="부산 앞바다 08:00 기준">
-                          {/* Rain Icon */}
                           {w.precipitation > 0 && <CloudRain size={10} className="text-slate-500 dark:text-slate-400" />}
-                          
-                          {/* Wave Icon with Conditional Color */}
                           <span className={`flex items-center gap-0.5 ${w.waveHeight > 1.5 ? 'text-red-500 font-bold' : w.waveHeight > 1.0 ? 'text-amber-500 font-bold' : 'text-blue-500 dark:text-blue-400'}`}>
                               <Waves size={10} /> {w.waveHeight}m
                           </span>
@@ -558,6 +546,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
           </div>
        </div>
 
+       {/* ... (Metrics Cards) ... */}
        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-4">
              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg">
@@ -602,7 +591,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
                     )}
                 </div>
                 
-                {/* Legend */}
                 <div className="flex items-center gap-4 mt-2">
                    <div className="flex items-center gap-1.5">
                       <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
@@ -620,7 +608,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
              </div>
              
              <div className="flex items-center gap-4 self-end md:self-auto">
-                 {/* Smart Edit Toggle with Cancel */}
                  {!isEditing ? (
                      <button 
                         onClick={handleEnterEditMode} 
@@ -667,7 +654,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
           <div className="p-6">
              <div className="grid grid-cols-7 gap-px bg-slate-200 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
                 {t.days.map((d: string) => (
-                   <div key={d} className="bg-slate-50 dark:bg-slate-800 p-2 text-center text-xs font-bold text-slate-500 uppercase tracking-wide">
+                   <div key={d} className="bg-slate-50 dark:bg-slate-800 p-2 text-center text-xs font-bold text-slate-50 uppercase tracking-wide">
                       {d}
                    </div>
                 ))}
@@ -676,7 +663,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
           </div>
        </div>
        
-       {/* Modal for Date Details */}
        {selectedDateForModal && createPortal(
          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setSelectedDateForModal(null)}>
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-fade-in-up" onClick={e => e.stopPropagation()}>
@@ -696,12 +682,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
                                     <div className="bg-slate-50 dark:bg-slate-700/30 p-3 rounded-lg border border-slate-100 dark:border-slate-700 mb-4">
                                         <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">기상 정보 (08:00 기준)</h4>
                                         <div className="flex items-center gap-4 text-sm font-medium text-slate-700 dark:text-slate-200">
-                                            {/* Wave Height with Color Logic - UPDATED: Amber > 1.0, Red > 1.5 */}
                                             <span className={`flex items-center gap-1.5 ${w.waveHeight > 1.5 ? 'text-red-500 font-bold' : w.waveHeight > 1.0 ? 'text-amber-500 font-bold' : 'text-blue-500'}`}>
                                                 <Waves size={16} /> 파고: {w.waveHeight}m
                                             </span>
-                                            
-                                            {/* Rain Indicator */}
                                             {w.precipitation > 0 && (
                                                 <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
                                                     <CloudRain size={16} /> 우천 (강수량: {w.precipitation}mm)
@@ -743,30 +726,17 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
   const t = translations[language];
   const [currentDate, setCurrentDate] = useState(new Date(initialDate));
   const [briefingPeriod, setBriefingPeriod] = useState<'week' | 'month'>('month');
-  const [reportMode, setReportMode] = useState<'general' | 'report'>('general');
   const [zoomLevel, setZoomLevel] = useState(1);
   const [isSaving, setIsSaving] = useState(false);
-  
-  // Vessel Filtering (Multi-Select)
   const [selectedVesselIds, setSelectedVesselIds] = useState<string[]>([]);
   const [isVesselDropdownOpen, setIsVesselDropdownOpen] = useState(false);
   const vesselDropdownRef = useRef<HTMLDivElement>(null);
-
-  // Locking State
   const [lockData, setLockData] = useState<ResourceLock | null>(null);
   const [isReadOnly, setIsReadOnly] = useState(false);
-  const lockHeartbeatRef = useRef<number | null>(null);
-
-  // Consolidated Editable State for Full Table Editing
   const [modifiedBLs, setModifiedBLs] = useState<Record<string, Partial<BLData>>>({});
+  const [customOrder, setCustomOrder] = useState<Record<string, string[]>>({});
 
-  // Resizable Columns
-  const [colWidths, setColWidths] = useState({
-    no: 30, type: 50, shipper: 110, transporter: 100, location: 80, qty: 80, weight: 90, desc: 180, note: 120, remark: 120
-  });
-  const resizingRef = useRef<{ col: keyof typeof colWidths | null, startX: number, startWidth: number }>({ col: null, startX: 0, startWidth: 0 });
-
-  // Click Outside Handler for Vessel Dropdown
+  // ... (rest of effects same as before) ...
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (vesselDropdownRef.current && !vesselDropdownRef.current.contains(event.target as Node)) {
@@ -779,61 +749,46 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
     };
   }, []);
 
-  // Generate a Lock ID based on period
   const lockId = useMemo(() => {
       const d = currentDate;
       const periodKey = briefingPeriod === 'month' 
           ? `month-${d.getFullYear()}-${d.getMonth() + 1}`
-          : `week-${d.getFullYear()}-w${Math.ceil(d.getDate() / 7)}`; // Simplified week key
+          : `week-${d.getFullYear()}-w${Math.ceil(d.getDate() / 7)}`;
       return `briefing-${periodKey}`;
   }, [currentDate, briefingPeriod]);
 
-  // Handle Locking
   useEffect(() => {
-     // 1. Subscribe to lock changes
      const unsub = dataService.subscribeLock(lockId, (lock) => {
          setLockData(lock);
          const currentUser = auth.currentUser;
-         
          if (lock && lock.userId !== currentUser?.uid) {
-             // Locked by someone else
-             // Check if stale (older than 30s)
              if (Date.now() - lock.timestamp > 30000) {
-                 // Stale lock, we can ignore or auto-acquire, but for safety lets show read only but allow force
                  setIsReadOnly(true); 
              } else {
                  setIsReadOnly(true);
              }
          } else {
-             // Not locked, or locked by me
              setIsReadOnly(false);
              if (!lock && currentUser) {
-                 // Auto-acquire if null
                  dataService.acquireLock(lockId, currentUser);
              }
          }
      });
 
-     // 2. Heartbeat if I hold the lock
      const heartbeat = window.setInterval(() => {
          const currentUser = auth.currentUser;
          if (lockData && lockData.userId === currentUser?.uid) {
              dataService.maintainLock(lockId);
          } else if (!lockData && currentUser && !isReadOnly) {
-             // Try to re-acquire if lost and not read-only
              dataService.acquireLock(lockId, currentUser);
          }
-     }, 10000); // 10s heartbeat
+     }, 10000); 
 
      return () => {
          unsub();
          clearInterval(heartbeat);
-         // Attempt release on unmount if we own it
-         const currentUser = auth.currentUser;
-         // We can't easily check state in cleanup, but we can try generic release if we know we had it
-         // This is imperfect in React 18 strict mode but good enough for typical use
      };
-  }, [lockId, isReadOnly]); // Dependency on lockId changes context
+  }, [lockId, isReadOnly]); 
 
   const handleForceEdit = () => {
       if (confirm("Are you sure? This may overwrite other user's work.")) {
@@ -844,31 +799,12 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
       }
   };
 
-  const handleMouseDown = (e: React.MouseEvent, col: keyof typeof colWidths) => {
-    e.preventDefault();
-    resizingRef.current = { col, startX: e.clientX, startWidth: colWidths[col] };
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  };
-
-  const handleMouseMove = (e: MouseEvent) => {
-    if (!resizingRef.current.col) return;
-    const diff = (e.clientX - resizingRef.current.startX) * (1/zoomLevel); 
-    setColWidths(prev => ({ ...prev, [resizingRef.current.col!]: Math.max(30, resizingRef.current.startWidth + diff) }));
-  };
-
-  const handleMouseUp = () => {
-    resizingRef.current.col = null;
-    document.removeEventListener('mousemove', handleMouseMove);
-    document.removeEventListener('mouseup', handleMouseUp);
-  };
-
   const handlePrev = () => {
     const d = new Date(currentDate);
     if(briefingPeriod === 'month') d.setMonth(d.getMonth() - 1);
     else d.setDate(d.getDate() - 7);
     setCurrentDate(d);
-    setModifiedBLs({}); // Reset edits on navigation
+    setModifiedBLs({}); 
   };
   
   const handleNext = () => {
@@ -879,18 +815,14 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
     setModifiedBLs({});
   };
 
-  // Get Briefing Jobs (Filtered by Date AND Vessel Selection)
   const getFilteredJobs = () => {
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth();
-    
     let filtered = jobs;
-    
-    // Date Filter
     if (briefingPeriod === 'month') {
       filtered = filtered.filter(job => {
         const jobDate = new Date(job.eta);
-        return jobDate.getFullYear() === currentYear && jobDate.getMonth() === currentMonth;
+        return !isNaN(jobDate.getTime()) && jobDate.getFullYear() === currentYear && jobDate.getMonth() === currentMonth;
       });
     } else {
       const start = new Date(currentDate);
@@ -898,240 +830,296 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
       end.setDate(end.getDate() + 7);
       filtered = filtered.filter(job => {
         const d = new Date(job.eta);
-        return d >= start && d <= end;
+        return !isNaN(d.getTime()) && d >= start && d <= end;
       });
     }
-
-    // Vessel Filter (Multi-Select)
     if (selectedVesselIds.length > 0) {
         filtered = filtered.filter(job => selectedVesselIds.includes(job.id));
     }
+    // Added Sort: ETA Ascending
+    filtered.sort((a, b) => new Date(a.eta).getTime() - new Date(b.eta).getTime());
+    
     return filtered;
   };
 
   const briefingJobs = getFilteredJobs();
 
-  // Handle Vessel Selection Toggle
   const toggleVesselSelection = (jobId: string) => {
-      setSelectedVesselIds(prev => {
-          if (prev.includes(jobId)) {
-              return prev.filter(id => id !== jobId);
-          } else {
-              return [...prev, jobId];
-          }
-      });
+      setSelectedVesselIds(prev => prev.includes(jobId) ? prev.filter(id => id !== jobId) : [...prev, jobId]);
   };
 
-  const toggleAllVessels = () => {
-      setSelectedVesselIds([]); // Empty array means "All"
-  };
+  const toggleAllVessels = () => setSelectedVesselIds([]);
 
-  // Alias Helper Function
   const getTypeAlias = (bl: BLData): string => {
       if (bl.sourceType === 'FISCO') return '직납';
       if (bl.sourceType === 'THIRD_PARTY') return '3RD';
       if (bl.importSubClass === 'SHIPS_STORES') return '선용품';
       if (bl.importSubClass === 'RETURN_EXPORT') return '반송 수출';
       if (bl.cargoClass === 'IMPORT') return 'I';
-      if (bl.cargoClass === 'TRANSHIPMENT') return 'T';
       return 'T'; 
   };
 
-  // Generic Edit Handler
-  const handleCellEdit = (blId: string, field: keyof BLData | 'quantity' | 'grossWeight', value: any) => {
+  const handleCellEdit = (blId: string, field: string, value: any) => {
       if (isReadOnly) return;
-      
-      setModifiedBLs(prev => {
-          const currentEdits = prev[blId] || {};
-          // Special handling for nested fields if needed, but for now we map flat overrides
-          if (field === 'quantity') {
-             // We can't easily update nested cargoItems array cleanly in a simple map without index.
-             // For this Briefing view, we will assume we are updating the PackingList total if exists, or just storing a temporary Override
-             // To properly support "All Columns", we really should update the `packingList` or `cargoItems`.
-             // Simplification: We will store these in the 'packingList' object in the update payload for simplicity as it overrides items
-             return {
-                 ...prev,
-                 [blId]: {
-                     ...currentEdits,
-                     packingList: { 
-                        totalPackageCount: Number(value),
-                        totalCbm: 0, // Preserve others if we had full object, but here we construct partial
-                        totalGrossWeight: currentEdits.packingList?.totalGrossWeight || 0
-                     } as any 
-                 }
-             };
-          } else if (field === 'grossWeight') {
-             return {
-                 ...prev,
-                 [blId]: {
-                     ...currentEdits,
-                     packingList: {
-                        totalPackageCount: currentEdits.packingList?.totalPackageCount || 0,
-                        totalCbm: 0,
-                        totalGrossWeight: Number(value)
-                     } as any
-                 }
-             };
-          }
-          
-          return {
-              ...prev,
-              [blId]: { ...currentEdits, [field]: value }
-          };
-      });
+      setModifiedBLs(prev => ({
+          ...prev,
+          [blId]: { ...(prev[blId] || {}), [field]: value }
+      }));
   };
 
+  // Improved to prioritize modifications and SORT ORDER
   const getBriefingSummaries = (filteredJobs: VesselJob[]) => {
      return filteredJobs.flatMap(job => {
         const jobBLs = bls.filter(bl => bl.vesselJobId === job.id);
-        return jobBLs.map(bl => {
-           // Apply Overrides from modifiedBLs
-           const edits = modifiedBLs[bl.id] || {};
-           const mergedBL = { ...bl, ...edits };
+        
+        // Sort BLs inside the job by reportSortOrder, then Shipper
+        jobBLs.sort((a, b) => {
+            const orderA = a.reportSortOrder ?? Number.MAX_SAFE_INTEGER;
+            const orderB = b.reportSortOrder ?? Number.MAX_SAFE_INTEGER;
+            
+            if (orderA !== orderB) {
+                return orderA - orderB;
+            }
+            return a.shipper.localeCompare(b.shipper);
+        });
 
+        return jobBLs.map(bl => {
+           const edits = modifiedBLs[bl.id] || {};
+           const mergedBL = { ...bl, ...edits }; // User edits override BL data
            const items = mergedBL.cargoItems || [];
            
            let totalQty = 0;
-           // Check if we have an edit in packingList first (from handleCellEdit special case)
-           if (edits.packingList?.totalPackageCount) {
-               totalQty = edits.packingList.totalPackageCount;
-           } else if (mergedBL.packingList && typeof mergedBL.packingList.totalPackageCount === 'number' && mergedBL.packingList.totalPackageCount > 0) {
+           let totalWeight = 0;
+           let totalCbm = 0;
+
+           if (mergedBL.packingList && mergedBL.packingList.totalPackageCount) {
                totalQty = mergedBL.packingList.totalPackageCount;
            } else {
                totalQty = items.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0);
            }
 
-           let totalWeight = 0;
-           if (edits.packingList?.totalGrossWeight) {
-               totalWeight = edits.packingList.totalGrossWeight;
-           } else if (mergedBL.packingList && typeof mergedBL.packingList.totalGrossWeight === 'number' && mergedBL.packingList.totalGrossWeight > 0) {
+           if (mergedBL.packingList && mergedBL.packingList.totalGrossWeight) {
                totalWeight = mergedBL.packingList.totalGrossWeight;
            } else {
                totalWeight = items.reduce((sum, i) => sum + (Number(i.grossWeight) || 0), 0);
            }
+
+           if (mergedBL.packingList && mergedBL.packingList.totalCbm) {
+                totalCbm = mergedBL.packingList.totalCbm;
+           } else {
+                totalCbm = items.reduce((sum, i) => sum + (Number(i.measurement) || 0), 0);
+           }
            
-           const displayDesc = mergedBL.remarks || (items.length > 0 ? items[0].description : '-');
            const location = mergedBL.storageLocation || mergedBL.arrivalNotice?.location || '';
+           const containerList = items.map(i => i.containerNo ? `${i.containerNo}${i.containerType ? ` (${i.containerType})` : ''}` : '').filter(Boolean).join('\n');
+
+           const finalQty = edits.quantity !== undefined ? edits.quantity : totalQty;
+           const finalWeight = edits.grossWeight !== undefined ? edits.grossWeight : totalWeight;
+           const finalVolume = edits.volume !== undefined ? edits.volume : totalCbm;
+           const finalPkgType = edits.packageType || (items.length > 0 ? items[0].packageType : 'PKGS');
+
+           // Logic:
+           // Description: Defaults to first cargo item's description if reportDescription is empty.
+           // Edits go to `reportDescription` (which we handle via the `remarks` field in previous context or new `reportDescription` prop). 
+           // In this implementation, we use `mergedBL.reportDescription` which maps to the Description cell.
+           // Fallback: items[0].description.
+           const displayDescription = (mergedBL.reportDescription || (items.length > 0 ? items[0].description : '') || '').toString();
 
            return {
              blId: bl.id,
              jobId: job.id,
-             eta: job.eta,
-             vesselName: job.vesselName,
-             voyageNo: job.voyageNo,
-             shipper: mergedBL.shipper || 'Unknown',
-             transporter: mergedBL.transporterName || '',
-             koreanForwarder: mergedBL.koreanForwarder || '',
-             location,
-             description: displayDesc,
-             reportRemark: mergedBL.reportRemarks || '',
-             note: mergedBL.note || '',
-             quantity: totalQty,
-             packageType: items.length > 0 ? items[0].packageType : 'PKGS',
-             grossWeight: totalWeight,
-             sourceType: mergedBL.sourceType || 'TRANSIT',
-             typeAlias: getTypeAlias(mergedBL)
+             // ETA: Use BL Date (Cargo Arrival) or Arrival Notice ETA, fallback to Job ETA.
+             eta: mergedBL.date || mergedBL.arrivalNotice?.eta || job.eta, 
+             jobVesselName: job.vesselName,
+             jobVoyage: job.voyageNo,
+             blNumber: mergedBL.blNumber,
+             shipper: (mergedBL.shipper || '').toString(),
+             description: displayDescription, 
+             quantity: finalQty,
+             packageType: finalPkgType,
+             grossWeight: finalWeight,
+             volume: finalVolume,
+             containerStr: containerList,
+             hasBL: !!mergedBL.fileUrl,
+             hasINV: !!mergedBL.commercialInvoice?.fileUrl,
+             hasPL: !!mergedBL.packingList?.fileUrl,
+             itemVesselName: (mergedBL.note || '').toString(),
+             typeAlias: getTypeAlias(mergedBL), 
+             koreanForwarder: (mergedBL.koreanForwarder || '').toString(),
+             transporter: (mergedBL.transporterName || '').toString(),
+             location: location.toString(),
+             // Remark Column: Maps to 'reportRemarks' (specific override) or `bl.remarks` (Main remark sync)
+             reportRemark: (mergedBL.reportRemarks || mergedBL.remarks || '').toString() 
            };
         });
-     }).sort((a, b) => new Date(a.eta).getTime() - new Date(b.eta).getTime());
+     });
   };
 
-  const summaryItems = getBriefingSummaries(briefingJobs);
+  const summaryItems = useMemo(() => getBriefingSummaries(briefingJobs), [briefingJobs, bls, modifiedBLs]);
+
+  const handleMoveRow = (jobId: string, blId: string, direction: 'up' | 'down') => {
+      // Get all items for this job from the full summary list
+      let jobItems = summaryItems.filter(item => item.jobId === jobId);
+      
+      // Default Sort (by stored sort order or fallback)
+      // Note: summaryItems is already somewhat sorted by getBriefingSummaries logic, but let's be explicit for the local drag.
+      
+      // Current Order state:
+      // If we have a customOrder in state, use it. Otherwise, use the order from summaryItems.
+      let currentOrder = customOrder[jobId] || jobItems.map(i => i.blId);
+      
+      // Ensure all items are in currentOrder (handle new items)
+      const itemIds = jobItems.map(i => i.blId);
+      // Filter out stale IDs from order, add new IDs
+      currentOrder = currentOrder.filter(id => itemIds.includes(id));
+      const newIds = itemIds.filter(id => !currentOrder.includes(id));
+      currentOrder = [...currentOrder, ...newIds];
+
+      const index = currentOrder.indexOf(blId);
+      if (index === -1) return;
+
+      if (direction === 'up') {
+          if (index === 0) return;
+          [currentOrder[index], currentOrder[index - 1]] = [currentOrder[index - 1], currentOrder[index]];
+      } else {
+          if (index === currentOrder.length - 1) return;
+          [currentOrder[index], currentOrder[index + 1]] = [currentOrder[index + 1], currentOrder[index]];
+      }
+
+      setCustomOrder(prev => ({ ...prev, [jobId]: currentOrder }));
+  };
 
   const handleSave = async () => {
     if (!onUpdateBL || isReadOnly) return;
     setIsSaving(true);
     try {
-      const updates = Object.keys(modifiedBLs).map(blId => {
-         return onUpdateBL(blId, modifiedBLs[blId]);
-      });
-      await Promise.all(updates);
-      setModifiedBLs({}); // Clear local edits after successful save
-      alert(t.saved);
+        const updatesMap: Record<string, Partial<BLData>> = {};
+
+        // 1. Collect Content Updates
+        Object.keys(modifiedBLs).forEach(blId => {
+            updatesMap[blId] = { ...modifiedBLs[blId] };
+        });
+
+        // 2. Collect Order Updates
+        briefingJobs.forEach(job => {
+            const jobItems = summaryItems.filter(item => item.jobId === job.id);
+            if (jobItems.length === 0) return;
+
+            let finalOrderIds = customOrder[job.id];
+            
+            // If the user hasn't explicitly moved items (customOrder is empty for this job),
+            // we skip saving the order for this job.
+            // This preserves the database writes if no reordering happened.
+            if (!finalOrderIds) {
+                return;
+            }
+
+            // Ensure integrity (add missing, remove stale)
+            const currentIds = jobItems.map(i => i.blId);
+            finalOrderIds = finalOrderIds.filter(id => currentIds.includes(id));
+            const missing = currentIds.filter(id => !finalOrderIds.includes(id));
+            finalOrderIds = [...finalOrderIds, ...missing];
+
+            // Merge order updates into updatesMap
+            finalOrderIds.forEach((blId, index) => {
+                if (!updatesMap[blId]) updatesMap[blId] = {};
+                updatesMap[blId].reportSortOrder = index;
+            });
+        });
+
+        // 3. Execute Updates efficiently
+        const promises = Object.keys(updatesMap).map(blId => 
+            onUpdateBL(blId, updatesMap[blId])
+        );
+
+        await Promise.all(promises);
+        
+        setModifiedBLs({});
+        // Clear custom order so UI refreshes from DB source of truth, 
+        // ensuring we see exactly what was persisted.
+        setCustomOrder({}); 
+        
+        alert(t.saved);
     } catch (e) {
-      alert("Error saving report data.");
+        console.error(e);
+        alert("Error saving report data.");
     } finally {
-      setIsSaving(false);
+        setIsSaving(false);
     }
   };
 
+  // Improved Pagination Logic
+  type RenderRow = { type: 'header', job: VesselJob } | { type: 'item', data: any, seqNo: number };
+
   const pages = useMemo(() => {
-     const _pages: any[] = [];
-     let currentPageGroups: any[] = [];
-     let currentRows = 0;
-     let limit = 14; 
+     const flatRows: RenderRow[] = [];
      
-     const _vesselGroups = briefingJobs.map(job => {
-        const jobItems = summaryItems.filter(item => item.jobId === job.id);
-        jobItems.sort((a, b) => {
-            const typePriority: Record<string, number> = { 'T': 1, 'I': 1, '직납': 2, '3RD': 3 };
-            const pA = typePriority[a.typeAlias] || 99;
-            const pB = typePriority[b.typeAlias] || 99;
-            if (pA !== pB) return pA - pB;
-            return (a.shipper || '').localeCompare(b.shipper || '');
-        });
+     briefingJobs.forEach(job => {
+         const jobItems = summaryItems.filter(item => item.jobId === job.id);
+         if (jobItems.length === 0) return;
+         
+         // Sort based on Custom Order if exists, else rely on summaryItems default (which uses reportSortOrder)
+         if (customOrder[job.id]) {
+             const order = customOrder[job.id];
+             jobItems.sort((a, b) => {
+                 const idxA = order.indexOf(a.blId);
+                 const idxB = order.indexOf(b.blId);
+                 if (idxA === -1 && idxB === -1) return 0;
+                 if (idxA === -1) return 1;
+                 if (idxB === -1) return -1;
+                 return idxA - idxB;
+             });
+         }
+         
+         flatRows.push({ type: 'header', job });
+         
+         jobItems.forEach((item, idx) => {
+             flatRows.push({ type: 'item', data: item, seqNo: idx + 1 });
+         });
+     });
 
-        const numberedItems = jobItems.map((item, idx) => ({
-          ...item,
-          seqNo: idx + 1
-        }));
+     const _pages: RenderRow[][] = [];
+     let currentRow = 0;
+     const ROWS_PER_PAGE = 7; 
+     
+     // Pagination Logic to prevent Orphan Headers
+     let currentPage: RenderRow[] = [];
+     
+     for (let i = 0; i < flatRows.length; i++) {
+         const row = flatRows[i];
+         
+         // Check if we need to start a new page
+         if (currentPage.length >= ROWS_PER_PAGE) {
+             _pages.push(currentPage);
+             currentPage = [];
+         }
 
-        return { job, items: numberedItems };
-    }).filter(group => group.items.length > 0);
+         // Orphan Prevention:
+         // If current row is a Header, check if it's the LAST slot on the page.
+         // If it is, force a page break so header starts on next page with its items.
+         if (row.type === 'header') {
+             if (currentPage.length === ROWS_PER_PAGE - 1) {
+                 // Push current page (leaving last slot empty to avoid orphan)
+                 _pages.push(currentPage);
+                 currentPage = [];
+             }
+         }
 
-    _vesselGroups.forEach(group => {
-        let items = [...group.items];
-        let isContinuation = false;
-        while(items.length > 0) {
-            const headerSpace = isContinuation ? 1 : 2;
-            if (currentRows + headerSpace >= limit) {
-                _pages.push(currentPageGroups);
-                currentPageGroups = [];
-                currentRows = 0;
-            }
-            const space = limit - currentRows - headerSpace;
-            let take = space;
-            let chunk = [];
-            let showSubtotal = false;
-            
-            if (items.length + 1 <= take) {
-                chunk = items;
-                showSubtotal = true;
-                items = [];
-            } else {
-                if (take <= 0) {
-                     _pages.push(currentPageGroups);
-                     currentPageGroups = [];
-                     currentRows = 0;
-                     continue; 
-                }
-                chunk = items.slice(0, take);
-                items = items.slice(take);
-                showSubtotal = false;
-            }
-
-            if (chunk.length > 0 || showSubtotal) {
-                currentPageGroups.push({
-                    job: group.job,
-                    items: chunk,
-                    isContinuation,
-                    showSubtotal
-                });
-                currentRows += headerSpace + chunk.length + (showSubtotal ? 1 : 0);
-            }
-            isContinuation = true;
-        }
-    });
-    if (currentPageGroups.length > 0) _pages.push(currentPageGroups);
-    return _pages;
-  }, [briefingJobs, summaryItems]);
+         currentPage.push(row);
+     }
+     
+     if (currentPage.length > 0) {
+         _pages.push(currentPage);
+     }
+     
+     return _pages;
+  }, [briefingJobs, summaryItems, customOrder]);
 
   const dateLocale = language === 'cn' ? 'zh-CN' : language === 'ko' ? 'ko-KR' : 'en-US';
 
   return (
     <div className="flex flex-col h-full bg-slate-100 dark:bg-slate-900 print-container overflow-hidden">
       
-      {/* Read Only Banner */}
       {isReadOnly && (
          <div className="bg-amber-100 border-b border-amber-200 px-4 py-2 flex justify-between items-center text-amber-900 text-sm font-bold z-30 animate-fade-in no-print">
             <div className="flex items-center gap-2">
@@ -1147,8 +1135,9 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
          </div>
       )}
 
-      {/* Toolbar */}
+      {/* Toolbar - Same as before */}
       <div className="flex-shrink-0 p-4 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center shadow-sm z-20 no-print">
+          {/* ... (Existing toolbar code) ... */}
           <div className="flex items-center gap-4">
             <div className="flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-lg">
                 <button onClick={handlePrev} className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500 dark:text-slate-400"><ChevronLeft size={16}/></button>
@@ -1163,7 +1152,7 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
               <button onClick={() => setBriefingPeriod('month')} className={`px-3 py-1 text-sm font-medium rounded-md transition-all ${briefingPeriod === 'month' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-300 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}>{t.monthly}</button>
             </div>
             
-            {/* Vessel Filter (Multi-Select) */}
+            {/* Vessel Filter */}
             <div className="ml-4 relative" ref={vesselDropdownRef}>
                 <button 
                     onClick={() => setIsVesselDropdownOpen(!isVesselDropdownOpen)}
@@ -1216,13 +1205,6 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
               <span className="text-xs text-slate-500 dark:text-slate-400 font-mono w-12 text-center">{Math.round(zoomLevel * 100)}%</span>
               <button onClick={() => setZoomLevel(Math.min(2.0, zoomLevel + 0.1))} className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400"><ZoomIn size={16} /></button>
             </div>
-            
-            {/* Active Users Indicator (Mock) */}
-            {lockData && (
-                <div className="flex items-center gap-1.5 px-3 py-1 bg-red-50 text-red-600 rounded-full border border-red-100 text-xs font-bold">
-                    <Users size={12} /> 1 Active
-                </div>
-            )}
           </div>
           <div className="flex gap-2">
               <button onClick={handleSave} disabled={isSaving || isReadOnly} className={`px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition-all active:scale-95 text-sm font-bold ${isReadOnly ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}>
@@ -1236,16 +1218,10 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
 
       {/* Preview Area */}
       <div className="flex-1 overflow-auto custom-scrollbar p-8 bg-slate-100 dark:bg-slate-900 flex flex-col items-center gap-8 print:block print:p-0 print:m-0 print:bg-white print:overflow-visible">
-          {reportMode === 'report' ? (
-              <div className="text-center py-20">
-                  <PieChart size={48} className="mx-auto text-slate-300 mb-4" />
-                  <p className="text-slate-500 font-bold">Report Mode is coming soon.</p>
-                  <button onClick={() => setReportMode('general')} className="text-blue-600 text-sm font-bold mt-2 hover:underline">Switch to General Mode</button>
-              </div>
-          ) : pages.length === 0 ? (
+          {pages.length === 0 ? (
               <div className="text-center py-20 text-slate-400 italic">{t.noItems}</div>
           ) : (
-              pages.map((page, pageIndex) => (
+              pages.map((pageRows, pageIndex) => (
                   <div 
                     key={pageIndex} 
                     className="break-after-page bg-white shadow-xl relative text-black mx-auto transition-transform origin-top print:shadow-none print:m-0 print:transform-none print:border-none font-sans"
@@ -1278,7 +1254,6 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
                                     {logoUrl && <img src={logoUrl} alt="Logo" className="h-5 w-auto object-contain" />}
                                     <p className="font-black text-xl uppercase tracking-widest text-slate-900 leading-none">LOGI<span className="text-blue-600">1</span></p>
                                 </div>
-                                <p className="text-[9px] uppercase font-bold tracking-[0.2em] text-slate-500">Integrated Logistics ERP</p>
                                 <p className="text-[10px] text-black mt-1 font-mono font-bold text-right">{new Date().toLocaleDateString(dateLocale)}</p>
                             </div>
                           </div>
@@ -1289,178 +1264,230 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
                           </div>
                       )}
 
-                      <div className="space-y-4">
-                          {page.map((group: any, grpIdx: number) => (
-                              <div key={`${group.job.id}-${grpIdx}`} className="mb-4">
-                                  {!group.isContinuation ? (
-                                      <div className="flex items-center justify-between mb-1 bg-black text-white px-2 py-1 print:bg-black print:text-white print-color-adjust-exact">
-                                          <div className="flex items-center gap-4">
-                                              <h3 className="text-base font-black uppercase tracking-wide">{group.job.vesselName}</h3>
-                                              <span className="text-xs font-mono bg-white text-black px-1 py-px rounded">VOY. {group.job.voyageNo}</span>
-                                          </div>
-                                          <span className="text-xs font-bold uppercase tracking-wider">{t.reportHeaderEta}: {group.job.eta}</span>
-                                      </div>
-                                  ) : (
-                                      <div className="flex items-center gap-2 mb-1 pl-2 border-l-4 border-slate-300">
-                                          <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">{group.job.vesselName} {t.continuation}</span>
-                                      </div>
-                                  )}
+                      <div className="space-y-0">
+                          {/* Table Structure */}
+                          <table className="w-full border-collapse border border-black table-fixed text-[10px]">
+                              <colgroup>
+                                  <col className="w-[3%]" /> {/* No */}
+                                  <col className="w-[7%]" /> {/* ETA */}
+                                  <col className="w-[18%]" /> {/* Shipper */}
+                                  <col className="w-[9%]" /> {/* Qty/Wt */}
+                                  <col className="w-[5%]" /> {/* Vol */}
+                                  <col className="w-[13%]" /> {/* BL */}
+                                  <col className="w-[4%]" /> {/* Docs */}
+                                  <col className="w-[10%]" /> {/* Vessel */}
+                                  <col className="w-[4%]" /> {/* Type */}
+                                  <col className="w-[10%]" /> {/* Transporter */}
+                                  <col className="w-[7%]" /> {/* Warehouse */}
+                                  <col className="w-[10%]" /> {/* Remark */}
+                              </colgroup>
+                              <thead>
+                                  <tr className="bg-gray-100 print:bg-gray-100">
+                                      <th rowSpan={2} className="border border-black p-1 text-center align-middle font-bold">{t.reportHeaderNo}</th>
+                                      <th rowSpan={2} className="border border-black p-1 text-center align-middle font-bold whitespace-pre-wrap">{t.reportHeaderEta}</th>
+                                      <th rowSpan={2} className="border border-black p-1 text-center align-middle font-bold whitespace-pre-wrap">{t.reportHeaderShipperDesc}</th>
+                                      
+                                      {/* Updated QTY Header Layout */}
+                                      <th colSpan={2} className="border border-black p-1 text-center align-middle font-bold">{t.reportHeaderQty}</th>
+                                      
+                                      <th rowSpan={2} className="border border-black p-1 text-center align-middle font-bold whitespace-pre-wrap">{t.reportHeaderBlCont}</th>
+                                      <th rowSpan={2} className="border border-black p-1 text-center align-middle font-bold whitespace-pre-wrap">{t.reportHeaderDocs}</th>
+                                      <th rowSpan={2} className="border border-black p-1 text-center align-middle font-bold">{t.reportHeaderVessel}</th>
+                                      <th rowSpan={2} className="border border-black p-1 text-center align-middle font-bold">{t.reportHeaderType}</th>
+                                      <th rowSpan={2} className="border border-black p-1 text-center align-middle font-bold">{t.reportHeaderTransporter}</th>
+                                      <th rowSpan={2} className="border border-black p-1 text-center align-middle font-bold">{t.reportHeaderWarehouse}</th>
+                                      <th rowSpan={2} className="border border-black p-1 text-center align-middle font-bold">{t.reportHeaderRemark}</th>
+                                  </tr>
+                                  <tr className="bg-gray-100 print:bg-gray-100">
+                                      {/* Subheaders for QTY Section */}
+                                      <th className="border border-black p-1 text-center align-middle font-bold">重量 (Weight)</th>
+                                      <th className="border border-black p-1 text-center align-middle font-bold">体积 (Vol)</th>
+                                  </tr>
+                              </thead>
+                              <tbody>
+                                {pageRows.map((row, idx) => {
+                                    if (row.type === 'header') {
+                                        return (
+                                            <tr key={`header-${row.job.id}`} className="bg-slate-200 print:bg-slate-200">
+                                                <td colSpan={13} className="border border-black px-2 py-1 align-middle">
+                                                    <div className="flex justify-between items-center font-bold text-xs uppercase tracking-wide">
+                                                        <span>{row.job.vesselName}</span>
+                                                        <div className="flex gap-4 font-mono">
+                                                            <span>VOY: {row.job.voyageNo}</span>
+                                                            <span>ETA: {row.job.eta}</span>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    } else {
+                                        const item = row.data;
+                                        return (
+                                            <tr key={item.blId} className="align-top group/row">
+                                                <td className="border border-black p-1 text-center align-middle font-bold relative group">
+                                                    {row.seqNo}
+                                                    <div className="absolute left-0 top-0 bottom-0 w-3 flex flex-col justify-center opacity-0 group-hover:opacity-100 transition-opacity print:hidden gap-0.5">
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); handleMoveRow(item.jobId, item.blId, 'up'); }}
+                                                            className="h-3 flex items-center justify-center bg-slate-100 hover:bg-blue-100 text-slate-500 hover:text-blue-600 rounded-r"
+                                                        >
+                                                            <ChevronUp size={8} />
+                                                        </button>
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); handleMoveRow(item.jobId, item.blId, 'down'); }}
+                                                            className="h-3 flex items-center justify-center bg-slate-100 hover:bg-blue-100 text-slate-500 hover:text-blue-600 rounded-r"
+                                                        >
+                                                            <ChevronDown size={8} />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                                
+                                                <td className="border border-black p-1 text-center align-middle whitespace-pre-wrap break-words font-medium leading-tight text-[9px]">
+                                                    {item.eta}
+                                                </td>
 
-                                  <table className="w-full text-left border-collapse border-b-2 border-black table-fixed">
-                                      <thead>
-                                          <tr className="border-b-2 border-black text-[10px] font-bold uppercase tracking-wider">
-                                              <th className="px-1 py-1 align-bottom text-center bg-gray-100 print:bg-gray-100" style={{ width: colWidths.no }}>
-                                                {t.reportHeaderNo}
-                                                {!group.isContinuation && <div className="resizer no-print" onMouseDown={(e) => handleMouseDown(e, 'no')}></div>}
-                                              </th>
-                                              <th className="px-1 py-1 align-bottom text-center bg-gray-100 print:bg-gray-100" style={{ width: colWidths.type }}>
-                                                {t.reportHeaderType}
-                                                {!group.isContinuation && <div className="resizer no-print" onMouseDown={(e) => handleMouseDown(e, 'type')}></div>}
-                                              </th>
-                                              <th className="px-1 py-1 align-bottom text-left bg-gray-100 print:bg-gray-100" style={{ width: colWidths.shipper }}>
-                                                {t.reportHeaderShipper}
-                                                {!group.isContinuation && <div className="resizer no-print" onMouseDown={(e) => handleMouseDown(e, 'shipper')}></div>}
-                                              </th>
-                                              <th className="px-1 py-1 align-bottom text-left bg-gray-100 print:bg-gray-100" style={{ width: colWidths.transporter }}>
-                                                {t.reportHeaderTransporter}
-                                                {!group.isContinuation && <div className="resizer no-print" onMouseDown={(e) => handleMouseDown(e, 'transporter')}></div>}
-                                              </th>
-                                               <th className="px-1 py-1 align-bottom text-left bg-gray-100 print:bg-gray-100" style={{ width: colWidths.location }}>
-                                                {t.reportHeaderLocation}
-                                                {!group.isContinuation && <div className="resizer no-print" onMouseDown={(e) => handleMouseDown(e, 'location')}></div>}
-                                              </th>
-                                              <th className="px-1 py-1 align-bottom text-left bg-gray-100 print:bg-gray-100" style={{ width: colWidths.qty }}>
-                                                {t.reportHeaderQty}
-                                                {!group.isContinuation && <div className="resizer no-print" onMouseDown={(e) => handleMouseDown(e, 'qty')}></div>}
-                                              </th>
-                                              <th className="px-1 py-1 align-bottom text-left bg-gray-100 print:bg-gray-100" style={{ width: colWidths.weight }}>
-                                                {t.reportHeaderWeight}
-                                                {!group.isContinuation && <div className="resizer no-print" onMouseDown={(e) => handleMouseDown(e, 'weight')}></div>}
-                                              </th>
-                                              <th className="px-1 py-1 align-bottom text-left bg-gray-100 print:bg-gray-100" style={{ width: colWidths.desc }}>
-                                                  {t.reportHeaderDesc}
-                                                  {!group.isContinuation && <div className="resizer no-print" onMouseDown={(e) => handleMouseDown(e, 'desc')}></div>}
-                                              </th>
-                                              <th className="px-1 py-1 align-bottom text-left bg-gray-100 print:bg-gray-100" style={{ width: colWidths.note }}>
-                                                  {t.reportHeaderNote}
-                                                  {!group.isContinuation && <div className="resizer no-print" onMouseDown={(e) => handleMouseDown(e, 'note')}></div>}
-                                              </th>
-                                              <th className="px-1 py-1 align-bottom text-left bg-gray-100 print:bg-gray-100" style={{ width: colWidths.remark }}>
-                                                  {t.reportHeaderRemark}
-                                                  {!group.isContinuation && <div className="resizer no-print" onMouseDown={(e) => handleMouseDown(e, 'remark')}></div>}
-                                              </th>
-                                          </tr>
-                                      </thead>
-                                      <tbody>
-                                          {group.items.map((item: any, i: number) => (
-                                              <tr key={i} className="border-b border-gray-300 align-top">
-                                                  <td className="px-1 py-1 text-[9px] font-bold align-middle text-center">
-                                                      {item.seqNo}
-                                                  </td>
-                                                  <td className="px-1 py-1 text-[9px] font-bold align-middle text-center">
-                                                      <span className="uppercase border px-1 rounded bg-slate-50">{item.typeAlias}</span>
-                                                  </td>
-                                                  <td className="px-0 py-0 relative group align-middle">
-                                                      <AutoResizeTextarea
-                                                          value={item.shipper}
-                                                          onChange={(e) => handleCellEdit(item.blId, 'shipper', e.target.value)}
-                                                          readOnly={isReadOnly}
-                                                          className="w-full h-full bg-transparent border-none focus:outline-none focus:bg-yellow-50 px-1 py-1 block font-sans text-[10px] leading-tight resize-none font-bold"
-                                                      />
-                                                  </td>
-                                                  <td className="px-1 py-1 break-words align-middle text-[10px] leading-tight">
-                                                      <div className="flex flex-col gap-1">
-                                                          {/* Korean Forwarder Edit */}
-                                                          <div className="flex items-center gap-1">
-                                                              <span className="text-[8px] border border-slate-300 px-0.5 rounded text-slate-500">FWD</span>
-                                                              <AutoResizeTextarea
-                                                                  value={item.koreanForwarder}
-                                                                  onChange={(e) => handleCellEdit(item.blId, 'koreanForwarder', e.target.value)}
-                                                                  readOnly={isReadOnly}
-                                                                  className="flex-1 bg-transparent border-none focus:outline-none focus:bg-yellow-50 p-0 block font-sans text-[9px] leading-tight resize-none min-w-[50px]"
-                                                              />
-                                                          </div>
-                                                          {/* Transporter Edit */}
-                                                          <div className="flex items-center gap-1">
-                                                              <span className="text-[8px] border border-slate-300 px-0.5 rounded text-slate-500">TRK</span>
-                                                              <AutoResizeTextarea
-                                                                  value={item.transporter}
-                                                                  onChange={(e) => handleCellEdit(item.blId, 'transporterName', e.target.value)}
-                                                                  readOnly={isReadOnly}
-                                                                  className="flex-1 bg-transparent border-none focus:outline-none focus:bg-yellow-50 p-0 block font-sans text-[9px] leading-tight resize-none min-w-[50px]"
-                                                              />
-                                                          </div>
-                                                      </div>
-                                                  </td>
-                                                  <td className="px-0 py-0 relative group align-middle text-blue-800 font-medium">
-                                                       <AutoResizeTextarea
-                                                          value={item.location}
-                                                          onChange={(e) => handleCellEdit(item.blId, 'storageLocation', e.target.value)}
-                                                          readOnly={isReadOnly}
-                                                          className="w-full h-full bg-transparent border-none focus:outline-none focus:bg-yellow-50 px-1 py-1 block font-sans text-[10px] leading-tight resize-none"
-                                                      />
-                                                  </td>
-                                                  <td className="px-0 py-0 align-middle text-left font-mono text-[10px]">
-                                                       <div className="flex items-center px-1">
-                                                            <input 
-                                                                type="number" 
-                                                                value={item.quantity}
-                                                                onChange={(e) => handleCellEdit(item.blId, 'quantity', e.target.value)}
-                                                                readOnly={isReadOnly}
-                                                                className="w-12 bg-transparent border-none focus:outline-none focus:bg-yellow-50 text-right font-mono"
-                                                            />
-                                                            <span className="text-[8px] text-gray-500 uppercase ml-1">{item.packageType}</span>
-                                                       </div>
-                                                  </td>
-                                                  <td className="px-0 py-0 align-middle text-left font-mono text-[10px] font-bold">
-                                                        <input 
-                                                                type="number" 
-                                                                value={item.grossWeight}
-                                                                onChange={(e) => handleCellEdit(item.blId, 'grossWeight', e.target.value)}
-                                                                readOnly={isReadOnly}
-                                                                className="w-full bg-transparent border-none focus:outline-none focus:bg-yellow-50 text-right px-1 font-mono font-bold"
+                                                <td className="border border-black p-0 relative align-middle">
+                                                    <div className="flex flex-col h-full">
+                                                        <AutoResizeTextarea 
+                                                            value={item.shipper}
+                                                            onChange={(e) => handleCellEdit(item.blId, 'shipper', e.target.value)}
+                                                            readOnly={isReadOnly}
+                                                            className="w-full bg-transparent border-b border-dashed border-gray-300 p-1 font-bold text-[10px] focus:bg-yellow-50 outline-none min-h-[30px]"
+                                                            placeholder="Shipper"
                                                         />
-                                                  </td>
-                                                  <td className="px-0 py-0 relative group align-middle">
-                                                      <AutoResizeTextarea
-                                                          value={item.description}
-                                                          onChange={(e) => handleCellEdit(item.blId, 'remarks', e.target.value)}
-                                                          readOnly={isReadOnly}
-                                                          className="w-full h-full bg-transparent border-none focus:outline-none focus:bg-yellow-50 px-1 py-1 block font-sans text-[10px] leading-tight resize-none"
-                                                      />
-                                                  </td>
-                                                    <td className="px-0 py-0 relative group align-middle">
-                                                        <AutoResizeTextarea
-                                                          value={item.note}
-                                                          onChange={(e) => handleCellEdit(item.blId, 'note', e.target.value)}
-                                                          readOnly={isReadOnly}
-                                                          className="w-full h-full bg-transparent border-none focus:outline-none focus:bg-yellow-50 px-1 py-1 block font-sans text-[10px] leading-tight resize-none"
-                                                          placeholder=""
-                                                      />
-                                                  </td>
-                                                  <td className="px-0 py-0 relative group align-middle">
-                                                        <AutoResizeTextarea
-                                                          value={item.reportRemark}
-                                                          onChange={(e) => handleCellEdit(item.blId, 'reportRemarks', e.target.value)}
-                                                          readOnly={isReadOnly}
-                                                          className="w-full h-full bg-transparent border-none focus:outline-none focus:bg-yellow-50 px-1 py-1 block font-sans text-[10px] leading-tight resize-none"
-                                                          placeholder=""
-                                                      />
-                                                  </td>
-                                              </tr>
-                                          ))}
-                                          {group.showSubtotal && (
-                                              <tr className="bg-gray-100 font-bold border-t-2 border-black print:bg-gray-100">
-                                                  <td colSpan={5} className="px-2 py-1 text-right align-middle text-[9px] uppercase tracking-wide">Subtotal</td>
-                                                  <td className="px-1 py-1 text-left align-middle text-[10px]">{summaryItems.filter(i => i.jobId === group.job.id).reduce((s, x) => s + x.quantity, 0)}</td>
-                                                  <td className="px-1 py-1 text-left align-middle text-[10px]">{summaryItems.filter(i => i.jobId === group.job.id).reduce((s, x) => s + x.grossWeight, 0).toLocaleString()}</td>
-                                                  <td colSpan={3} className="px-1 py-1"></td>
-                                              </tr>
-                                          )}
-                                      </tbody>
-                                  </table>
-                              </div>
-                          ))}
+                                                        {/* Description Field: Now maps to 'reportDescription' internally, handled by handleCellEdit('reportDescription') */}
+                                                        <AutoResizeTextarea 
+                                                            value={item.description}
+                                                            onChange={(e) => handleCellEdit(item.blId, 'reportDescription', e.target.value)}
+                                                            readOnly={isReadOnly}
+                                                            className="w-full bg-transparent p-1 font-medium text-[9px] focus:bg-yellow-50 outline-none flex-1 min-h-[40px]"
+                                                            placeholder="Description"
+                                                        />
+                                                    </div>
+                                                </td>
+
+                                                {/* Split QTY Cell 1: Qty / Weight */}
+                                                <td className="border border-black p-0 align-middle">
+                                                    <div className="flex flex-col h-full">
+                                                        <div className="flex-1 p-1 border-b border-dashed border-gray-300 flex justify-center items-center">
+                                                            <input 
+                                                                className="w-full bg-transparent text-center font-bold outline-none focus:bg-yellow-50 text-[10px]"
+                                                                value={item.quantity}
+                                                                onChange={(e) => handleCellEdit(item.blId, 'quantity', Number(e.target.value))}
+                                                                readOnly={isReadOnly}
+                                                            />
+                                                        </div>
+                                                        <div className="flex-1 p-1 flex justify-center items-center">
+                                                            <input 
+                                                                className="w-full bg-transparent text-center outline-none focus:bg-yellow-50 text-[9px]"
+                                                                value={item.grossWeight}
+                                                                onChange={(e) => handleCellEdit(item.blId, 'grossWeight', Number(e.target.value))}
+                                                                readOnly={isReadOnly}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </td>
+
+                                                {/* Split QTY Cell 2: Unit / Volume */}
+                                                <td className="border border-black p-0 align-middle">
+                                                    <div className="flex flex-col h-full">
+                                                        <div className="flex-1 p-1 border-b border-dashed border-gray-300 flex justify-center items-center">
+                                                            <input 
+                                                                className="w-full bg-transparent text-center outline-none focus:bg-yellow-50 text-[9px]"
+                                                                value={item.packageType}
+                                                                onChange={(e) => handleCellEdit(item.blId, 'packageType', e.target.value)}
+                                                                readOnly={isReadOnly}
+                                                            />
+                                                        </div>
+                                                        <div className="flex-1 p-1 flex justify-center items-center">
+                                                            <input 
+                                                                className="w-full bg-transparent text-center outline-none focus:bg-yellow-50 text-[9px]"
+                                                                value={item.volume}
+                                                                onChange={(e) => handleCellEdit(item.blId, 'volume', Number(e.target.value))}
+                                                                readOnly={isReadOnly}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </td>
+
+                                                <td className="border border-black p-1 text-center align-middle whitespace-pre-wrap break-all text-[8px] leading-tight font-mono">
+                                                    <span className="font-bold block mb-1">{item.blNumber}</span>
+                                                    <span className="text-slate-600 block">{item.containerStr}</span>
+                                                </td>
+
+                                                <td className="border border-black p-1 text-center align-middle">
+                                                    <div className="flex flex-col gap-1 text-[8px] font-bold">
+                                                        <span className={item.hasBL ? "text-black" : "text-gray-300"}>BL</span>
+                                                        <span className={item.hasINV ? "text-black" : "text-gray-300"}>INV</span>
+                                                        <span className={item.hasPL ? "text-black" : "text-gray-300"}>PL</span>
+                                                    </div>
+                                                </td>
+
+                                                {/* Vessel Name: Allowed to Wrap */}
+                                                <td className="border border-black p-0 align-middle">
+                                                    <AutoResizeTextarea 
+                                                        value={item.itemVesselName}
+                                                        onChange={(e) => handleCellEdit(item.blId, 'note', e.target.value)}
+                                                        readOnly={isReadOnly}
+                                                        className="w-full h-full bg-transparent p-1 text-center focus:bg-yellow-50 outline-none text-[9px] break-words whitespace-normal"
+                                                    />
+                                                </td>
+
+                                                <td className="border border-black p-0 align-middle font-bold text-[9px]">
+                                                    <input 
+                                                        className="w-full h-full bg-transparent text-center outline-none border-b border-dashed border-transparent focus:border-blue-500 focus:bg-yellow-50"
+                                                        value={item.typeAlias}
+                                                        readOnly={true} 
+                                                    />
+                                                </td>
+
+                                                <td className="border border-black p-0 align-middle text-[9px]">
+                                                    <div className="flex flex-col p-1 gap-1">
+                                                        <div className="flex items-center gap-1">
+                                                            <span className="text-[8px] font-bold text-gray-500">FWD:</span>
+                                                            <input 
+                                                                className="flex-1 bg-transparent border-b border-gray-200 outline-none focus:bg-yellow-50 min-w-0"
+                                                                value={item.koreanForwarder}
+                                                                onChange={(e) => handleCellEdit(item.blId, 'koreanForwarder', e.target.value)}
+                                                                readOnly={isReadOnly}
+                                                            />
+                                                        </div>
+                                                        <div className="flex items-center gap-1">
+                                                            <span className="text-[8px] font-bold text-gray-500">TRK:</span>
+                                                            <input 
+                                                                className="flex-1 bg-transparent outline-none focus:bg-yellow-50 min-w-0"
+                                                                value={item.transporter}
+                                                                onChange={(e) => handleCellEdit(item.blId, 'transporterName', e.target.value)}
+                                                                readOnly={isReadOnly}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </td>
+
+                                                <td className="border border-black p-0 align-middle">
+                                                    <AutoResizeTextarea 
+                                                        value={item.location}
+                                                        onChange={(e) => handleCellEdit(item.blId, 'storageLocation', e.target.value)}
+                                                        readOnly={isReadOnly}
+                                                        className="w-full h-full bg-transparent p-1 text-center focus:bg-yellow-50 outline-none text-[9px] break-words"
+                                                    />
+                                                </td>
+
+                                                {/* Remark Column: Maps to 'reportRemarks' field in BLData (Override) or fallback to 'remarks' */}
+                                                <td className="border border-black p-0 align-middle">
+                                                    <AutoResizeTextarea 
+                                                        value={item.reportRemark}
+                                                        onChange={(e) => handleCellEdit(item.blId, 'reportRemarks', e.target.value)}
+                                                        readOnly={isReadOnly}
+                                                        className="w-full h-full bg-transparent p-1 text-center focus:bg-yellow-50 outline-none text-[9px] break-words"
+                                                    />
+                                                </td>
+                                            </tr>
+                                        );
+                                    }
+                                })}
+                              </tbody>
+                          </table>
                       </div>
 
                       <div className="absolute bottom-6 left-10 right-10 flex justify-between text-[8px] text-gray-500 uppercase tracking-wider font-mono">

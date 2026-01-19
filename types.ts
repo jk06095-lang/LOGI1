@@ -81,6 +81,15 @@ export interface ArrivalNoticeData {
   fileUrl?: string;
 }
 
+export interface Attachment {
+  id: string;
+  name: string;
+  url: string;
+  type: string;
+  size: number;
+  uploadDate: string;
+}
+
 export interface BLData {
   id: string;
   vesselJobId?: string; // Link to a specific vessel job
@@ -134,11 +143,20 @@ export interface BLData {
   exportDeclaration?: ExportDeclarationData;
   manifest?: ManifestData;
   arrivalNotice?: ArrivalNoticeData; // New: A/N Data
+  attachments?: Attachment[]; // New: Generic Cloud Files
   
   // Global Remarks
-  remarks?: string; // Used for Description edits
-  reportRemarks?: string; // New: Used for the specific Remarks column in Briefing
+  remarks?: string; // Used for Main Detail Remarks
+  reportRemarks?: string; // Legacy: Used for Report Remarks if needed, but mapped to Main Remarks now
+  reportDescription?: string; // New: Custom description for Report View
   note?: string; // New: Additional Note column (비고)
+  reportSortOrder?: number; // New: For persisting manual order in reports
+
+  // Report Overrides (Manually edited values in Briefing Report)
+  quantity?: number;
+  grossWeight?: number;
+  volume?: number;
+  packageType?: string;
 }
 
 export type JobStatus = 'incoming' | 'working' | 'completed';
