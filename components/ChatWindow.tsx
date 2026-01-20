@@ -311,7 +311,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
       // Optimistic Update for immediate feedback
       setMessages(prev => prev.map(msg => {
           if (msg.id === messageId) {
-              const reactions = (msg.reactions || []).map(r => ({ ...r, userIds: [...r.userIds] }));
+              const reactions = (msg.reactions || []).map(r => ({
+                  ...r,
+                  userIds: Array.isArray(r.userIds) ? [...r.userIds] : []
+              }));
               const idx = reactions.findIndex(r => r.emoji === emoji);
               if (idx !== -1) {
                   if (reactions[idx].userIds.includes(user.uid)) {

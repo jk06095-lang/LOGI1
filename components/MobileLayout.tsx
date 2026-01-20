@@ -546,7 +546,11 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
       // Optimistic Update for immediate feedback
       setMessages(prev => prev.map(msg => {
           if (msg.id === messageId) {
-              const reactions = (msg.reactions || []).map(r => ({ ...r, userIds: [...r.userIds] }));
+              // Defensive check for array
+              const reactions = (msg.reactions || []).map(r => ({
+                  ...r,
+                  userIds: Array.isArray(r.userIds) ? [...r.userIds] : [] 
+              }));
               const idx = reactions.findIndex(r => r.emoji === emoji);
               if (idx !== -1) {
                   if (reactions[idx].userIds.includes(user.uid)) {
