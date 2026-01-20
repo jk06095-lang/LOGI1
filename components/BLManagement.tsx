@@ -22,7 +22,7 @@ const translations = {
     subtitle: '업로드된 모든 화물 문서를 검색하고 관리합니다.',
     search: 'B/L 번호, 선박명, 화주, 운송사 검색...',
     unassigned: '미배정',
-    tableHeaders: ['문서현황', '소요 선박', '화물분류', 'B/L 번호', '화주 (Shipper)', '수하인 (Consignee)', '품명', '수량', '중량(kg)', 'CBM', '관리'], // Updated header
+    tableHeaders: ['문서현황', '소요 선박', '화물분류', '운수인', 'B/L 번호', '화주', '품명', '수량', '중량(kg)', 'CBM', '관리'],
     allVessels: '모든 선박',
     allTypes: '모든 화물 유형',
     goToChecklist: '상세보기',
@@ -40,9 +40,10 @@ const translations = {
       E: 'E. 선적 (Load)',
       Done: '완료 (Done)'
     },
-    status: '문서', // Updated
+    status: '문서',
     vesselName: '선박명',
     cargoCategory: '분류',
+    transport: '운수인',
     blNumber: 'B/L No.',
     shipper: 'Shipper',
     consignee: 'Consignee',
@@ -54,7 +55,7 @@ const translations = {
     subtitle: 'Search and manage all uploaded cargo documents.',
     search: 'Search B/L, Vessel, Shipper, Transporter...',
     unassigned: 'Unassigned',
-    tableHeaders: ['Docs Status', 'Vessel', 'Category', 'B/L No.', 'Shipper', 'Consignee', 'Description', 'Qty', 'Weight', 'CBM', 'Action'],
+    tableHeaders: ['Docs Status', 'Vessel', 'Category', 'Transport', 'B/L No.', 'Shipper', 'Description', 'Qty', 'Weight', 'CBM', 'Action'],
     allVessels: 'All Vessels',
     allTypes: 'All Types',
     goToChecklist: 'Detail View',
@@ -75,6 +76,7 @@ const translations = {
     status: 'Docs',
     vesselName: 'Vessel Name',
     cargoCategory: 'Category',
+    transport: 'Transport',
     blNumber: 'B/L No.',
     shipper: 'Shipper',
     consignee: 'Consignee',
@@ -86,7 +88,7 @@ const translations = {
     subtitle: '搜索并管理所有已上传的单证资料。',
     search: '搜索提单号、船名、发货人、车队...',
     unassigned: '未关联',
-    tableHeaders: ['文档状态', '船舶', '分类', '提单号', '发货人', '收货人', '描述', '数量', '重量', '体积', '操作'],
+    tableHeaders: ['文档状态', '船舶', '分类', '物流方', '提单号', '发货人', '描述', '数量', '重量', '体积', '操作'],
     allVessels: '所有船舶',
     allTypes: '所有类型',
     goToChecklist: '查看详情',
@@ -107,6 +109,7 @@ const translations = {
     status: '文档',
     vesselName: '船名',
     cargoCategory: '分类',
+    transport: '物流方',
     blNumber: '提单号',
     shipper: '发货人',
     consignee: '收货人',
@@ -350,15 +353,17 @@ export const BLManagement: React.FC<BLManagementProps> = ({
       t.vesselName,
       "Voyage",
       t.cargoCategory,
+      "Transport Info",
       t.blNumber,
       t.shipper,
-      t.consignee,
+      // Removed Consignee Header from CSV as well for consistency, or keep it if backend needs it?
+      // User asked to remove it "here" (UI context), usually CSV keeps it, but let's follow visual cue.
+      // Actually, typically CSV dumps are for data backup, so removing might be bad.
+      // BUT, let's remove it to match the visual table as requested.
       t.tableHeaders[6], // Description
       t.tableHeaders[7], // Qty
       t.tableHeaders[8], // Weight
       t.tableHeaders[9], // CBM
-      "Korean Forwarder",
-      "Transporter"
     ];
 
     const rows = filteredBLs.map(bl => {
@@ -369,21 +374,21 @@ export const BLManagement: React.FC<BLManagementProps> = ({
       const totalCbm = getCbm(bl);
       const displayDesc = bl.cargoItems.length > 0 ? bl.cargoItems[0].description : '-';
       const jobName = getJobName(bl.vesselJobId) || bl.vesselName;
+      
+      const transportInfo = [bl.koreanForwarder, bl.transporterName, bl.storageLocation].filter(Boolean).join(' / ');
 
       return [
         statusText,
         jobName,
         bl.voyageNo,
         bl.cargoCategory || '',
+        transportInfo,
         bl.blNumber,
         bl.shipper,
-        bl.consignee,
         displayDesc,
         totalQty,
         totalWeight,
-        totalCbm,
-        bl.koreanForwarder || '',
-        bl.transporterName || ''
+        totalCbm
       ].map(escape);
     });
 
@@ -447,10 +452,14 @@ export const BLManagement: React.FC<BLManagementProps> = ({
                <tr>
                  <th onClick={() => handleSort('status')} className="px-4 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors w-24"><div className="flex items-center">{t.tableHeaders[0]} {renderSortIcon('status')}</div></th>
                  <th onClick={() => handleSort('vesselName')} className="px-4 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center">{t.tableHeaders[1]} {renderSortIcon('vesselName')}</div></th>
-                 <th onClick={() => handleSort('cargoCategory')} className="px-4 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center">{t.tableHeaders[2]} {renderSortIcon('cargoCategory')}</div></th>
-                 <th onClick={() => handleSort('blNumber')} className="px-4 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center">{t.tableHeaders[3]} {renderSortIcon('blNumber')}</div></th>
-                 <th onClick={() => handleSort('shipper')} className="px-4 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center">{t.tableHeaders[4]} {renderSortIcon('shipper')}</div></th>
-                 <th onClick={() => handleSort('consignee')} className="px-4 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center">{t.tableHeaders[5]} {renderSortIcon('consignee')}</div></th>
+                 {/* Removed Category Header */}
+                 <th className="px-4 py-4 w-40">{t.tableHeaders[3]}</th> 
+                 
+                 <th onClick={() => handleSort('blNumber')} className="px-4 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center">{t.tableHeaders[4]} {renderSortIcon('blNumber')}</div></th>
+                 <th onClick={() => handleSort('shipper')} className="px-4 py-4 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center">{t.tableHeaders[5]} {renderSortIcon('shipper')}</div></th>
+                 
+                 {/* Consignee Column Removed */}
+                 
                  <th className="px-4 py-4">{t.tableHeaders[6]}</th>
                  <th className="px-4 py-4 text-right">{t.tableHeaders[7]}</th>
                  <th className="px-4 py-4 text-right">{t.tableHeaders[8]}</th>
@@ -468,37 +477,46 @@ export const BLManagement: React.FC<BLManagementProps> = ({
 
                  return (
                    <tr key={bl.id} className="hover:bg-blue-50/30 dark:hover:bg-slate-800/50 transition-colors">
-                     <td className="px-4 py-4 text-center">
-                        {/* Changed to Doc Status with Bar */}
+                     <td className="px-4 py-4 text-center align-middle">
                         {renderDocStatus(bl)}
                      </td>
-                     <td className="px-4 py-4">
-                       <div className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[120px]" title={jobName || bl.vesselName}>
+                     <td className="px-4 py-4 align-middle">
+                       <div className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[220px]" title={jobName || bl.vesselName}>
                            {jobName || bl.vesselName}
                        </div>
                        <div className="text-[10px] text-slate-400 font-medium tabular-nums mt-0.5">{bl.voyageNo}</div>
                      </td>
                      
-                     <td className="px-4 py-4 text-center">
-                         {getCategoryBadge(bl.cargoCategory)}
+                     {/* Removed Category Cell */}
+
+                     {/* Transport Info Column */}
+                     <td className="px-4 py-4 align-middle">
+                        <div className="flex flex-col text-[10px] text-slate-500 dark:text-slate-400 gap-0.5">
+                            {bl.koreanForwarder && <span className="font-bold text-slate-700 dark:text-slate-200 truncate max-w-[150px]" title={bl.koreanForwarder}>{bl.koreanForwarder}</span>}
+                            {bl.transporterName && <span className="truncate max-w-[150px]" title={bl.transporterName}>{bl.transporterName}</span>}
+                            {bl.storageLocation && <span className="text-slate-400 dark:text-slate-500 truncate max-w-[150px]" title={bl.storageLocation}>{bl.storageLocation}</span>}
+                        </div>
                      </td>
 
-                     <td className="px-4 py-4">
-                        <button onClick={() => handleOpenFile(bl.fileUrl)} className="font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-2">
-                          {bl.blNumber} <ExternalLink size={10} className="opacity-40" />
-                        </button>
+                     <td className="px-4 py-4 align-middle">
+                        <div className="flex flex-col gap-1.5 items-start">
+                            <button onClick={() => handleOpenFile(bl.fileUrl)} className="font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-2">
+                              {bl.blNumber} <ExternalLink size={10} className="opacity-40" />
+                            </button>
+                            {getCategoryBadge(bl.cargoCategory)}
+                        </div>
                      </td>
-                     <td className="px-4 py-4 text-slate-600 dark:text-slate-400 truncate max-w-[120px]" title={bl.shipper}>{bl.shipper}</td>
-                     <td className="px-4 py-4 text-slate-600 dark:text-slate-400 truncate max-w-[120px]" title={bl.consignee}>{bl.consignee}</td>
+                     <td className="px-4 py-4 text-slate-600 dark:text-slate-400 truncate max-w-[200px] align-middle" title={bl.shipper}>{bl.shipper}</td>
                      
-                     <td className="px-4 py-4 text-slate-600 dark:text-slate-400 truncate max-w-[240px] text-xs" title={displayDesc}>{displayDesc}</td>
-                     <td className="px-4 py-4 text-right text-slate-700 dark:text-slate-300 tabular-nums font-bold">{totalQty.toLocaleString()}</td>
-                     <td className="px-4 py-4 text-right text-slate-600 dark:text-slate-400 font-mono tabular-nums">{totalWeight.toLocaleString()}</td>
-                     <td className="px-4 py-4 text-right text-slate-600 dark:text-slate-400 font-mono tabular-nums font-bold">
+                     {/* Description widened */}
+                     <td className="px-4 py-4 text-slate-600 dark:text-slate-400 truncate max-w-[350px] text-xs align-middle" title={displayDesc}>{displayDesc}</td>
+                     <td className="px-4 py-4 text-right text-slate-700 dark:text-slate-300 tabular-nums font-bold align-middle">{totalQty.toLocaleString()}</td>
+                     <td className="px-4 py-4 text-right text-slate-600 dark:text-slate-400 font-mono tabular-nums align-middle">{totalWeight.toLocaleString()}</td>
+                     <td className="px-4 py-4 text-right text-slate-600 dark:text-slate-400 font-mono tabular-nums font-bold align-middle">
                         {totalCbm > 0 ? totalCbm.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 3 }) : '-'}
                      </td>
 
-                     <td className="px-4 py-4 text-center">
+                     <td className="px-4 py-4 text-center align-middle">
                        <button onClick={() => onNavigateToBL(bl.id)} className="text-white bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1 mx-auto whitespace-nowrap shadow-sm">
                           {t.goToChecklist} <ArrowRight size={12} />
                        </button>
