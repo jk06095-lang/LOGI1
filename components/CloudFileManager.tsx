@@ -21,7 +21,7 @@ interface CloudFileManagerProps {
 type WindowState = 'default' | 'tall' | 'maximized';
 
 export const CloudFileManager: React.FC<CloudFileManagerProps> = ({ 
-  isOpen, isMinimized, onClose, onMinimize, attachments, onUpload, onDelete, onRename, zIndex = 1300, onFocus 
+  isOpen, isMinimized, onClose, onMinimize, attachments, onUpload, onDelete, onRename, zIndex = 100, onFocus 
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; fileId: string | null } | null>(null);
@@ -70,7 +70,7 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
   const getWindowDimensions = () => {
       switch (windowState) {
           case 'tall': return { width: 450, height: '80vh' };
-          case 'maximized': return { width: 900, height: '80vh' };
+          case 'maximized': return { width: '95vw', height: '90vh', x: '2.5vw', y: '5vh' };
           default: return { width: 700, height: 480 };
       }
   };
@@ -268,7 +268,7 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
       {isOpen && (
         <motion.div 
             key="cloud-manager-window"
-            drag
+            drag={windowState !== 'maximized'}
             dragMomentum={false}
             dragElastic={0.1}
             initial={{ opacity: 0, scale: 0.9, y: 50 }}
@@ -276,6 +276,7 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
                 opacity: isMinimized ? 0 : 1, 
                 scale: isMinimized ? 0.9 : 1, 
                 y: 0,
+                x: windowState === 'maximized' ? 0 : undefined,
                 width: dimensions.width,
                 height: dimensions.height,
                 pointerEvents: isMinimized ? 'none' : 'auto'
@@ -284,8 +285,10 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
             transition={{ type: "spring", stiffness: 350, damping: 25 }}
             style={{ 
                 position: 'fixed',
-                bottom: 40,
-                right: 40,
+                bottom: windowState === 'maximized' ? undefined : 40,
+                right: windowState === 'maximized' ? undefined : 40,
+                top: windowState === 'maximized' ? dimensions.y : undefined,
+                left: windowState === 'maximized' ? dimensions.x : undefined,
                 zIndex: zIndex 
             }}
             className="flex flex-col rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] border border-white/30 dark:border-white/20 bg-white/15 dark:bg-black/20 backdrop-blur-xl backdrop-saturate-150 overflow-hidden pointer-events-auto"
@@ -298,16 +301,16 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
             <div className="h-12 bg-gradient-to-b from-white/10 to-transparent flex items-center px-5 shrink-0 border-b border-white/10 cursor-grab active:cursor-grabbing">
                 <div className="flex gap-2 group mr-4" onPointerDown={(e) => e.stopPropagation()}>
                     {/* Red: Close */}
-                    <button onClick={onClose} className="w-4 h-4 rounded-full bg-[#FF5F57] border border-[#E0443E] shadow-sm flex items-center justify-center hover:bg-[#FF5F57]/80 transition-transform duration-200 hover:scale-110">
-                        <X size={10} className="opacity-0 group-hover:opacity-100 text-black/60" strokeWidth={3} />
+                    <button onClick={onClose} className="w-4 h-4 rounded-full bg-[#FF5F57] border border-[#E0443E] shadow-sm flex items-center justify-center hover:bg-[#FF5F57]/80 transition-transform duration-200 hover:scale-110 group/btn">
+                        <X size={10} className="opacity-0 group-hover/btn:opacity-100 text-black/60" strokeWidth={3} />
                     </button>
                     {/* Yellow: Minimize */}
-                    <button onClick={handleYellowClick} className="w-4 h-4 rounded-full bg-[#FEBC2E] border border-[#D89E24] shadow-sm flex items-center justify-center hover:bg-[#FEBC2E]/80 transition-transform duration-200 hover:scale-110">
-                        <Minus size={10} className="opacity-0 group-hover:opacity-100 text-black/60" strokeWidth={4} />
+                    <button onClick={handleYellowClick} className="w-4 h-4 rounded-full bg-[#FEBC2E] border border-[#D89E24] shadow-sm flex items-center justify-center hover:bg-[#FEBC2E]/80 transition-transform duration-200 hover:scale-110 group/btn">
+                        <Minus size={10} className="opacity-0 group-hover/btn:opacity-100 text-black/60" strokeWidth={4} />
                     </button>
                     {/* Green: Maximize */}
-                    <button onClick={handleGreenClick} className="w-4 h-4 rounded-full bg-[#28C840] border border-[#1AAB29] shadow-sm flex items-center justify-center hover:bg-[#28C840]/80 transition-transform duration-200 hover:scale-110">
-                        <Maximize2 size={8} className="opacity-0 group-hover:opacity-100 text-black/60" strokeWidth={3} />
+                    <button onClick={handleGreenClick} className="w-4 h-4 rounded-full bg-[#28C840] border border-[#1AAB29] shadow-sm flex items-center justify-center hover:bg-[#28C840]/80 transition-transform duration-200 hover:scale-110 group/btn">
+                        <Maximize2 size={8} className="opacity-0 group-hover/btn:opacity-100 text-black/60" strokeWidth={3} />
                     </button>
                 </div>
                 <div className="flex-1 text-center font-bold text-slate-700 dark:text-white/90 text-sm flex items-center justify-center gap-2 select-none">

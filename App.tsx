@@ -57,9 +57,9 @@ const App: React.FC = () => {
   };
 
   const getZIndex = (windowId: string) => {
-    const baseZ = 50;
+    const baseZ = 100;
     const index = windowStack.indexOf(windowId);
-    return index === -1 ? baseZ : baseZ + index;
+    return index === -1 ? baseZ : baseZ + (index * 10);
   };
 
   const handleToggleChat = () => {
@@ -403,7 +403,6 @@ const App: React.FC = () => {
       } catch (e: any) { console.error(e); }
   };
 
-  // Render logic for each tab type
   const renderTabContent = (tab: Tab) => {
     switch (tab.type) {
       case 'dashboard':

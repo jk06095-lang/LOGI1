@@ -70,7 +70,9 @@ export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({
       
       // Initialize folders from jobs
       jobs.forEach(j => {
-          map.set(j.id, { id: j.id, name: `${j.vesselName} (${j.voyageNo})`, files: [] });
+          // Extract last 3 chars of voyage
+          const shortVoyage = j.voyageNo.trim().length > 3 ? j.voyageNo.trim().slice(-3) : j.voyageNo.trim();
+          map.set(j.id, { id: j.id, name: `${j.vesselName} (${shortVoyage})`, files: [] });
       });
       // Add Unassigned folder
       map.set('unassigned', { id: 'unassigned', name: 'Unassigned', files: [] });
@@ -189,13 +191,13 @@ export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({
               top: windowState === 'maximized' ? '5vh' : '10vh',
               zIndex: zIndex 
           }}
-          className={`flex flex-col rounded-2xl shadow-2xl border border-white/40 dark:border-white/10 overflow-hidden 
-            bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl backdrop-saturate-150
+          className={`flex flex-col rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] border border-white/30 dark:border-white/20 overflow-hidden 
+            bg-white/15 dark:bg-black/20 backdrop-blur-xl backdrop-saturate-150
             ${isMinimized ? 'pointer-events-none' : ''}`}
           onPointerDown={onFocus}
       >
           {/* Mac-style Header */}
-          <div className="h-12 bg-white/20 dark:bg-black/20 flex items-center px-4 shrink-0 border-b border-white/20 dark:border-white/5 cursor-grab active:cursor-grabbing backdrop-blur-md">
+          <div className="h-12 bg-gradient-to-b from-white/10 to-transparent flex items-center px-4 shrink-0 border-b border-white/10 cursor-grab active:cursor-grabbing">
               <div className="flex gap-2 group mr-4" onPointerDown={(e) => e.stopPropagation()}>
                   <button onClick={onClose} className="w-3.5 h-3.5 rounded-full bg-[#FF5F57] border border-[#E0443E] shadow-sm flex items-center justify-center hover:bg-[#FF5F57]/80 transition-transform hover:scale-110 active:scale-95 group/btn">
                       <X size={8} className="opacity-0 group-hover/btn:opacity-100 text-black/60" strokeWidth={3} />
@@ -219,11 +221,11 @@ export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({
           <div className="flex flex-1 overflow-hidden">
               
               {/* Internal Sidebar */}
-              <div className="w-64 bg-white/30 dark:bg-black/10 backdrop-blur-md border-r border-white/20 dark:border-white/5 flex flex-col select-none overflow-y-auto custom-scrollbar">
+              <div className="w-64 bg-white/5 dark:bg-black/10 border-r border-white/10 flex flex-col select-none overflow-y-auto custom-scrollbar">
                   <div className="p-3">
                       <div 
                           onClick={() => setCurrentFolderId(null)}
-                          className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all mb-4 ${currentFolderId === null ? 'bg-blue-500/90 text-white shadow-md backdrop-blur-sm' : 'hover:bg-white/40 dark:hover:bg-white/10 text-slate-700 dark:text-slate-300'}`}
+                          className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-all mb-4 ${currentFolderId === null ? 'bg-blue-500/80 text-white shadow-md backdrop-blur-sm' : 'hover:bg-white/10 text-slate-700 dark:text-slate-300'}`}
                       >
                           <FolderOpen size={18} />
                           <span className="text-sm font-bold">All Files</span>
@@ -244,8 +246,8 @@ export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({
                                       onClick={() => setCurrentFolderId(folder.id)}
                                       className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg cursor-pointer transition-all ${
                                           isActive 
-                                          ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200 font-bold shadow-sm' 
-                                          : 'text-slate-600 dark:text-slate-400 hover:bg-white/40 dark:hover:bg-white/5'
+                                          ? 'bg-blue-100/50 dark:bg-blue-900/40 text-blue-800 dark:text-blue-100 font-bold shadow-sm' 
+                                          : 'text-slate-600 dark:text-slate-400 hover:bg-white/10'
                                       }`}
                                   >
                                       {folder.id === 'unassigned' ? <Box size={14} className="opacity-70" /> : <Ship size={14} className="opacity-70" />}
@@ -259,10 +261,10 @@ export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({
               </div>
 
               {/* Main Grid Area */}
-              <div className="flex-1 flex flex-col bg-white/40 dark:bg-slate-900/40 relative">
+              <div className="flex-1 flex flex-col relative">
                   
                   {/* Toolbar */}
-                  <div className="h-12 border-b border-white/20 dark:border-white/5 flex items-center px-4 justify-between shrink-0 bg-white/10 dark:bg-black/10">
+                  <div className="h-12 border-b border-white/10 flex items-center px-4 justify-between shrink-0 bg-white/5 dark:bg-black/5">
                       <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
                           <span className="text-xs font-bold">
                               {currentFolderId === null ? 'Library' : folders.find(f => f.id === currentFolderId)?.name || 'Unknown'}
@@ -279,7 +281,7 @@ export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({
                               placeholder="Search files..."
                               value={searchTerm}
                               onChange={(e) => setSearchTerm(e.target.value)}
-                              className="pl-8 pr-3 py-1.5 bg-black/5 dark:bg-white/10 border border-transparent focus:bg-white dark:focus:bg-black focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 rounded-lg text-xs w-48 outline-none transition-all text-slate-800 dark:text-white"
+                              className="pl-8 pr-3 py-1.5 bg-black/5 dark:bg-white/10 border border-transparent focus:bg-white/20 dark:focus:bg-black/20 focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 rounded-lg text-xs w-48 outline-none transition-all text-slate-800 dark:text-white placeholder-slate-500"
                           />
                       </div>
                   </div>
@@ -305,7 +307,7 @@ export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({
                                       className="group flex flex-col items-center gap-2 p-3 rounded-2xl hover:bg-blue-500/10 dark:hover:bg-blue-400/10 cursor-pointer transition-all border border-transparent hover:border-blue-500/20 active:scale-95"
                                       title={file.name}
                                   >
-                                      <div className="w-16 h-16 flex items-center justify-center bg-white/80 dark:bg-slate-800/80 rounded-2xl shadow-sm group-hover:scale-105 transition-transform duration-200 pointer-events-none border border-white/20 dark:border-white/5 backdrop-blur-sm">
+                                      <div className="w-16 h-16 flex items-center justify-center bg-white/40 dark:bg-slate-800/40 rounded-2xl shadow-sm group-hover:scale-105 transition-transform duration-200 pointer-events-none border border-white/20 dark:border-white/5 backdrop-blur-sm">
                                           {getFileIcon(file)}
                                       </div>
                                       <div className="text-center w-full">

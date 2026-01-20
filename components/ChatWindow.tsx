@@ -464,7 +464,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
                 bottom: 20,
                 zIndex: zIndex 
             }}
-            className="flex flex-col rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] border border-white/30 dark:border-white/20 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl backdrop-saturate-150 overflow-hidden pointer-events-auto"
+            className="flex flex-col rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] border border-white/30 dark:border-white/20 bg-white/15 dark:bg-black/20 backdrop-blur-xl backdrop-saturate-150 overflow-hidden pointer-events-auto"
             onPointerDown={onFocus}
         >
             {/* Header */}
