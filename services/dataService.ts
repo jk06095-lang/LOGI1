@@ -380,7 +380,9 @@ export const dataService = {
       try {
           await runTransaction(db, async (transaction) => {
               const msgSnap = await transaction.get(msgRef);
-              if (!msgSnap.exists()) return;
+              if (!msgSnap.exists()) {
+                  throw new Error("Message does not exist");
+              }
               
               const data = msgSnap.data() as ChatMessage;
               
@@ -413,7 +415,10 @@ export const dataService = {
               
               transaction.update(msgRef, { reactions: reactions });
           });
-      } catch(e) { console.error("Toggle Reaction Error:", e); }
+      } catch(e) { 
+          console.error("Toggle Reaction Error:", e); 
+          throw e; // Propagate error so UI can handle it
+      }
   },
 
   markChannelRead: async (channelId: string, userId: string) => {
