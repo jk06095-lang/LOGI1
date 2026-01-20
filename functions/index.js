@@ -54,7 +54,7 @@ const deleteFiles = async (urls) => {
 };
 
 // --------------------------------------------------------
-// 1. [Global Chat] Topic Subscription Function (Callable)
+// 1. [Global Chat] Topic Subscription
 // --------------------------------------------------------
 exports.subscribeToGlobalChat = functions.https.onCall(async (data, context) => {
   if (!context.auth) {
@@ -150,7 +150,53 @@ exports.sendDMNotification = functions.firestore
   });
 
 // --------------------------------------------------------
-// 4. [NEW] onBLUpdate: Delete replaced/removed files
+// 4. [Integrity] Cascade Delete for Jobs
+//    Deletes all child B/Ls and their files when a Job is deleted
+// --------------------------------------------------------
+exports.onJobDelete = functions.firestore
+  .document("jobs/{jobId}")
+  .onDelete(async (snapshot, context) => {
+    const jobId = context.params.jobId;
+    console.log(`Cascade Delete Initiated for Job: ${jobId}`);
+
+    // 1. Find all B/Ls associated with this job
+    const blsSnapshot = await admin.firestore()
+      .collection('bls')
+      .where('vesselJobId', '==', jobId)
+      .get();
+
+    if (blsSnapshot.empty) {
+      console.log("No associated B/Ls found.");
+      return null;
+    }
+
+    console.log(`Found ${blsSnapshot.size} B/Ls to delete.`);
+
+    const batch = admin.firestore().batch();
+    const allFileUrls = [];
+
+    blsSnapshot.forEach(doc => {
+      const data = doc.data();
+      // Collect URLs for file deletion
+      allFileUrls.push(...extractFileUrls(data));
+      // Queue document deletion
+      batch.delete(doc.ref);
+    });
+
+    // 2. Delete files from Storage
+    if (allFileUrls.length > 0) {
+      console.log(`Deleting ${allFileUrls.length} associated files...`);
+      await deleteFiles(allFileUrls);
+    }
+
+    // 3. Commit Firestore Batch Delete
+    await batch.commit();
+    console.log("Cascade delete completed successfully.");
+    return null;
+  });
+
+// --------------------------------------------------------
+// 5. [Maintenance] onBLUpdate: Delete replaced/removed files
 // --------------------------------------------------------
 exports.onBLUpdate = functions.firestore
   .document("bls/{blId}")
@@ -171,7 +217,7 @@ exports.onBLUpdate = functions.firestore
   });
 
 // --------------------------------------------------------
-// 5. [Updated] onBLDelete: Recursively delete all files
+// 6. [Maintenance] onBLDelete: Recursively delete all files
 // --------------------------------------------------------
 exports.onBLDelete = functions.firestore
   .document("bls/{blId}")
@@ -186,7 +232,7 @@ exports.onBLDelete = functions.firestore
   });
 
 // --------------------------------------------------------
-// 6. [NEW] cleanupOrphanedFiles: Scheduled cleanup
+// 7. [Critical OOM Fix] cleanupOrphanedFiles with Pagination
 //    Runs every Sunday at 03:00 AM (Asia/Seoul)
 // --------------------------------------------------------
 exports.cleanupOrphanedFiles = functions.pubsub
@@ -194,25 +240,49 @@ exports.cleanupOrphanedFiles = functions.pubsub
   .timeZone('Asia/Seoul')
   .onRun(async (context) => {
     console.log("Starting Orphaned File Cleanup...");
-    const bucket = admin.storage().bucket();
     
-    // 1. Collect all valid URLs from Firestore 'bls' collection
-    // Note: For very large DBs, this requires batching/pagination.
-    const blsSnapshot = await admin.firestore().collection('bls').get();
+    // 1. Collect all valid URLs from Firestore using Pagination
     const validPaths = new Set();
+    const CHUNK_SIZE = 500;
+    let lastDoc = null;
+    let hasMore = true;
+    let totalDocsProcessed = 0;
 
-    blsSnapshot.forEach(doc => {
-      const urls = extractFileUrls(doc.data());
-      urls.forEach(url => {
-        const path = getFilePathFromUrl(url);
-        if (path) validPaths.add(decodeURIComponent(path));
+    console.log("Fetching valid paths from Firestore...");
+
+    while (hasMore) {
+      let query = admin.firestore().collection('bls')
+        .limit(CHUNK_SIZE)
+        .select('fileUrl', 'attachments', 'commercialInvoice', 'packingList', 'arrivalNotice', 'manifest', 'exportDeclaration'); // Select only fields that might have URLs
+
+      if (lastDoc) {
+        query = query.startAfter(lastDoc);
+      }
+
+      const snapshot = await query.get();
+      
+      if (snapshot.empty) {
+        hasMore = false;
+        break;
+      }
+
+      snapshot.forEach(doc => {
+        const urls = extractFileUrls(doc.data());
+        urls.forEach(url => {
+          const path = getFilePathFromUrl(url);
+          if (path) validPaths.add(decodeURIComponent(path));
+        });
       });
-    });
 
-    console.log(`Found ${validPaths.size} valid file paths in Firestore.`);
+      lastDoc = snapshot.docs[snapshot.docs.length - 1];
+      totalDocsProcessed += snapshot.size;
+      console.log(`Processed ${totalDocsProcessed} docs...`);
+    }
 
-    // 2. List files in Storage
-    // Note: 'bl-documents/' is the prefix used in storageService.ts
+    console.log(`Found ${validPaths.size} valid file paths.`);
+
+    // 2. List files in Storage and Compare
+    const bucket = admin.storage().bucket();
     const [files] = await bucket.getFiles({ prefix: 'bl-documents/' });
     
     let deletedCount = 0;
@@ -220,14 +290,11 @@ exports.cleanupOrphanedFiles = functions.pubsub
     const GRACE_PERIOD_MS = 24 * 60 * 60 * 1000; // 24 hours
 
     for (const file of files) {
-      // Decode the file name to match extracted paths
       const filePath = decodeURIComponent(file.name);
       
-      // Skip folders
-      if (filePath.endsWith('/')) continue;
+      if (filePath.endsWith('/')) continue; // Skip folders
 
-      // Check creation time (Grace Period)
-      // Prevent deleting files that are currently uploading
+      // Grace Period Check
       const metadata = await file.getMetadata();
       const createdTime = new Date(metadata[0].timeCreated);
       if (now - createdTime < GRACE_PERIOD_MS) continue;

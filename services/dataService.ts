@@ -1,32 +1,36 @@
 
 import { db, messaging, functions } from "../lib/firebase";
-import { collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy, setDoc, deleteDoc, writeBatch, getDoc, arrayUnion, arrayRemove, runTransaction, where, limit, getDocs, Timestamp } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy, setDoc, deleteDoc, writeBatch, getDoc, arrayUnion, arrayRemove, runTransaction, where, limit, getDocs, Timestamp, Unsubscribe } from "firebase/firestore";
 import { getToken } from "firebase/messaging";
 import { httpsCallable } from "firebase/functions";
 import { VesselJob, BLData, BLChecklist, ResourceLock, ChatMessage, ChatUser, Attachment } from "../types";
 import { User } from "firebase/auth";
 
-// State Containers (In-Memory Cache)
-// NOTE: This acts as a singleton cache. It must be cleared on logout.
+// State Containers (Singleton Cache)
 let dbJobs: VesselJob[] = [];
 let dbBLs: BLData[] = [];
 let dbChecklists: Record<string, BLChecklist> = {};
-let dbCategories: string[] = ['BAIT', 'FISHING_GEAR', 'NETS', 'PORT_EQUIPMENT', 'GENERAL']; // Client-side fallback defaults
+let dbCategories: string[] = ['BAIT', 'FISHING_GEAR', 'NETS', 'PORT_EQUIPMENT', 'GENERAL'];
 
-// Listeners
+// Listener Management (Prevent Duplicates)
 const jobListeners: Array<(jobs: VesselJob[]) => void> = [];
 const blListeners: Array<(bls: BLData[]) => void> = [];
 const checklistListeners: Array<(checklists: Record<string, BLChecklist>) => void> = [];
 const categoryListeners: Array<(categories: string[]) => void> = [];
 
+// Firestore Unsubscribe Functions
+let unsubscribeJobs: Unsubscribe | null = null;
+let unsubscribeBLs: Unsubscribe | null = null;
+let unsubscribeChecklists: Unsubscribe | null = null;
+let unsubscribeCategories: Unsubscribe | null = null;
+
 const notifyJobs = () => {
-    // Sort by createdAt desc
+    // Sort locally to ensure consistency
     const sorted = [...dbJobs].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
     jobListeners.forEach(l => l(sorted));
 };
 
 const notifyBLs = () => {
-    // Sort by uploadDate desc
     const sorted = [...dbBLs].sort((a, b) => new Date(b.uploadDate || 0).getTime() - new Date(a.uploadDate || 0).getTime());
     blListeners.forEach(l => l(sorted));
 };
@@ -40,50 +44,58 @@ const notifyCategories = () => {
 };
 
 export const dataService = {
-  // Critical for security: Clear in-memory data when user logs out
+  // CRITICAL: Clear data and stop listeners on logout to prevent leaks
   clearCache: () => {
       dbJobs = [];
       dbBLs = [];
       dbChecklists = {};
       dbCategories = ['BAIT', 'FISHING_GEAR', 'NETS', 'PORT_EQUIPMENT', 'GENERAL'];
-      // Notify listeners to clear UI
+      
+      // Detach Firestore Listeners
+      if (unsubscribeJobs) { unsubscribeJobs(); unsubscribeJobs = null; }
+      if (unsubscribeBLs) { unsubscribeBLs(); unsubscribeBLs = null; }
+      if (unsubscribeChecklists) { unsubscribeChecklists(); unsubscribeChecklists = null; }
+      if (unsubscribeCategories) { unsubscribeCategories(); unsubscribeCategories = null; }
+
+      // Notify UI to clear
       notifyJobs();
       notifyBLs();
       notifyChecklists();
       notifyCategories();
-      console.log("Data cache cleared.");
+      
+      console.log("Data cache cleared and listeners detached.");
   },
+
+  // --- JOB MANAGEMENT ---
 
   subscribeJobs: (callback: (jobs: VesselJob[]) => void) => {
     jobListeners.push(callback);
-    // Initial notify with current cache
-    callback(dbJobs); 
+    callback(dbJobs); // Initial cache return
     
-    let unsubscribe = () => {};
-
-    if (db) {
+    // Only start Firestore listener if not already active (Singleton Pattern)
+    if (!unsubscribeJobs && db) {
       try {
         const q = query(collection(db, "jobs"), orderBy("createdAt", "desc"));
-        unsubscribe = onSnapshot(q, (snapshot) => {
+        unsubscribeJobs = onSnapshot(q, (snapshot) => {
           dbJobs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as VesselJob));
           notifyJobs();
-        }, (error) => {
-            console.error("Firestore Jobs Subscribe Error:", error);
-        });
-      } catch (e) { console.error("Firestore Jobs Query Error:", e); }
-    } else {
-        console.warn("Firebase DB not initialized.");
+        }, (error) => console.error("Jobs Subscribe Error:", error));
+      } catch (e) { console.error("Jobs Query Error:", e); }
     }
     
     return () => {
-        unsubscribe();
         const idx = jobListeners.indexOf(callback);
         if (idx > -1) jobListeners.splice(idx, 1);
+        // Clean up Firestore connection if no listeners left
+        if (jobListeners.length === 0 && unsubscribeJobs) {
+            unsubscribeJobs();
+            unsubscribeJobs = null;
+        }
     };
   },
 
   addJob: async (job: Omit<VesselJob, 'id'>) => {
-    if (!db) { alert("Database not available."); return; }
+    if (!db) return;
     try {
         await addDoc(collection(db, "jobs"), job);
     } catch (e) { console.error("Add Job Error:", e); alert("Failed to add job."); }
@@ -93,45 +105,56 @@ export const dataService = {
     if (!db) return;
     try {
         await updateDoc(doc(db, "jobs", jobId), updates);
+        // Optimistic update
+        dbJobs = dbJobs.map(j => j.id === jobId ? { ...j, ...updates } : j);
+        notifyJobs();
     } catch (e) { console.error("Update Job Error:", e); }
   },
 
   deleteJob: async (jobId: string) => {
     if (!db) return;
     try {
+        // Optimistic Delete: Remove from local cache immediately for UI responsiveness
+        dbJobs = dbJobs.filter(j => j.id !== jobId);
+        notifyJobs();
+
         await deleteDoc(doc(db, "jobs", jobId));
-    } catch (e) { console.error("Delete Job Error:", e); }
+        // Note: Server-side Cascade Delete (functions/index.js) handles child BLs and files
+    } catch (e) { 
+        console.error("Delete Job Error:", e);
+        // Revert optimization on error would require refetching, simpler to just log here
+    }
   },
+
+  // --- BL MANAGEMENT ---
 
   subscribeBLs: (callback: (bls: BLData[]) => void) => {
     blListeners.push(callback);
     callback(dbBLs);
 
-    let unsubscribe = () => {};
-
-    if (db) {
+    if (!unsubscribeBLs && db) {
       try {
         const q = query(collection(db, "bls"), orderBy("uploadDate", "desc"));
-        unsubscribe = onSnapshot(q, (snapshot) => {
+        unsubscribeBLs = onSnapshot(q, (snapshot) => {
           dbBLs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as BLData));
           notifyBLs();
-        }, (error) => {
-            console.error("Firestore BLs Subscribe Error:", error);
-        });
-      } catch (e) { console.error("Firestore BLs Query Error:", e); }
+        }, (error) => console.error("BLs Subscribe Error:", error));
+      } catch (e) { console.error("BLs Query Error:", e); }
     }
 
     return () => {
-        unsubscribe();
         const idx = blListeners.indexOf(callback);
         if (idx > -1) blListeners.splice(idx, 1);
+        if (blListeners.length === 0 && unsubscribeBLs) {
+            unsubscribeBLs();
+            unsubscribeBLs = null;
+        }
     };
   },
 
   addBL: async (bl: BLData) => {
-    if (!db) { alert("Database not available."); return; }
+    if (!db) return;
     try {
-        // Use setDoc with a specific ID if provided, or allow Firestore to generate if we changed logic (but app uses generated IDs)
         await setDoc(doc(db, "bls", bl.id), bl);
     } catch (e) { console.error("Add BL Error:", e); alert("Failed to save BL."); }
   },
@@ -140,108 +163,103 @@ export const dataService = {
     if (!db) return;
     try {
         await updateDoc(doc(db, "bls", blId), updates);
+        // Optimistic
+        dbBLs = dbBLs.map(b => b.id === blId ? { ...b, ...updates } : b);
+        notifyBLs();
     } catch (e) { console.error("Update BL Error:", e); }
   },
 
-  // TRANSACTIONAL UPDATE FOR FILES
-  // Ensures data consistency when multiple users are deleting files from the array
   updateAttachmentsTransaction: async (blId: string, operation: 'remove' | 'rename' | 'add', payload: any) => {
       if (!db) return;
       const blRef = doc(db, "bls", blId);
-
       try {
           await runTransaction(db, async (transaction) => {
               const sfDoc = await transaction.get(blRef);
               if (!sfDoc.exists()) throw "Document does not exist!";
-
               const currentAttachments = (sfDoc.data().attachments || []) as Attachment[];
               let newAttachments = [...currentAttachments];
 
               if (operation === 'remove') {
-                  const attachmentIdToRemove = payload;
-                  newAttachments = newAttachments.filter(a => a.id !== attachmentIdToRemove);
+                  newAttachments = newAttachments.filter(a => a.id !== payload);
               } else if (operation === 'rename') {
                   const { id, newName } = payload;
-                  newAttachments = newAttachments.map(a => 
-                      a.id === id ? { ...a, name: newName } : a
-                  );
+                  newAttachments = newAttachments.map(a => a.id === id ? { ...a, name: newName } : a);
               } else if (operation === 'add') {
-                  const newFiles = payload;
-                  newAttachments = [...newAttachments, ...newFiles];
+                  newAttachments = [...newAttachments, ...payload];
               }
-
               transaction.update(blRef, { attachments: newAttachments });
           });
-      } catch (e) {
-          console.error("Attachment Transaction Failed:", e);
-          throw e;
-      }
+      } catch (e) { console.error("Attachment Transaction Failed:", e); throw e; }
   },
 
   deleteBL: async (blId: string) => {
     if (!db) return;
     try {
-        // Client only deletes the document. Server handles file cleanup via Cloud Functions.
+        // Optimistic Delete
+        dbBLs = dbBLs.filter(b => b.id !== blId);
+        notifyBLs();
+        
         await deleteDoc(doc(db, "bls", blId));
-        console.log(`BL Document ${blId} deleted. Files will be cleaned up by server.`);
-    } catch (e) { 
-        console.error("Delete BL Error:", e); 
-        alert("Failed to delete document.");
-    }
+    } catch (e) { console.error("Delete BL Error:", e); }
   },
 
   bulkDeleteBLs: async (ids: string[]) => {
       if (!db || ids.length === 0) return;
-      // Promise.all is safe for parallel Firestore deletes here
+      // Optimistic
+      dbBLs = dbBLs.filter(b => !ids.includes(b.id));
+      notifyBLs();
       await Promise.all(ids.map(id => deleteDoc(doc(db, "bls", id))));
   },
+
+  // --- CHECKLIST MANAGEMENT ---
 
   subscribeChecklists: (callback: (checklists: Record<string, BLChecklist>) => void) => {
       checklistListeners.push(callback);
       callback(dbChecklists);
 
-      let unsubscribe = () => {};
-      
-      if (db) {
+      if (!unsubscribeChecklists && db) {
           try {
-             // We can subscribe to the entire collection if small, or query. For now, subscribe all.
-             unsubscribe = onSnapshot(collection(db, "checklists"), (snapshot) => {
+             unsubscribeChecklists = onSnapshot(collection(db, "checklists"), (snapshot) => {
                  const newChecklists: Record<string, BLChecklist> = {};
                  snapshot.docs.forEach(doc => {
-                     // Checklists are keyed by BL ID usually
                      const data = doc.data() as BLChecklist;
                      newChecklists[data.blId] = data;
                  });
                  dbChecklists = newChecklists;
                  notifyChecklists();
-             }, (error) => { console.error("Checklist Subscribe Error", error); });
+             }, (error) => console.error("Checklist Subscribe Error", error));
           } catch(e) { console.error(e); }
       }
 
       return () => {
-          unsubscribe();
           const idx = checklistListeners.indexOf(callback);
           if (idx > -1) checklistListeners.splice(idx, 1);
+          if (checklistListeners.length === 0 && unsubscribeChecklists) {
+              unsubscribeChecklists();
+              unsubscribeChecklists = null;
+          }
       };
   },
 
   updateChecklist: async (blId: string, checklist: BLChecklist) => {
       if (!db) return;
-      // We use the BL ID as the Doc ID for the checklist to make it 1:1 easy to find
       try {
           await setDoc(doc(db, "checklists", blId), checklist);
+          // Local update
+          dbChecklists[blId] = checklist;
+          notifyChecklists();
       } catch (e) { console.error("Update Checklist Error", e); }
   },
+
+  // --- SETTINGS / CATEGORIES ---
 
   subscribeCategories: (callback: (categories: string[]) => void) => {
     categoryListeners.push(callback);
     callback(dbCategories);
 
-    let unsubscribe = () => {};
-
-    if (db) {
+    if (!unsubscribeCategories && db) {
         const docRef = doc(db, "settings", "categories");
-        unsubscribe = onSnapshot(docRef, (docSnap) => {
+        unsubscribeCategories = onSnapshot(docRef, (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 if (data.list && Array.isArray(data.list)) {
@@ -249,41 +267,33 @@ export const dataService = {
                     notifyCategories();
                 }
             } else {
-                // Initialize if missing
                 setDoc(docRef, { list: dbCategories }, { merge: true });
             }
         });
     }
     
     return () => {
-        unsubscribe();
         const idx = categoryListeners.indexOf(callback);
         if (idx > -1) categoryListeners.splice(idx, 1);
+        if (categoryListeners.length === 0 && unsubscribeCategories) {
+            unsubscribeCategories();
+            unsubscribeCategories = null;
+        }
     };
   },
 
   addCategory: async (category: string) => {
     if (!db || !category) return;
     try {
-        const docRef = doc(db, "settings", "categories");
-        await setDoc(docRef, {
-            list: arrayUnion(category)
-        }, { merge: true });
-    } catch (e) {
-        console.error("Add Category Error:", e);
-    }
+        await setDoc(doc(db, "settings", "categories"), { list: arrayUnion(category) }, { merge: true });
+    } catch (e) { console.error("Add Category Error:", e); }
   },
 
   deleteCategory: async (category: string) => {
     if (!db || !category) return;
     try {
-        const docRef = doc(db, "settings", "categories");
-        await updateDoc(docRef, {
-            list: arrayRemove(category)
-        });
-    } catch (e) {
-        console.error("Delete Category Error:", e);
-    }
+        await updateDoc(doc(db, "settings", "categories"), { list: arrayRemove(category) });
+    } catch (e) { console.error("Delete Category Error:", e); }
   },
 
   updateCategory: async (oldVal: string, newVal: string) => {
@@ -293,7 +303,6 @@ export const dataService = {
         await runTransaction(db, async (transaction) => {
             const sfDoc = await transaction.get(docRef);
             if (!sfDoc.exists()) return;
-            
             const list = sfDoc.data().list as string[];
             const index = list.indexOf(oldVal);
             if (index > -1) {
@@ -301,56 +310,37 @@ export const dataService = {
                 transaction.update(docRef, { list: list });
             }
         });
-      } catch (e) {
-          console.error("Update Category Error:", e);
-      }
+      } catch (e) { console.error("Update Category Error:", e); }
   },
 
-  // --- Global Settings (Logo, etc) ---
-  
+  // --- Global Settings (Logo) ---
   subscribeReportLogo: (callback: (url: string | null) => void) => {
       if (!db) return () => {};
       return onSnapshot(doc(db, "settings", "general"), (docSnap) => {
-          if (docSnap.exists()) {
-              callback(docSnap.data()?.reportLogoUrl || null);
-          } else {
-              callback(null);
-          }
+          callback(docSnap.exists() ? docSnap.data()?.reportLogoUrl || null : null);
       });
   },
 
   updateReportLogo: async (url: string | null) => {
       if (!db) return;
       try {
-          // If null, we can either set to null or delete the field. Setting to null is safer.
           await setDoc(doc(db, "settings", "general"), { reportLogoUrl: url }, { merge: true });
-      } catch (e) {
-          console.error("Update Report Logo Error:", e);
-      }
+      } catch (e) { console.error("Update Report Logo Error:", e); }
   },
 
-  // --- Concurrency / Locking Methods ---
-
+  // --- Concurrency / Locking ---
   subscribeLock: (lockId: string, callback: (lock: ResourceLock | null) => void) => {
     if (!db) return () => {};
     return onSnapshot(doc(db, "locks", lockId), (docSnap) => {
-        if (docSnap.exists()) {
-            callback({ id: docSnap.id, ...docSnap.data() } as ResourceLock);
-        } else {
-            callback(null);
-        }
+        callback(docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } as ResourceLock : null);
     });
   },
 
   acquireLock: async (lockId: string, user: User) => {
       if (!db) return;
-      const lockData: ResourceLock = {
-          id: lockId,
-          userId: user.uid,
-          userEmail: user.email || 'Anonymous',
-          timestamp: Date.now()
-      };
-      await setDoc(doc(db, "locks", lockId), lockData);
+      await setDoc(doc(db, "locks", lockId), {
+          id: lockId, userId: user.uid, userEmail: user.email || 'Anonymous', timestamp: Date.now()
+      });
   },
 
   releaseLock: async (lockId: string) => {
@@ -360,68 +350,37 @@ export const dataService = {
 
   maintainLock: async (lockId: string) => {
       if (!db) return;
-      // Just update timestamp to show liveliness
-      await updateDoc(doc(db, "locks", lockId), {
-          timestamp: Date.now()
-      });
+      await updateDoc(doc(db, "locks", lockId), { timestamp: Date.now() });
   },
 
-  // --- Chat Methods ---
-  
+  // --- Chat (Existing Implementation - Kept as is) ---
   subscribeChatMessages: (channelId: string, limitCount: number, callback: (messages: ChatMessage[]) => void) => {
     if (!db) return () => {};
-    
-    // Default limit if not provided
     const safeLimit = limitCount || 100;
-
-    const q = query(
-        collection(db, "messages"), 
-        where("channelId", "==", channelId)
-    );
+    const q = query(collection(db, "messages"), where("channelId", "==", channelId));
     
     return onSnapshot(q, (snapshot) => {
         const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage));
-        
-        // Sort in client memory: Oldest first (Ascending timestamp) for display
         msgs.sort((a, b) => a.timestamp - b.timestamp);
-        
-        // Apply limit logic client-side
-        if (msgs.length > safeLimit) {
-            // Keep the last 'safeLimit' messages (newest ones)
-            callback(msgs.slice(-safeLimit));
-        } else {
-            callback(msgs);
-        }
-    }, (error) => {
-        console.error("Chat Subscribe Error:", error);
-    });
+        callback(msgs.length > safeLimit ? msgs.slice(-safeLimit) : msgs);
+    }, (error) => console.error("Chat Subscribe Error:", error));
   },
 
   sendChatMessage: async (message: Omit<ChatMessage, 'id'>) => {
     if (!db) return;
     try {
-        // Initialize readBy with sender so they don't see it as unread
         const msgWithRead = { ...message, readBy: [message.senderId] };
         await addDoc(collection(db, "messages"), msgWithRead);
-    } catch (e) {
-        console.error("Send Message Error:", e);
-    }
+    } catch (e) { console.error("Send Message Error:", e); }
   },
 
-  // Batch mark read logic
   markChannelRead: async (channelId: string, userId: string) => {
       if (!db || !channelId || !userId) return;
-      
       try {
-          const q = query(
-              collection(db, "messages"), 
-              where("channelId", "==", channelId)
-          );
-          
+          const q = query(collection(db, "messages"), where("channelId", "==", channelId));
           const snapshot = await getDocs(q);
           const batch = writeBatch(db);
           let updateCount = 0;
-
           snapshot.docs.forEach((docSnap) => {
               const data = docSnap.data() as ChatMessage;
               if (data.senderId !== userId && (!data.readBy || !data.readBy.includes(userId))) {
@@ -429,13 +388,8 @@ export const dataService = {
                   updateCount++;
               }
           });
-
-          if (updateCount > 0) {
-              await batch.commit();
-          }
-      } catch (e) {
-          console.error("Error marking channel read:", e);
-      }
+          if (updateCount > 0) await batch.commit();
+      } catch (e) { console.error("Error marking channel read:", e); }
   },
 
   subscribeUnreadStatus: (userId: string, callback: (latestUnreadTs: number) => void) => {
@@ -446,11 +400,8 @@ export const dataService = {
           for (const doc of snapshot.docs) {
               const data = doc.data() as ChatMessage;
               const isRelevant = data.channelId === 'global' || data.channelId.includes(userId);
-              
               if (isRelevant && data.senderId !== userId && (!data.readBy || !data.readBy.includes(userId))) {
-                  if (data.timestamp > maxTs) {
-                      maxTs = data.timestamp;
-                  }
+                  if (data.timestamp > maxTs) maxTs = data.timestamp;
               }
           }
           callback(maxTs);
@@ -475,20 +426,9 @@ export const dataService = {
 
   getMessagesInTimeRange: async (startDate: number, endDate: number) => {
      if (!db) return [];
-     const q = query(
-         collection(db, "messages"),
-         where("timestamp", ">=", startDate),
-         where("timestamp", "<=", endDate),
-         orderBy("timestamp", "asc")
-     );
-
-     try {
-         const snapshot = await getDocs(q);
-         return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage));
-     } catch (e) {
-         console.error("Export Messages Error:", e);
-         throw e;
-     }
+     const q = query(collection(db, "messages"), where("timestamp", ">=", startDate), where("timestamp", "<=", endDate), orderBy("timestamp", "asc"));
+     const snapshot = await getDocs(q);
+     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage));
   },
 
   deleteOldChatMessages: async (beforeDate: number) => {
@@ -496,202 +436,111 @@ export const dataService = {
       const q = query(collection(db, "messages"), where("timestamp", "<", beforeDate), limit(400));
       const snapshot = await getDocs(q);
       if (snapshot.empty) return 0;
-
       const batch = writeBatch(db);
-      snapshot.docs.forEach(doc => {
-          batch.delete(doc.ref);
-      });
-
+      snapshot.docs.forEach(doc => batch.delete(doc.ref));
       await batch.commit();
       return snapshot.size;
   },
 
   sendTypingStatus: async (channelId: string, user: { uid: string, displayName: string }) => {
       if (!db) return;
-      const id = `${channelId}_${user.uid}`;
-      try {
-          await setDoc(doc(db, "typing", id), {
-              channelId,
-              userId: user.uid,
-              displayName: user.displayName,
-              timestamp: Date.now()
-          });
-      } catch(e) {}
+      await setDoc(doc(db, "typing", `${channelId}_${user.uid}`), {
+          channelId, userId: user.uid, displayName: user.displayName, timestamp: Date.now()
+      });
   },
 
   clearTypingStatus: async (channelId: string, userId: string) => {
       if (!db) return;
-      const id = `${channelId}_${userId}`;
-      try {
-          await deleteDoc(doc(db, "typing", id));
-      } catch(e) {}
+      await deleteDoc(doc(db, "typing", `${channelId}_${userId}`));
   },
 
   subscribeTyping: (channelId: string, callback: (typingUsers: { displayName: string, userId: string }[]) => void) => {
       if (!db) return () => {};
       const q = query(collection(db, "typing"), where("channelId", "==", channelId));
-      
       return onSnapshot(q, (snapshot) => {
           const now = Date.now();
-          const active = snapshot.docs
-              .map(d => d.data() as { timestamp: number; displayName: string, userId: string })
-              .filter(d => now - d.timestamp < 5000); // Filter stale > 5s
-          
+          const active = snapshot.docs.map(d => d.data() as any).filter(d => now - d.timestamp < 5000);
           callback(active);
       });
   },
 
+  // --- Users & Presence ---
   updateUserPresence: async (user: User) => {
     if (!db) return;
     try {
         const userRef = doc(db, "users", user.uid);
         const snapshot = await getDoc(userRef);
         const existingData = snapshot.exists() ? snapshot.data() : {};
-
         const chatUser: ChatUser = {
-            uid: user.uid,
-            displayName: user.displayName || 'User',
-            email: user.email || '',
-            photoURL: user.photoURL || '',
-            lastSeen: Date.now(),
-            status: 'online',
-            contacts: existingData.contacts || [], 
-            authorized: existingData.authorized || false
+            uid: user.uid, displayName: user.displayName || 'User', email: user.email || '', photoURL: user.photoURL || '',
+            lastSeen: Date.now(), status: 'online', contacts: existingData.contacts || [], authorized: existingData.authorized || false
         };
-        
         await setDoc(userRef, chatUser, { merge: true });
-    } catch (e) {
-        console.error("Presence Update Error:", e);
-    }
+    } catch (e) { console.error("Presence Update Error:", e); }
   },
 
   updateUserStatus: async (uid: string, status: 'online' | 'offline' | 'away') => {
       if (!db) return;
-      try {
-          await updateDoc(doc(db, "users", uid), {
-              status: status,
-              lastSeen: Date.now()
-          });
-      } catch (e) { }
+      await updateDoc(doc(db, "users", uid), { status: status, lastSeen: Date.now() });
   },
 
   subscribeChatUsers: (callback: (users: ChatUser[]) => void) => {
       if (!db) return () => {};
       const q = query(collection(db, "users"), orderBy("lastSeen", "desc"), limit(50));
       return onSnapshot(q, (snapshot) => {
-          const users = snapshot.docs.map(doc => doc.data() as ChatUser);
-          callback(users);
+          callback(snapshot.docs.map(doc => doc.data() as ChatUser));
       });
   },
 
   addContactByEmail: async (currentUserUid: string, contactEmail: string) => {
       if (!db) throw new Error("Database not connected");
-      
       const q = query(collection(db, "users"), where("email", "==", contactEmail));
       const querySnapshot = await getDocs(q);
-      
-      if (querySnapshot.empty) {
-          throw new Error("User not found with this email.");
-      }
+      if (querySnapshot.empty) throw new Error("User not found with this email.");
       
       const contactUser = querySnapshot.docs[0].data() as ChatUser;
-      const currentUserRef = doc(db, "users", currentUserUid);
-      await updateDoc(currentUserRef, {
-          contacts: arrayUnion(contactUser.uid)
-      });
-      
+      await updateDoc(doc(db, "users", currentUserUid), { contacts: arrayUnion(contactUser.uid) });
       return contactUser;
   },
 
   removeContact: async (currentUserUid: string, contactUid: string) => {
       if (!db) return;
-      try {
-          const userRef = doc(db, "users", currentUserUid);
-          await updateDoc(userRef, {
-              contacts: arrayRemove(contactUid)
-          });
-      } catch (e) {
-          console.error("Remove Contact Error", e);
-      }
+      await updateDoc(doc(db, "users", currentUserUid), { contacts: arrayRemove(contactUid) });
   },
 
-  updateContacts: async (currentUserUid: string, newContacts: string[]) => {
-      if (!db) return;
-      try {
-          const userRef = doc(db, "users", currentUserUid);
-          await updateDoc(userRef, {
-              contacts: newContacts
-          });
-      } catch (e) {
-          console.error("Update Contacts Order Error", e);
-      }
-  },
-
+  // --- Auth & Access ---
   setupNotifications: async (user: User) => {
-    if (!messaging || !db) {
-        console.warn("Notifications not supported in this environment");
-        return;
-    }
-
+    if (!messaging || !db) { console.warn("Notifications not supported"); return; }
     try {
         const permission = await Notification.requestPermission();
-        if (permission !== 'granted') {
-            console.log('Notification permission denied');
-            return;
-        }
-
+        if (permission !== 'granted') return;
         const vapidKey = "BGHuWZuil2RC5hdb7ZECk416MgjIhGT-MxRbmjJAcXNGJppfYORP2mAYJ2JU-HCyVPA3FglkVHPDPS1eeeEiQA8"; 
         const currentToken = await getToken(messaging, { vapidKey });
-        
         if (currentToken) {
-            const userRef = doc(db, "users", user.uid);
-            await updateDoc(userRef, {
-                fcmTokens: arrayUnion(currentToken)
-            });
-
-            if (functions) {
-                const subscribeFn = httpsCallable(functions, 'subscribeToGlobalChat');
-                await subscribeFn({ token: currentToken });
-            }
+            await updateDoc(doc(db, "users", user.uid), { fcmTokens: arrayUnion(currentToken) });
+            if (functions) await httpsCallable(functions, 'subscribeToGlobalChat')({ token: currentToken });
         }
-    } catch (e) {
-        console.error("Notification setup failed:", e);
-    }
+    } catch (e) { console.error("Notification setup failed:", e); }
   },
 
   checkUserAuthorization: async (uid: string): Promise<boolean> => {
       if (!db) return false;
       try {
-          const userRef = doc(db, "users", uid);
-          const snap = await getDoc(userRef);
-          if (snap.exists()) {
-              const data = snap.data();
-              return data.authorized === true;
-          }
-          return false;
-      } catch(e) {
-          return false;
-      }
+          const snap = await getDoc(doc(db, "users", uid));
+          return snap.exists() && snap.data().authorized === true;
+      } catch(e) { return false; }
   },
 
   verifyAccessCode: async (code: string): Promise<boolean> => {
       if (!db) return false;
       try {
-          const codeRef = doc(db, "secret_codes", code);
-          const snap = await getDoc(codeRef);
+          const snap = await getDoc(doc(db, "secret_codes", code));
           return snap.exists();
-      } catch(e) {
-          return false;
-      }
+      } catch(e) { return false; }
   },
 
   grantAuthorization: async (uid: string) => {
       if (!db) return;
-      try {
-          const userRef = doc(db, "users", uid);
-          await setDoc(userRef, { authorized: true }, { merge: true });
-      } catch(e) {
-          throw e;
-      }
+      await setDoc(doc(db, "users", uid), { authorized: true }, { merge: true });
   }
 };
