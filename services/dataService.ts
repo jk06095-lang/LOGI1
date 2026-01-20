@@ -1,4 +1,3 @@
-
 import { db, messaging, functions } from "../lib/firebase";
 import { collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy, setDoc, deleteDoc, writeBatch, getDoc, arrayUnion, arrayRemove, runTransaction, where, limit, getDocs, Timestamp, Unsubscribe } from "firebase/firestore";
 import { getToken } from "firebase/messaging";
@@ -376,17 +375,31 @@ export const dataService = {
 
   toggleMessageReaction: async (messageId: string, userId: string, emoji: string) => {
       if (!db) return;
+      
+      // Fix 1: Guard against temporary IDs
+      if (messageId.startsWith('temp-')) {
+          console.warn("Cannot react to pending message:", messageId);
+          return;
+      }
+
       const msgRef = doc(db, "messages", messageId);
       try {
           await runTransaction(db, async (transaction) => {
               const msgSnap = await transaction.get(msgRef);
-              if (!msgSnap.exists()) return;
+              
+              // Fix 2: Existence Check
+              if (!msgSnap.exists()) {
+                  console.error("Document does not exist:", messageId);
+                  return;
+              }
               
               const data = msgSnap.data() as ChatMessage;
-              // Safe deep copy of reactions array to prevent reference issues
+              
+              // Fix 3: Anti-Crash Array Safety
+              // Ensure we don't spread undefined if legacy data is missing userIds
               const reactions = (data.reactions || []).map(r => ({
                   emoji: r.emoji,
-                  userIds: [...r.userIds]
+                  userIds: Array.isArray(r.userIds) ? [...r.userIds] : [] 
               }));
 
               const existingIndex = reactions.findIndex(r => r.emoji === emoji);
