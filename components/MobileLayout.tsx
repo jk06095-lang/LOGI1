@@ -542,6 +542,31 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   const handleReaction = async (emoji: string, messageId: string) => {
       if (!user) return;
       setLongPressId(null); // Close menu
+
+      // Optimistic Update for immediate feedback
+      setMessages(prev => prev.map(msg => {
+          if (msg.id === messageId) {
+              const reactions = (msg.reactions || []).map(r => ({ ...r, userIds: [...r.userIds] }));
+              const idx = reactions.findIndex(r => r.emoji === emoji);
+              if (idx !== -1) {
+                  if (reactions[idx].userIds.includes(user.uid)) {
+                      // Remove user
+                      reactions[idx].userIds = reactions[idx].userIds.filter(id => id !== user.uid);
+                      // If empty, remove reaction
+                      if (reactions[idx].userIds.length === 0) reactions.splice(idx, 1);
+                  } else {
+                      // Add user
+                      reactions[idx].userIds.push(user.uid);
+                  }
+              } else {
+                  // New reaction
+                  reactions.push({ emoji, userIds: [user.uid] });
+              }
+              return { ...msg, reactions };
+          }
+          return msg;
+      }));
+
       await dataService.toggleMessageReaction(messageId, user.uid, emoji);
   };
 
@@ -721,19 +746,27 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                                               
                                               {/* Message Text */}
                                               <span className="whitespace-pre-wrap leading-relaxed">{msg.text}</span>
-
-                                              {/* Reactions Display */}
-                                              {msg.reactions && msg.reactions.length > 0 && (
-                                                  <div className="flex flex-wrap gap-1 mt-1.5 pt-1 border-t border-black/5 dark:border-white/10">
-                                                      {msg.reactions.map((r, i) => (
-                                                          <div key={i} className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] ${r.userIds.includes(user?.uid || '') ? 'bg-blue-500 text-white' : 'bg-black/5 dark:bg-white/10'}`}>
-                                                              <span>{r.emoji}</span>
-                                                              <span className="font-bold">{r.userIds.length}</span>
-                                                          </div>
-                                                      ))}
-                                                  </div>
-                                              )}
                                           </div>
+
+                                          {/* Reactions Display - Moved OUTSIDE bubble */}
+                                          {msg.reactions && msg.reactions.length > 0 && (
+                                              <div className="flex flex-wrap gap-1 mt-1 px-1">
+                                                  {msg.reactions.map((r, i) => (
+                                                      <button 
+                                                          key={i} 
+                                                          onClick={(e) => { e.stopPropagation(); handleReaction(r.emoji, msg.id); }}
+                                                          className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] border shadow-sm transition-all active:scale-95 ${
+                                                              r.userIds.includes(user?.uid || '') 
+                                                                  ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300' 
+                                                                  : 'bg-white border-slate-200 text-slate-600 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300'
+                                                          }`}
+                                                      >
+                                                          <span>{r.emoji}</span>
+                                                          <span className="font-bold">{r.userIds.length}</span>
+                                                      </button>
+                                                  ))}
+                                              </div>
+                                          )}
 
                                           <div className="flex items-center gap-1 mt-1 px-1">
                                               <span className="text-[10px] text-slate-400">
