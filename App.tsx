@@ -20,6 +20,7 @@ import { auth } from './lib/firebase';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
 import { Login } from './components/Login';
 import { AlertCircle, Loader2, X, Ship as ShipIcon, Clock, Archive, CheckCircle, BrainCircuit, Bell, Inbox, Trash2 } from 'lucide-react';
+import { WindowContext } from './contexts/WindowContext';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -437,119 +438,121 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 print:h-auto print:overflow-visible relative">
-      <Sidebar 
-        currentView={activeTabId as ViewState} 
-        onNavigate={handleSidebarNavigation} 
-        isCollapsed={isSidebarCollapsed} 
-        onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)} 
-        language={settings.language} 
-        user={user} 
-        isChatOpen={isChatOpen}
-        onToggleChat={handleToggleChat}
-        logoUrl={settings.logoUrl}
-        hasUnreadMessages={hasUnreadMessages}
-        isCloudOpen={isCloudOpen}
-        onToggleCloud={handleToggleCloud}
-      />
-      
-      {/* Floating Apps Layer */}
-      <GlobalCloudManager 
-          isOpen={isCloudOpen}
-          isMinimized={isCloudMinimized}
-          onClose={() => setIsCloudOpen(false)}
-          onMinimize={() => setIsCloudMinimized(true)}
-          jobs={vesselJobs}
-          bls={blData}
-          onUpdateBL={dataService.updateBL}
-          zIndex={getZIndex('cloud')}
-          onFocus={() => focusWindow('cloud')}
-      />
-      
-      <ChatWindow 
-         isOpen={isChatOpen}
-         isMinimized={isChatMinimized}
-         onClose={() => setIsChatOpen(false)} 
-         onMinimize={() => setIsChatMinimized(true)}
-         sidebarWidth={isSidebarCollapsed ? 64 : 224} 
-         user={user} 
-         zIndex={getZIndex('chat')}
-         onFocus={() => focusWindow('chat')}
-      />
-
-      <main className="flex-1 flex flex-col overflow-hidden relative print:overflow-visible print:h-auto">
-        <div className="flex justify-between items-end bg-slate-100 dark:bg-slate-900 pr-4 print:hidden">
-            <TabNavigation tabs={tabs} activeTabId={activeTabId} onTabClick={activateTab} onTabClose={closeTab} />
-            
-            <div className="relative mb-1 shrink-0" ref={notifRef}>
-                <button onClick={() => setShowNotifications(!showNotifications)} className="p-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors relative"><Bell size={18} /></button>
-                {showNotifications && (
-                   <div className="absolute right-0 top-10 w-80 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 z-50 overflow-hidden animate-fade-in origin-top-right">
-                       <div className="bg-slate-50 dark:bg-slate-700/50 px-4 py-2 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
-                          <h4 className="text-xs font-bold uppercase text-slate-500 dark:text-slate-300">Notification History</h4>
-                          <button onClick={clearHistory} className="text-slate-400 hover:text-red-500 text-[10px] flex items-center gap-1"><Trash2 size={10} /> Clear</button>
-                       </div>
-                       <div className="max-h-80 overflow-y-auto custom-scrollbar">
-                          {notificationHistory.length === 0 ? (
-                             <div className="p-8 text-center text-slate-400 flex flex-col items-center"><Inbox size={24} className="mb-2 opacity-50"/><span className="text-xs">No notifications</span></div>
-                          ) : (
-                             <div className="divide-y divide-slate-50 dark:divide-slate-700">
-                                {notificationHistory.map(log => (
-                                   <div key={log.id} className="p-3 hover:bg-slate-50 dark:hover:bg-slate-700/30">
-                                      <div className="flex justify-between items-start mb-1"><p className={`text-xs font-bold ${log.type === 'error' ? 'text-red-600' : log.type === 'success' ? 'text-emerald-600' : 'text-blue-600'}`}>{log.title}</p><span className="text-[10px] text-slate-400 tabular-nums">{new Date(log.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></div>
-                                      <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2">{log.message}</p>
-                                   </div>
-                                ))}
-                             </div>
-                          )}
-                       </div>
-                   </div>
-                )}
-            </div>
-        </div>
+    <WindowContext.Provider value={{ focusWindow, getZIndex }}>
+      <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 print:h-auto print:overflow-visible relative">
+        <Sidebar 
+          currentView={activeTabId as ViewState} 
+          onNavigate={handleSidebarNavigation} 
+          isCollapsed={isSidebarCollapsed} 
+          onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)} 
+          language={settings.language} 
+          user={user} 
+          isChatOpen={isChatOpen}
+          onToggleChat={handleToggleChat}
+          logoUrl={settings.logoUrl}
+          hasUnreadMessages={hasUnreadMessages}
+          isCloudOpen={isCloudOpen}
+          onToggleCloud={handleToggleCloud}
+        />
         
-        <div className="absolute top-14 right-4 z-50 flex flex-col gap-2 w-80 pointer-events-none print:hidden">
-          {tasks.map(task => (
-            <div key={task.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 p-3 pointer-events-auto animate-fade-in flex items-start gap-3">
-               <div className="mt-0.5">
-                  {task.status === 'processing' && <Loader2 size={18} className="animate-spin text-blue-600" />}
-                  {task.status === 'success' && <CheckCircle size={18} className="text-emerald-500" />}
-                  {task.status === 'error' && <AlertCircle size={18} className="text-red-500" />}
-               </div>
-               <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{task.title}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{task.message}</p>
-                  {task.status === 'processing' && <div className="w-full bg-slate-100 dark:bg-slate-700 h-1.5 rounded-full mt-2 overflow-hidden"><div className="bg-blue-600 h-full transition-all duration-300" style={{ width: `${task.progress}%` }}></div></div>}
-               </div>
-               <button onClick={() => removeTask(task.id)} className="text-slate-300 hover:text-slate-500"><X size={14}/></button>
-            </div>
-          ))}
-        </div>
+        {/* Floating Apps Layer */}
+        <GlobalCloudManager 
+            isOpen={isCloudOpen}
+            isMinimized={isCloudMinimized}
+            onClose={() => setIsCloudOpen(false)}
+            onMinimize={() => setIsCloudMinimized(true)}
+            jobs={vesselJobs}
+            bls={blData}
+            onUpdateBL={dataService.updateBL}
+            zIndex={getZIndex('cloud')}
+            onFocus={() => focusWindow('cloud')}
+        />
+        
+        <ChatWindow 
+           isOpen={isChatOpen}
+           isMinimized={isChatMinimized}
+           onClose={() => setIsChatOpen(false)} 
+           onMinimize={() => setIsChatMinimized(true)}
+           sidebarWidth={isSidebarCollapsed ? 64 : 224} 
+           user={user} 
+           zIndex={getZIndex('chat')}
+           onFocus={() => focusWindow('chat')}
+        />
 
-        {expirationAlert && (
-          <div className="bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-200 px-4 py-2 text-sm font-medium flex items-center justify-between border-b border-red-100 dark:border-red-900 animate-fade-in-up print:hidden">
-             <div className="flex items-center gap-2"><Clock size={16} /><span>{settings.language === 'ko' ? `보관 기한(3개월)이 지난 파일이 ${expirationAlert.count}건 있습니다. 환경설정에서 백업 후 삭제해주세요.` : `${expirationAlert.count} files have expired (older than 3 months). Please backup and clean them in Settings.`}</span></div>
-             <button onClick={() => handleSidebarNavigation('settings')} className="underline hover:text-red-800 dark:hover:text-red-100">{settings.language === 'ko' ? '설정으로 이동' : 'Go to Settings'}</button>
+        <main className="flex-1 flex flex-col overflow-hidden relative print:overflow-visible print:h-auto">
+          <div className="flex justify-between items-end bg-slate-100 dark:bg-slate-900 pr-4 print:hidden">
+              <TabNavigation tabs={tabs} activeTabId={activeTabId} onTabClick={activateTab} onTabClose={closeTab} />
+              
+              <div className="relative mb-1 shrink-0" ref={notifRef}>
+                  <button onClick={() => setShowNotifications(!showNotifications)} className="p-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors relative"><Bell size={18} /></button>
+                  {showNotifications && (
+                     <div className="absolute right-0 top-10 w-80 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 z-50 overflow-hidden animate-fade-in origin-top-right">
+                         <div className="bg-slate-50 dark:bg-slate-700/50 px-4 py-2 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                            <h4 className="text-xs font-bold uppercase text-slate-500 dark:text-slate-300">Notification History</h4>
+                            <button onClick={clearHistory} className="text-slate-400 hover:text-red-500 text-[10px] flex items-center gap-1"><Trash2 size={10} /> Clear</button>
+                         </div>
+                         <div className="max-h-80 overflow-y-auto custom-scrollbar">
+                            {notificationHistory.length === 0 ? (
+                               <div className="p-8 text-center text-slate-400 flex flex-col items-center"><Inbox size={24} className="mb-2 opacity-50"/><span className="text-xs">No notifications</span></div>
+                            ) : (
+                               <div className="divide-y divide-slate-50 dark:divide-slate-700">
+                                  {notificationHistory.map(log => (
+                                     <div key={log.id} className="p-3 hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                                        <div className="flex justify-between items-start mb-1"><p className={`text-xs font-bold ${log.type === 'error' ? 'text-red-600' : log.type === 'success' ? 'text-emerald-600' : 'text-blue-600'}`}>{log.title}</p><span className="text-[10px] text-slate-400 tabular-nums">{new Date(log.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></div>
+                                        <p className="text-xs text-slate-600 dark:text-slate-300 line-clamp-2">{log.message}</p>
+                                     </div>
+                                  ))}
+                               </div>
+                            )}
+                         </div>
+                     </div>
+                  )}
+              </div>
           </div>
-        )}
-
-        <div className="flex-1 relative bg-slate-50 dark:bg-slate-900 print:overflow-visible print:h-auto overflow-hidden">
-            {/* Multi-Window Rendering Implementation */}
-            {tabs.map(tab => (
-              <div 
-                key={tab.id}
-                className="absolute inset-0 w-full h-full bg-slate-50 dark:bg-slate-900 overflow-hidden"
-                style={{
-                  zIndex: activeTabId === tab.id ? 10 : 0,
-                  visibility: activeTabId === tab.id ? 'visible' : 'hidden'
-                }}
-              >
-                 {renderTabContent(tab)}
+          
+          <div className="absolute top-14 right-4 z-50 flex flex-col gap-2 w-80 pointer-events-none print:hidden">
+            {tasks.map(task => (
+              <div key={task.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 p-3 pointer-events-auto animate-fade-in flex items-start gap-3">
+                 <div className="mt-0.5">
+                    {task.status === 'processing' && <Loader2 size={18} className="animate-spin text-blue-600" />}
+                    {task.status === 'success' && <CheckCircle size={18} className="text-emerald-500" />}
+                    {task.status === 'error' && <AlertCircle size={18} className="text-red-500" />}
+                 </div>
+                 <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{task.title}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{task.message}</p>
+                    {task.status === 'processing' && <div className="w-full bg-slate-100 dark:bg-slate-700 h-1.5 rounded-full mt-2 overflow-hidden"><div className="bg-blue-600 h-full transition-all duration-300" style={{ width: `${task.progress}%` }}></div></div>}
+                 </div>
+                 <button onClick={() => removeTask(task.id)} className="text-slate-300 hover:text-slate-500"><X size={14}/></button>
               </div>
             ))}
-        </div>
-      </main>
-    </div>
+          </div>
+
+          {expirationAlert && (
+            <div className="bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-200 px-4 py-2 text-sm font-medium flex items-center justify-between border-b border-red-100 dark:border-red-900 animate-fade-in-up print:hidden">
+               <div className="flex items-center gap-2"><Clock size={16} /><span>{settings.language === 'ko' ? `보관 기한(3개월)이 지난 파일이 ${expirationAlert.count}건 있습니다. 환경설정에서 백업 후 삭제해주세요.` : `${expirationAlert.count} files have expired (older than 3 months). Please backup and clean them in Settings.`}</span></div>
+               <button onClick={() => handleSidebarNavigation('settings')} className="underline hover:text-red-800 dark:hover:text-red-100">{settings.language === 'ko' ? '설정으로 이동' : 'Go to Settings'}</button>
+            </div>
+          )}
+
+          <div className="flex-1 relative bg-slate-50 dark:bg-slate-900 print:overflow-visible print:h-auto overflow-hidden">
+              {/* Multi-Window Rendering Implementation */}
+              {tabs.map(tab => (
+                <div 
+                  key={tab.id}
+                  className="absolute inset-0 w-full h-full bg-slate-50 dark:bg-slate-900 overflow-hidden"
+                  style={{
+                    zIndex: activeTabId === tab.id ? 10 : 0,
+                    visibility: activeTabId === tab.id ? 'visible' : 'hidden'
+                  }}
+                >
+                   {renderTabContent(tab)}
+                </div>
+              ))}
+          </div>
+        </main>
+      </div>
+    </WindowContext.Provider>
   );
 };
 

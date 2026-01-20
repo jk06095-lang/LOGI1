@@ -6,6 +6,7 @@ import { parseDocument } from '../services/geminiService';
 import { uploadFileToStorage, deleteFileFromStorage } from '../services/storageService';
 import { dataService } from '../services/dataService';
 import { CloudFileManager } from './CloudFileManager';
+import { useWindow } from '../contexts/WindowContext';
 
 interface ShipmentDetailProps {
   bl: BLData;
@@ -21,6 +22,7 @@ interface ShipmentDetailProps {
 }
 
 const translations = {
+  // ... (Existing translations kept same)
   ko: {
     title: '화물 상세 정보',
     save: '저장하기',
@@ -304,7 +306,7 @@ const HS_CODE_DEFAULTS: Record<string, string> = {
     'GENERAL': ''
 };
 
-// Updated DetailInput with Copy Functionality
+// ... DetailInput and DocSlot components (same as before) ...
 const DetailInput = ({ label, value, onChange, className = "", placeholder = "", asTextarea = false, enableCopy = false }: any) => {
     const [copied, setCopied] = useState(false);
 
@@ -417,6 +419,16 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
 
   // Calculate attached file count for badge
   const attachmentCount = formData.attachments?.length || 0;
+
+  // Window Context Hook
+  const { focusWindow, getZIndex } = useWindow();
+  const cloudWindowId = `bl-cloud-${bl.id}`;
+
+  useEffect(() => {
+    if (isCloudManagerOpen) {
+      focusWindow(cloudWindowId);
+    }
+  }, [isCloudManagerOpen, cloudWindowId, focusWindow]);
 
   useEffect(() => { setFormData(bl); }, [bl]);
 
@@ -786,6 +798,10 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
           isMinimized={isCloudManagerMinimized}
           onClose={() => setIsCloudManagerOpen(false)}
           onMinimize={() => setIsCloudManagerMinimized(true)}
+          
+          zIndex={getZIndex(cloudWindowId)}
+          onFocus={() => focusWindow(cloudWindowId)}
+
           attachments={formData.attachments || []}
           onUpload={handleGenericUpload}
           onDelete={handleAttachmentDelete}
