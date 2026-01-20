@@ -334,6 +334,9 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   const [longPressId, setLongPressId] = useState<string | null>(null);
   const [pendingReactions, setPendingReactions] = useState<Set<string>>(new Set());
   
+  // New Modal State for viewing reactions
+  const [reactionModal, setReactionModal] = useState<{ emoji: string, names: string[] } | null>(null);
+
   const longPressTimerRef = useRef<any>(null);
   
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -549,20 +552,19 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
       }
   };
 
-  const handleReaction = async (emoji: string, messageId: string) => {
+  // Handler for TOGGLING reaction (via Long Press Menu)
+  const handleReactionToggle = async (emoji: string, messageId: string) => {
       if (!user) return;
       setLongPressId(null); // Close menu
 
       const targetMsg = messages.find(m => m.id === messageId);
       if (!targetMsg) return;
 
-      // Prevent reacting to pending messages
       if (targetMsg.pending) return;
 
       const reactionKey = `${messageId}_${emoji}`;
       if (pendingReactions.has(reactionKey)) return;
 
-      // Loading State
       setPendingReactions(prev => {
           const newSet = new Set(prev);
           newSet.add(reactionKey);
@@ -581,6 +583,15 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
               return newSet;
           });
       }
+  };
+
+  // Handler for VIEWING reaction (via Chip Click)
+  const handleReactionClick = (emoji: string, userIds: string[]) => {
+      const names = userIds.map(uid => {
+          const u = users.find(user => user.uid === uid);
+          return u ? u.displayName : 'Unknown';
+      });
+      setReactionModal({ emoji, names });
   };
 
   const handleReplyAction = (msg: ChatMessage) => {
@@ -747,7 +758,6 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                                             onTouchStart={() => handleTouchStart(msg.id)}
                                             onTouchEnd={handleTouchEnd}
                                             onTouchMove={handleTouchMove}
-                                            // Mouse events for testing on desktop mode in browser
                                             onMouseDown={() => handleTouchStart(msg.id)}
                                             onMouseUp={handleTouchEnd}
                                             onMouseLeave={handleTouchEnd}
@@ -764,23 +774,21 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                                               <span className="whitespace-pre-wrap leading-relaxed">{msg.text}</span>
                                           </div>
 
-                                          {/* Reactions Display - Moved OUTSIDE bubble */}
+                                          {/* Reactions Display - Click to VIEW */}
                                           {msg.reactions && msg.reactions.length > 0 && (
                                               <div className="flex flex-wrap gap-1 mt-1 px-1">
                                                   {msg.reactions.map((r, i) => {
-                                                      const isLoading = pendingReactions.has(`${msg.id}_${r.emoji}`);
                                                       return (
                                                           <button 
                                                               key={i} 
-                                                              onClick={(e) => { e.stopPropagation(); if(!isLoading) handleReaction(r.emoji, msg.id); }}
-                                                              disabled={isLoading}
-                                                              className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] border shadow-sm transition-all ${isLoading ? 'opacity-70 cursor-wait' : 'active:scale-95'} ${
+                                                              onClick={(e) => { e.stopPropagation(); handleReactionClick(r.emoji, r.userIds); }}
+                                                              className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] border shadow-sm transition-all active:scale-95 ${
                                                                   r.userIds.includes(user?.uid || '') 
                                                                       ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300' 
                                                                       : 'bg-white border-slate-200 text-slate-600 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300'
                                                               }`}
                                                           >
-                                                              {isLoading ? <Loader2 size={10} className="animate-spin"/> : <span>{r.emoji}</span>}
+                                                              <span>{r.emoji}</span>
                                                               <span className="font-bold">{r.userIds.length}</span>
                                                           </button>
                                                       );
@@ -854,7 +862,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                                   return (
                                       <button 
                                         key={emoji} 
-                                        onClick={() => { if(!isLoading) handleReaction(emoji, longPressId!); }} 
+                                        onClick={() => { if(!isLoading) handleReactionToggle(emoji, longPressId!); }} 
                                         disabled={isLoading}
                                         className={`text-2xl transition-transform p-2 ${isLoading ? 'opacity-50 cursor-wait' : 'hover:scale-125'}`}
                                       >
@@ -884,6 +892,34 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                       </motion.div>
                   </div>
               )}
+          </AnimatePresence>
+
+          {/* Reaction Viewer Modal */}
+          <AnimatePresence>
+                {reactionModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setReactionModal(null)}>
+                        <motion.div 
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-xl min-w-[200px]" 
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="flex items-center gap-2 mb-3 border-b border-slate-100 dark:border-slate-700 pb-2">
+                                <span className="text-2xl">{reactionModal.emoji}</span>
+                                <span className="font-bold text-sm text-slate-700 dark:text-slate-200">Reactions</span>
+                            </div>
+                            <div className="max-h-40 overflow-y-auto space-y-1 custom-scrollbar">
+                                {reactionModal.names.map((name, i) => (
+                                    <div key={i} className="text-sm text-slate-600 dark:text-slate-300 flex items-center gap-2">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                                        {name}
+                                    </div>
+                                ))}
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
           </AnimatePresence>
 
           {/* Chat Footer */}

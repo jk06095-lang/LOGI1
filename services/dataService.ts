@@ -388,7 +388,8 @@ export const dataService = {
               
               // Safe deep copy of reactions array to prevent reference issues
               // Defensive Check: Ensure userIds is an array, if not default to empty array
-              const reactions = (data.reactions || []).map(r => ({
+              const currentReactions = data.reactions || [];
+              const reactions = currentReactions.map(r => ({
                   emoji: r.emoji,
                   userIds: Array.isArray(r.userIds) ? [...r.userIds] : []
               }));
