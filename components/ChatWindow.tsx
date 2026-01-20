@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect, useCallback } from 'react';
 import { Send, X, User as UserIcon, MessageCircle, ChevronLeft, Check, CheckCheck, Download, UserPlus, ArrowUpCircle, Settings2, Trash2, ChevronDown, Smile, MoreHorizontal, Reply, Quote, Minus } from 'lucide-react';
 import { dataService } from '../services/dataService';
@@ -565,8 +566,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
                              messages.map((msg, index) => {
                                  const isMe = msg.senderId === user?.uid;
                                  const isRead = msg.readBy && msg.readBy.length > 1; 
-                                 // Logic Fix: Identify Pending Messages
-                                 const isPending = msg.pending || (msg.id && msg.id.startsWith('temp-'));
                                  
                                  const currentDate = getDateString(msg.timestamp);
                                  const prevDate = index > 0 ? getDateString(messages[index-1].timestamp) : null;
@@ -599,8 +598,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
                                                      isMe 
                                                         ? 'bg-blue-600 text-white rounded-tr-sm' 
                                                         : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-sm border-slate-200 dark:border-slate-700'
-                                                     } ${isPending ? 'opacity-70' : ''}`}>
+                                                     } ${msg.pending ? 'opacity-70' : ''}`}>
                                                      
+                                                     {/* Reply Fix: Compact & Clean Layout with Wrapping */}
                                                      {msg.replyTo && (
                                                          <div className={`mb-1 pl-2 border-l-2 text-xs opacity-90 rounded-r py-1 max-w-full ${isMe ? 'border-white/50 bg-white/10 text-blue-100' : 'border-blue-500 bg-black/5 dark:bg-white/5 text-slate-500 dark:text-slate-400'}`}>
                                                              <p className="font-bold text-[10px] mb-0.5 opacity-80 truncate">{msg.replyTo.senderName}</p>
@@ -613,13 +613,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
                                                  
                                                  {/* Reactions: Visible Badges at bottom */}
                                                  {msg.reactions && msg.reactions.length > 0 && (
-                                                     <div className={`flex flex-wrap gap-1 mt-1 ${isPending ? 'opacity-50 pointer-events-none' : ''}`}>
+                                                     <div className="flex flex-wrap gap-1 mt-1">
                                                          {msg.reactions.map((r, i) => (
                                                              <button 
                                                                 key={i}
-                                                                disabled={isPending}
                                                                 onClick={(e) => { e.stopPropagation(); handleReaction(r.emoji, msg.id); }}
-                                                                className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] border shadow-sm transition-all ${!isPending && 'hover:scale-105 active:scale-95'} ${
+                                                                className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] border shadow-sm transition-all hover:scale-105 active:scale-95 ${
                                                                     r.userIds.includes(user?.uid || '') 
                                                                         ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300' 
                                                                         : 'bg-white border-slate-200 text-slate-600 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300'
@@ -646,29 +645,27 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
                                                         )}
                                                      </div>
 
-                                                     {/* Action Menu (Visible on Group Hover) - Hidden for Pending */}
-                                                     {!isPending && (
-                                                         <div className="absolute right-0 -bottom-1.5 opacity-0 group-hover/msg:opacity-100 transition-all duration-200 z-10 translate-y-2 group-hover/msg:translate-y-0">
-                                                             <div className="flex items-center gap-0.5 bg-white dark:bg-slate-800 rounded-full shadow-md border border-slate-200 dark:border-slate-700 p-1 ring-1 ring-black/5">
-                                                                {['✅', '❌', '👍', '❤️'].map(emoji => (
-                                                                    <button 
-                                                                        key={emoji} 
-                                                                        onClick={(e) => { e.stopPropagation(); handleReaction(emoji, msg.id); }}
-                                                                        className="w-7 h-7 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-transform hover:scale-110 text-base leading-none"
-                                                                    >
-                                                                        {emoji}
-                                                                    </button>
-                                                                ))}
-                                                                <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                                                     {/* Action Menu (Visible on Group Hover) */}
+                                                     <div className="absolute right-0 -bottom-1.5 opacity-0 group-hover/msg:opacity-100 transition-all duration-200 z-10 translate-y-2 group-hover/msg:translate-y-0">
+                                                         <div className="flex items-center gap-0.5 bg-white dark:bg-slate-800 rounded-full shadow-md border border-slate-200 dark:border-slate-700 p-1 ring-1 ring-black/5">
+                                                            {['✅', '❌', '👍', '❤️'].map(emoji => (
                                                                 <button 
-                                                                    onClick={(e) => { e.stopPropagation(); handleReply(msg); }}
-                                                                    className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-all"
+                                                                    key={emoji} 
+                                                                    onClick={(e) => { e.stopPropagation(); handleReaction(emoji, msg.id); }}
+                                                                    className="w-7 h-7 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-transform hover:scale-110 text-base leading-none"
                                                                 >
-                                                                    <Reply size={14} strokeWidth={2.5} />
+                                                                    {emoji}
                                                                 </button>
-                                                             </div>
+                                                            ))}
+                                                            <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); handleReply(msg); }}
+                                                                className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-all"
+                                                            >
+                                                                <Reply size={14} strokeWidth={2.5} />
+                                                            </button>
                                                          </div>
-                                                     )}
+                                                     </div>
                                                  </div>
                                              </div>
                                          </div>
