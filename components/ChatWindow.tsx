@@ -333,10 +333,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
 
       try {
           await dataService.toggleMessageReaction(messageId, user.uid, emoji);
-          // Success: No manual update needed, listener will handle it.
       } catch (error) {
           console.error("Reaction failed:", error);
-          alert("Failed to save reaction.");
+          // Only alert if critical, otherwise fail silently for UX
       } finally {
           // Clear Loading State
           setPendingReactions(prev => {
@@ -643,7 +642,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
                                                              return (
                                                                 <button 
                                                                     key={i}
-                                                                    onClick={(e) => { e.stopPropagation(); handleReactionClick(r.emoji, r.userIds); }}
+                                                                    onClick={(e) => { 
+                                                                        e.stopPropagation(); 
+                                                                        handleReactionClick(r.emoji, r.userIds); 
+                                                                    }}
                                                                     className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] border shadow-sm transition-all hover:scale-105 active:scale-95 ${
                                                                         r.userIds.includes(user?.uid || '') 
                                                                             ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300' 
@@ -680,7 +682,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
                                                                 return (
                                                                     <button 
                                                                         key={emoji} 
-                                                                        onClick={(e) => { e.stopPropagation(); if(!isLoading) handleReactionToggle(emoji, msg.id); }}
+                                                                        onClick={(e) => { 
+                                                                            e.preventDefault(); 
+                                                                            e.stopPropagation(); 
+                                                                            if(!isLoading && user) handleReactionToggle(emoji, msg.id); 
+                                                                        }}
                                                                         disabled={isLoading}
                                                                         className={`w-7 h-7 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-transform hover:scale-110 text-base leading-none ${isLoading ? 'opacity-50 cursor-wait' : ''}`}
                                                                     >
@@ -690,7 +696,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
                                                             })}
                                                             <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1"></div>
                                                             <button 
-                                                                onClick={(e) => { e.stopPropagation(); handleReply(msg); }}
+                                                                onClick={(e) => { 
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation(); 
+                                                                    handleReply(msg); 
+                                                                }}
                                                                 className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-all"
                                                             >
                                                                 <Reply size={14} strokeWidth={2.5} />

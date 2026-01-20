@@ -575,7 +575,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
           await dataService.toggleMessageReaction(messageId, user.uid, emoji);
       } catch (error) {
           console.error("Reaction failed:", error);
-          alert("Reaction failed");
+          // Silent fail for UX or add toast
       } finally {
           setPendingReactions(prev => {
               const newSet = new Set(prev);
@@ -862,7 +862,11 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                                   return (
                                       <button 
                                         key={emoji} 
-                                        onClick={() => { if(!isLoading) handleReactionToggle(emoji, longPressId!); }} 
+                                        onClick={(e) => { 
+                                            e.preventDefault();
+                                            e.stopPropagation(); 
+                                            if(!isLoading && user) handleReactionToggle(emoji, longPressId!); 
+                                        }} 
                                         disabled={isLoading}
                                         className={`text-2xl transition-transform p-2 ${isLoading ? 'opacity-50 cursor-wait' : 'hover:scale-125'}`}
                                       >
