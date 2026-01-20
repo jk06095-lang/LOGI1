@@ -5,6 +5,7 @@ import { getToken } from "firebase/messaging";
 import { httpsCallable } from "firebase/functions";
 import { VesselJob, BLData, BLChecklist, ResourceLock, ChatMessage, ChatUser } from "../types";
 import { User } from "firebase/auth";
+import { deleteFileFromStorage } from "./storageService";
 
 // State Containers (In-Memory Cache)
 // NOTE: This acts as a singleton cache. It must be cleared on logout.
@@ -146,18 +147,49 @@ export const dataService = {
   deleteBL: async (blId: string) => {
     if (!db) return;
     try {
-        await deleteDoc(doc(db, "bls", blId));
-    } catch (e) { console.error("Delete BL Error:", e); }
+        // 1. Fetch document to identify files
+        const docRef = doc(db, "bls", blId);
+        const snapshot = await getDoc(docRef);
+
+        if (snapshot.exists()) {
+            const data = snapshot.data() as BLData;
+            const filesToDelete: string[] = [];
+
+            // 2. Collect all potential file URLs
+            if (data.fileUrl) filesToDelete.push(data.fileUrl);
+            if (data.commercialInvoice?.fileUrl) filesToDelete.push(data.commercialInvoice.fileUrl);
+            if (data.packingList?.fileUrl) filesToDelete.push(data.packingList.fileUrl);
+            if (data.exportDeclaration?.fileUrl) filesToDelete.push(data.exportDeclaration.fileUrl);
+            if (data.manifest?.fileUrl) filesToDelete.push(data.manifest.fileUrl);
+            if (data.arrivalNotice?.fileUrl) filesToDelete.push(data.arrivalNotice.fileUrl);
+
+            // Collect attachments
+            if (data.attachments) {
+                data.attachments.forEach(att => {
+                    if (att.url) filesToDelete.push(att.url);
+                });
+            }
+
+            // 3. Parallel delete from Storage
+            // We use Promise.allSettled or just Promise.all. 
+            // deleteFileFromStorage swallows "not found" errors, so Promise.all is reasonably safe.
+            await Promise.all(filesToDelete.map(url => deleteFileFromStorage(url)));
+        }
+
+        // 4. Delete Document
+        await deleteDoc(docRef);
+    } catch (e) { 
+        console.error("Delete BL Error:", e); 
+    }
   },
 
   bulkDeleteBLs: async (ids: string[]) => {
       if (!db || ids.length === 0) return;
-      const batch = writeBatch(db);
-      ids.forEach(id => {
-          const ref = doc(db, "bls", id);
-          batch.delete(ref);
-      });
-      await batch.commit();
+      // Note: Bulk delete also needs file cleanup logic ideally, but iterating large lists 
+      // client-side might be slow. For now, we iterate one by one or rely on Cloud Functions.
+      // Given the requirement for thorough cleanup, let's stick to calling deleteBL iteratively
+      // or enhance bulk logic. For safety/speed balance here, we iterate.
+      await Promise.all(ids.map(id => dataService.deleteBL(id)));
   },
 
   subscribeChecklists: (callback: (checklists: Record<string, BLChecklist>) => void) => {

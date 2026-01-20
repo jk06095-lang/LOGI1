@@ -509,7 +509,7 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
     onAddTask({ id: taskId, title: `Upload: ${file.name}`, status: 'processing', progress: 0, message: 'Uploading...' });
 
     try {
-        // CLEANUP: Check if there is an existing file and delete it before overwriting
+        // 1. Identify old URL (to be deleted AFTER successful upload)
         let oldUrl = '';
         if (type === 'BL') oldUrl = formData.fileUrl || '';
         else if (type === 'CI') oldUrl = formData.commercialInvoice?.fileUrl || '';
@@ -518,13 +518,21 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
         else if (type === 'MANIFEST') oldUrl = formData.manifest?.fileUrl || '';
         else if (type === 'AN') oldUrl = formData.arrivalNotice?.fileUrl || '';
 
-        if (oldUrl) {
-            await deleteFileFromStorage(oldUrl);
-        }
-
+        // 2. Upload NEW file first (Safe Overwrite)
         const url = await uploadFileToStorage(file);
         onUpdateTask(taskId, { progress: 80 });
 
+        // 3. Delete OLD file (Safe Clean-up)
+        // Only delete if the new upload succeeded. If delete fails, warn but proceed.
+        if (oldUrl) {
+            try {
+                await deleteFileFromStorage(oldUrl);
+            } catch (cleanupError) {
+                console.warn(`Failed to cleanup old file (${oldUrl}), but new file uploaded successfully.`, cleanupError);
+            }
+        }
+
+        // 4. Update State & DB
         const updates: Partial<BLData> = {};
         const newFormData = { ...formData }; 
 
