@@ -12,10 +12,11 @@ import { ChatWindow } from './components/ChatWindow';
 import { MobileLayout } from './components/MobileLayout'; 
 import { AccessGate } from './components/AccessGate';
 import { GlobalCloudManager } from './components/GlobalCloudManager';
+import { CloudFileManager } from './components/CloudFileManager';
 import { VesselJob, BLData, BLChecklist, AppSettings, CargoSourceType, BackgroundTask, NotificationLog, ViewState } from './types';
 import { parseBLImage } from './services/geminiService';
 import { dataService } from './services/dataService';
-import { uploadFileToStorage } from './services/storageService';
+import { uploadFileToStorage, deleteFileFromStorage } from './services/storageService';
 import { auth } from './lib/firebase';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
 import { Login } from './components/Login';
@@ -46,6 +47,9 @@ const App: React.FC = () => {
   
   const [isCloudOpen, setIsCloudOpen] = useState(false);
   const [isCloudMinimized, setIsCloudMinimized] = useState(false);
+  
+  // BL-specific Cloud Managers (Hoisted)
+  const [activeBLClouds, setActiveBLClouds] = useState<{ id: string; minimized: boolean }[]>([]);
   
   // Window Z-Index Stack
   const [windowStack, setWindowStack] = useState<string[]>(['chat', 'cloud']);
@@ -92,6 +96,87 @@ const App: React.FC = () => {
           setIsCloudMinimized(false);
           focusWindow('cloud');
       }
+  };
+
+  // BL Cloud Window Handlers
+  const openBLCloud = (blId: string) => {
+    setActiveBLClouds(prev => {
+        const exists = prev.find(w => w.id === blId);
+        if (exists) {
+            return prev.map(w => w.id === blId ? { ...w, minimized: false } : w);
+        }
+        return [...prev, { id: blId, minimized: false }];
+    });
+    focusWindow(`bl-cloud-${blId}`);
+  };
+
+  const closeBLCloud = (blId: string) => {
+    setActiveBLClouds(prev => prev.filter(w => w.id !== blId));
+  };
+
+  const minimizeBLCloud = (blId: string) => {
+    setActiveBLClouds(prev => prev.map(w => w.id === blId ? { ...w, minimized: true } : w));
+  };
+
+  // BL Cloud File Operations
+  const handleBLCloudUpload = async (blId: string, files: File[]) => {
+      const taskId = `cloud-upload-${Date.now()}`;
+      addTask({ id: taskId, title: `Uploading ${files.length} files...`, status: 'processing', progress: 0, message: 'Starting...' });
+      
+      const bl = blData.find(b => b.id === blId);
+      if (!bl) return;
+
+      const newAttachments = [...(bl.attachments || [])];
+      let successCount = 0;
+
+      for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          try {
+              const url = await uploadFileToStorage(file);
+              newAttachments.push({
+                  id: Date.now().toString() + i,
+                  name: file.name,
+                  url: url,
+                  type: file.type,
+                  size: file.size,
+                  uploadDate: new Date().toISOString()
+              });
+              successCount++;
+              updateTask(taskId, { progress: Math.round(((i + 1) / files.length) * 100) });
+          } catch (e) {
+              console.error(e);
+          }
+      }
+
+      if (successCount > 0) {
+          await dataService.updateBL(blId, { attachments: newAttachments });
+          updateTask(taskId, { status: 'success', message: 'Files uploaded' });
+      } else {
+          updateTask(taskId, { status: 'error', message: 'Upload failed' });
+      }
+  };
+
+  const handleBLCloudDelete = async (blId: string, attachmentId: string) => {
+      const bl = blData.find(b => b.id === blId);
+      if (!bl) return;
+      
+      const attachment = (bl.attachments || []).find(a => a.id === attachmentId);
+      if (attachment && attachment.url) {
+          try { await deleteFileFromStorage(attachment.url); } catch(e) { console.warn(e); }
+      }
+      
+      const newAttachments = (bl.attachments || []).filter(a => a.id !== attachmentId);
+      await dataService.updateBL(blId, { attachments: newAttachments });
+  };
+  
+  const handleBLCloudRename = async (blId: string, attachmentId: string, newName: string) => {
+      const bl = blData.find(b => b.id === blId);
+      if (!bl) return;
+      
+      const newAttachments = (bl.attachments || []).map(a => 
+          a.id === attachmentId ? { ...a, name: newName } : a
+      );
+      await dataService.updateBL(blId, { attachments: newAttachments });
   };
   
   const [latestUnreadTs, setLatestUnreadTs] = useState<number>(0);
@@ -419,7 +504,19 @@ const App: React.FC = () => {
       case 'shipment-detail':
         const currentBL = blData.find(b => b.id === tab.data.blId);
         if(!currentBL) return <div className="p-10 text-slate-400">Document not found</div>;
-        return <ShipmentDetail bl={currentBL} jobs={vesselJobs} language={settings.language} onUpdateBL={dataService.updateBL} onClose={() => closeTab(tab.id)} checklist={checklists[currentBL.id]} onDelete={(id) => dataService.deleteBL(id)} onAddTask={addTask} onUpdateTask={updateTask} onNavigateToChecklist={() => { if (currentBL.vesselJobId) { openVesselTab(currentBL.vesselJobId, 'checklist', currentBL.id); } else { alert("Please assign to a vessel first to view checklist."); } }} />;
+        return <ShipmentDetail 
+            bl={currentBL} 
+            jobs={vesselJobs} 
+            language={settings.language} 
+            onUpdateBL={dataService.updateBL} 
+            onClose={() => closeTab(tab.id)} 
+            checklist={checklists[currentBL.id]} 
+            onDelete={(id) => dataService.deleteBL(id)} 
+            onAddTask={addTask} 
+            onUpdateTask={updateTask} 
+            onNavigateToChecklist={() => { if (currentBL.vesselJobId) { openVesselTab(currentBL.vesselJobId, 'checklist', currentBL.id); } else { alert("Please assign to a vessel first to view checklist."); } }} 
+            onOpenCloudManager={() => openBLCloud(currentBL.id)} 
+        />;
       case 'vessel-detail':
         const currentJob = vesselJobs.find(j => j.id === tab.data.vesselId);
         if (!currentJob) return <div className="p-10 text-slate-400">Vessel not found</div>;
@@ -478,6 +575,31 @@ const App: React.FC = () => {
            zIndex={getZIndex('chat')}
            onFocus={() => focusWindow('chat')}
         />
+
+        {/* BL-specific Cloud Windows (Hoisted) */}
+        {activeBLClouds.map(window => {
+            const bl = blData.find(b => b.id === window.id);
+            if (!bl) return null;
+            const winId = `bl-cloud-${bl.id}`;
+            
+            return (
+               <CloudFileManager 
+                  key={winId}
+                  isOpen={true} // Array presence implies open
+                  isMinimized={window.minimized}
+                  onClose={() => closeBLCloud(bl.id)}
+                  onMinimize={() => minimizeBLCloud(bl.id)}
+                  
+                  zIndex={getZIndex(winId)}
+                  onFocus={() => focusWindow(winId)}
+                  
+                  attachments={bl.attachments || []}
+                  onUpload={(files) => handleBLCloudUpload(bl.id, files)}
+                  onDelete={(id) => handleBLCloudDelete(bl.id, id)}
+                  onRename={(id, name) => handleBLCloudRename(bl.id, id, name)}
+               />
+            );
+        })}
 
         <main className="flex-1 flex flex-col overflow-hidden relative print:overflow-visible print:h-auto">
           <div className="flex justify-between items-end bg-slate-100 dark:bg-slate-900 pr-4 print:hidden">

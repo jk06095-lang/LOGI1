@@ -5,7 +5,7 @@ import { Save, Upload, FileText, ExternalLink, X, Trash2, Plus, BrainCircuit, Bo
 import { parseDocument } from '../services/geminiService';
 import { uploadFileToStorage, deleteFileFromStorage } from '../services/storageService';
 import { dataService } from '../services/dataService';
-import { CloudFileManager } from './CloudFileManager';
+// Removed: CloudFileManager import and logic
 import { useWindow } from '../contexts/WindowContext';
 
 interface ShipmentDetailProps {
@@ -19,6 +19,7 @@ interface ShipmentDetailProps {
   onDelete?: (blId: string) => void;
   onAddTask: (task: BackgroundTask) => void;
   onUpdateTask: (id: string, updates: Partial<BackgroundTask>) => void;
+  onOpenCloudManager: () => void; // New Prop to request opening the window in App
 }
 
 const translations = {
@@ -394,7 +395,7 @@ const DocSlot = ({
   </div>
 );
 
-export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, language, onUpdateBL, onClose, onNavigateToChecklist, checklist, onDelete, onAddTask, onUpdateTask }) => {
+export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, language, onUpdateBL, onClose, onNavigateToChecklist, checklist, onDelete, onAddTask, onUpdateTask, onOpenCloudManager }) => {
   const [formData, setFormData] = useState<BLData>(bl);
   const [isSaving, setIsSaving] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState<DocumentScanType | null>(null);
@@ -402,9 +403,7 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
   const [isManualCategory, setIsManualCategory] = useState(false);
   const [headerCopied, setHeaderCopied] = useState(false);
   
-  // Cloud File Manager State
-  const [isCloudManagerOpen, setIsCloudManagerOpen] = useState(false);
-  const [isCloudManagerMinimized, setIsCloudManagerMinimized] = useState(false);
+  // Removed local Cloud Manager state
 
   // Category Dropdown State
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
@@ -419,16 +418,6 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
 
   // Calculate attached file count for badge
   const attachmentCount = formData.attachments?.length || 0;
-
-  // Window Context Hook
-  const { focusWindow, getZIndex } = useWindow();
-  const cloudWindowId = `bl-cloud-${bl.id}`;
-
-  useEffect(() => {
-    if (isCloudManagerOpen) {
-      focusWindow(cloudWindowId);
-    }
-  }, [isCloudManagerOpen, cloudWindowId, focusWindow]);
 
   useEffect(() => { setFormData(bl); }, [bl]);
 
@@ -564,71 +553,6 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
     } finally {
         setUploadingDoc(null);
     }
-  };
-
-  // --- Cloud File Manager Handlers ---
-
-  const handleGenericUpload = async (files: File[]) => {
-      const taskId = `cloud-upload-${Date.now()}`;
-      onAddTask({ id: taskId, title: `Uploading ${files.length} files...`, status: 'processing', progress: 0, message: 'Starting...' });
-      
-      const newAttachments: Attachment[] = [...(formData.attachments || [])];
-      let successCount = 0;
-
-      for (let i = 0; i < files.length; i++) {
-          const file = files[i];
-          try {
-              const url = await uploadFileToStorage(file);
-              newAttachments.push({
-                  id: Date.now().toString() + i,
-                  name: file.name,
-                  url: url,
-                  type: file.type,
-                  size: file.size,
-                  uploadDate: new Date().toISOString()
-              });
-              successCount++;
-              onUpdateTask(taskId, { progress: Math.round(((i + 1) / files.length) * 100) });
-          } catch (e) {
-              console.error(e);
-          }
-      }
-
-      if (successCount > 0) {
-          const updates = { attachments: newAttachments };
-          setFormData(prev => ({ ...prev, attachments: newAttachments }));
-          await onUpdateBL(bl.id, updates);
-          onUpdateTask(taskId, { status: 'success', message: 'Files uploaded' });
-      } else {
-          onUpdateTask(taskId, { status: 'error', message: 'Upload failed' });
-      }
-  };
-
-  const handleAttachmentDelete = async (attachmentId: string) => {
-      if(!window.confirm("Delete this file?")) return;
-      
-      // CLEANUP: Delete from storage first
-      const attachment = (formData.attachments || []).find(a => a.id === attachmentId);
-      if (attachment && attachment.url) {
-          await deleteFileFromStorage(attachment.url);
-      }
-      
-      const newAttachments = (formData.attachments || []).filter(a => a.id !== attachmentId);
-      const updates = { attachments: newAttachments };
-      
-      setFormData(prev => ({ ...prev, attachments: newAttachments }));
-      await onUpdateBL(bl.id, updates);
-  };
-
-  const handleAttachmentRename = async (attachmentId: string, newName: string) => {
-      const newAttachments = (formData.attachments || []).map(a => {
-          if (a.id === attachmentId) return { ...a, name: newName };
-          return a;
-      });
-      const updates = { attachments: newAttachments };
-      
-      setFormData(prev => ({ ...prev, attachments: newAttachments }));
-      await onUpdateBL(bl.id, updates);
   };
 
   const handleRunOCR = async (type: DocumentScanType, url: string) => {
@@ -793,20 +717,7 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
   return (
     <div className="h-full flex flex-col bg-slate-100 dark:bg-slate-900 overflow-hidden relative">
        
-       <CloudFileManager 
-          isOpen={isCloudManagerOpen}
-          isMinimized={isCloudManagerMinimized}
-          onClose={() => setIsCloudManagerOpen(false)}
-          onMinimize={() => setIsCloudManagerMinimized(true)}
-          
-          zIndex={getZIndex(cloudWindowId)}
-          onFocus={() => focusWindow(cloudWindowId)}
-
-          attachments={formData.attachments || []}
-          onUpload={handleGenericUpload}
-          onDelete={handleAttachmentDelete}
-          onRename={handleAttachmentRename}
-       />
+       {/* Removed: <CloudFileManager ... /> */}
 
        {/* Top Bar with B/L No and Classification */}
        <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-4 flex justify-between items-center shadow-sm z-10 flex-shrink-0">
@@ -1148,11 +1059,9 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
                           <h3 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest flex items-center gap-2">
                              <FileText size={16} /> {t.documents}
                           </h3>
+                          {/* Updated Button to request Open */}
                           <button 
-                            onClick={() => {
-                                setIsCloudManagerOpen(true);
-                                setIsCloudManagerMinimized(false);
-                            }}
+                            onClick={onOpenCloudManager}
                             className="p-1.5 hover:bg-blue-100 dark:hover:bg-slate-600 text-blue-600 dark:text-blue-400 rounded-lg transition-colors relative group"
                             title="Cloud File Manager"
                           >
