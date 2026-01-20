@@ -829,7 +829,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                           onClick={(e) => e.stopPropagation()}
                       >
                           <div className="flex justify-around mb-4">
-                              {['👍', '❤️', '😂', '😮', '😢'].map(emoji => (
+                              {['✅', '❌', '👍', '❤️', '😂'].map(emoji => (
                                   <button key={emoji} onClick={() => handleReaction(emoji, longPressId)} className="text-2xl hover:scale-125 transition-transform p-2">
                                       {emoji}
                                   </button>

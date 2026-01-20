@@ -648,7 +648,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
                                                      {/* Action Menu (Visible on Group Hover) */}
                                                      <div className="absolute right-0 -bottom-1.5 opacity-0 group-hover/msg:opacity-100 transition-all duration-200 z-10 translate-y-2 group-hover/msg:translate-y-0">
                                                          <div className="flex items-center gap-0.5 bg-white dark:bg-slate-800 rounded-full shadow-md border border-slate-200 dark:border-slate-700 p-1 ring-1 ring-black/5">
-                                                            {['✅', '❌', '👍', '❤️'].map(emoji => (
+                                                            {['✅', '❌', '👍', '❤️', '😂'].map(emoji => (
                                                                 <button 
                                                                     key={emoji} 
                                                                     onClick={(e) => { e.stopPropagation(); handleReaction(emoji, msg.id); }}

@@ -383,10 +383,12 @@ export const dataService = {
               if (!msgSnap.exists()) return;
               
               const data = msgSnap.data() as ChatMessage;
+              
               // Safe deep copy of reactions array to prevent reference issues
+              // Defensive Check: Ensure userIds is an array, if not default to empty array
               const reactions = (data.reactions || []).map(r => ({
                   emoji: r.emoji,
-                  userIds: [...r.userIds]
+                  userIds: Array.isArray(r.userIds) ? [...r.userIds] : []
               }));
 
               const existingIndex = reactions.findIndex(r => r.emoji === emoji);
