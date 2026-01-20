@@ -2,8 +2,11 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     match /{allPaths=**} {
-      // 로그인한 사람은 누구나 볼 수 있게 허용!
-      allow read, write: if request.auth != null;
+      // 1. Authentication required
+      // 2. Write restriction: Allow deletes (resource == null) OR uploads < 20MB
+      allow read: if request.auth != null;
+      allow write: if request.auth != null 
+                   && (request.resource == null || request.resource.size < 20 * 1024 * 1024);
     }
   }
 }
