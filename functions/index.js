@@ -184,3 +184,66 @@ exports.onBLDelete = functions.firestore
       await deleteFiles(allUrls);
     }
   });
+
+// --------------------------------------------------------
+// 6. [NEW] cleanupOrphanedFiles: Scheduled cleanup
+//    Runs every Sunday at 03:00 AM (Asia/Seoul)
+// --------------------------------------------------------
+exports.cleanupOrphanedFiles = functions.pubsub
+  .schedule('0 3 * * 0')
+  .timeZone('Asia/Seoul')
+  .onRun(async (context) => {
+    console.log("Starting Orphaned File Cleanup...");
+    const bucket = admin.storage().bucket();
+    
+    // 1. Collect all valid URLs from Firestore 'bls' collection
+    // Note: For very large DBs, this requires batching/pagination.
+    const blsSnapshot = await admin.firestore().collection('bls').get();
+    const validPaths = new Set();
+
+    blsSnapshot.forEach(doc => {
+      const urls = extractFileUrls(doc.data());
+      urls.forEach(url => {
+        const path = getFilePathFromUrl(url);
+        if (path) validPaths.add(decodeURIComponent(path));
+      });
+    });
+
+    console.log(`Found ${validPaths.size} valid file paths in Firestore.`);
+
+    // 2. List files in Storage
+    // Note: 'bl-documents/' is the prefix used in storageService.ts
+    const [files] = await bucket.getFiles({ prefix: 'bl-documents/' });
+    
+    let deletedCount = 0;
+    const now = new Date();
+    const GRACE_PERIOD_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+    for (const file of files) {
+      // Decode the file name to match extracted paths
+      const filePath = decodeURIComponent(file.name);
+      
+      // Skip folders
+      if (filePath.endsWith('/')) continue;
+
+      // Check creation time (Grace Period)
+      // Prevent deleting files that are currently uploading
+      const metadata = await file.getMetadata();
+      const createdTime = new Date(metadata[0].timeCreated);
+      if (now - createdTime < GRACE_PERIOD_MS) continue;
+
+      // If file path is NOT in validPaths, delete it
+      if (!validPaths.has(filePath)) {
+        try {
+          await file.delete();
+          deletedCount++;
+          console.log(`Cleaned up orphan: ${filePath}`);
+        } catch(e) {
+          console.error(`Failed to delete orphan ${filePath}:`, e);
+        }
+      }
+    }
+
+    console.log(`Cleanup finished. Deleted ${deletedCount} orphaned files.`);
+    return null;
+  });

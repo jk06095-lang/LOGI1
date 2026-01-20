@@ -2,6 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { BLData, VesselJob, Attachment } from '../types';
 import { Folder, FileText, FileImage, FileSpreadsheet, Download, Trash2, Search, ArrowLeft, Cloud, Ship, Box } from 'lucide-react';
+import { dataService } from '../services/dataService'; // Import Service
 
 interface GlobalCloudManagerProps {
   jobs: VesselJob[];
@@ -37,7 +38,7 @@ const formatSize = (bytes: number) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 };
 
-export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({ jobs, bls, onUpdateBL }) => {
+export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({ jobs, bls }) => {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -102,11 +103,12 @@ export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({ jobs, bl
       e.stopPropagation();
       if (!window.confirm(`Delete ${file.name}?`)) return;
 
-      // Find the BL
-      const bl = bls.find(b => b.id === file.blId);
-      if (bl) {
-          const newAttachments = (bl.attachments || []).filter(a => a.id !== file.id);
-          await onUpdateBL(bl.id, { attachments: newAttachments });
+      // Use Transactional Update to prevent data loss if multiple deletes happen rapidly
+      try {
+          await dataService.updateAttachmentsTransaction(file.blId, 'remove', file.id);
+      } catch (error) {
+          console.error("Delete failed", error);
+          alert("Could not delete file. Please try again.");
       }
   };
 

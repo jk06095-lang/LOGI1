@@ -3,7 +3,7 @@ import { db, messaging, functions } from "../lib/firebase";
 import { collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy, setDoc, deleteDoc, writeBatch, getDoc, arrayUnion, arrayRemove, runTransaction, where, limit, getDocs, Timestamp } from "firebase/firestore";
 import { getToken } from "firebase/messaging";
 import { httpsCallable } from "firebase/functions";
-import { VesselJob, BLData, BLChecklist, ResourceLock, ChatMessage, ChatUser } from "../types";
+import { VesselJob, BLData, BLChecklist, ResourceLock, ChatMessage, ChatUser, Attachment } from "../types";
 import { User } from "firebase/auth";
 
 // State Containers (In-Memory Cache)
@@ -141,6 +141,41 @@ export const dataService = {
     try {
         await updateDoc(doc(db, "bls", blId), updates);
     } catch (e) { console.error("Update BL Error:", e); }
+  },
+
+  // TRANSACTIONAL UPDATE FOR FILES
+  // Ensures data consistency when multiple users are deleting files from the array
+  updateAttachmentsTransaction: async (blId: string, operation: 'remove' | 'rename' | 'add', payload: any) => {
+      if (!db) return;
+      const blRef = doc(db, "bls", blId);
+
+      try {
+          await runTransaction(db, async (transaction) => {
+              const sfDoc = await transaction.get(blRef);
+              if (!sfDoc.exists()) throw "Document does not exist!";
+
+              const currentAttachments = (sfDoc.data().attachments || []) as Attachment[];
+              let newAttachments = [...currentAttachments];
+
+              if (operation === 'remove') {
+                  const attachmentIdToRemove = payload;
+                  newAttachments = newAttachments.filter(a => a.id !== attachmentIdToRemove);
+              } else if (operation === 'rename') {
+                  const { id, newName } = payload;
+                  newAttachments = newAttachments.map(a => 
+                      a.id === id ? { ...a, name: newName } : a
+                  );
+              } else if (operation === 'add') {
+                  const newFiles = payload;
+                  newAttachments = [...newAttachments, ...newFiles];
+              }
+
+              transaction.update(blRef, { attachments: newAttachments });
+          });
+      } catch (e) {
+          console.error("Attachment Transaction Failed:", e);
+          throw e;
+      }
   },
 
   deleteBL: async (blId: string) => {

@@ -1,70 +1,36 @@
 
 import { storage } from "../lib/firebase";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import imageCompression from "https://esm.sh/browser-image-compression@2.0.2";
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 
 /**
- * Compresses an image file.
- * Returns the compressed File object.
+ * Compresses an image file using browser-image-compression.
+ * Efficiently handles memory and EXIF rotation.
  */
 export const compressImage = async (file: File): Promise<File> => {
-  // If it's a PDF, we can't easily compress client-side without heavy libs, return as is.
-  if (file.type === 'application/pdf') {
+  // If it's a PDF or non-image, return as is.
+  if (file.type === 'application/pdf' || !file.type.startsWith('image/')) {
     return file;
   }
 
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target?.result as string;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        
-        // Scale down if too large (max 1600px width/height for efficiency)
-        const maxDim = 1600;
-        let width = img.width;
-        let height = img.height;
-        
-        if (width > height) {
-          if (width > maxDim) {
-            height *= maxDim / width;
-            width = maxDim;
-          }
-        } else {
-          if (height > maxDim) {
-            width *= maxDim / height;
-            height = maxDim;
-          }
-        }
+  const options = {
+    maxSizeMB: 1,          // Compress to ~1MB
+    maxWidthOrHeight: 1920, // Limit resolution to FHD (Prevents OOM on mobile)
+    useWebWorker: true,    // Use separate thread
+    fileType: 'image/jpeg', // Force convert to JPEG
+    initialQuality: 0.7,   // Good balance
+  };
 
-        canvas.width = width;
-        canvas.height = height;
-        
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          canvas.toBlob((blob) => {
-            if (blob) {
-              const compressedFile = new File([blob], file.name, {
-                type: 'image/jpeg',
-                lastModified: Date.now(),
-              });
-              resolve(compressedFile);
-            } else {
-              resolve(file);
-            }
-          }, 'image/jpeg', 0.65); // Compressed further (0.65) for better cloud savings
-        } else {
-          resolve(file);
-        }
-      };
-      img.onerror = () => resolve(file);
-    };
-    reader.onerror = () => resolve(file);
-  });
+  try {
+    const compressedFile = await imageCompression(file, options);
+    // console.log(`Compression: ${(file.size / 1024 / 1024).toFixed(2)}MB -> ${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`);
+    return compressedFile;
+  } catch (error) {
+    console.error("Image compression failed, using original:", error);
+    return file;
+  }
 };
 
 /**
@@ -84,7 +50,7 @@ export const uploadFileToStorage = async (file: File): Promise<string> => {
     const fileToUpload = await compressImage(file);
     
     const dateFolder = new Date().toISOString().split('T')[0];
-    const uniqueName = `${Date.now()}-${fileToUpload.name}`;
+    const uniqueName = `${Date.now()}-${fileToUpload.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`; // Sanitize filename
     const storageRef = ref(storage, `bl-documents/${dateFolder}/${uniqueName}`);
 
     await uploadBytes(storageRef, fileToUpload);
@@ -94,7 +60,7 @@ export const uploadFileToStorage = async (file: File): Promise<string> => {
   } catch (error: any) {
     console.error("File upload error:", error);
     if (error.code === 'storage/unauthorized') {
-      console.error("Storage Permission Denied. Please check if storage.rules are deployed.");
+      console.error("Storage Permission Denied. Please check if your account is authorized.");
     }
     throw error;
   }

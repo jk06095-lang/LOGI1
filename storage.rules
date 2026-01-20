@@ -2,10 +2,19 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     match /{allPaths=**} {
-      // 1. Authentication required
-      // 2. Write restriction: Allow deletes (resource == null) OR uploads < 20MB
+      // 1. 함수: 요청한 유저가 Firestore 'users' 컬렉션에서 authorized == true 인지 확인
+      // 주의: 이 규칙은 Firestore 읽기 비용이 발생하지만, 보안을 위해 필수적입니다.
+      function isAuthorized() {
+        return firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
+               firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.authorized == true;
+      }
+
+      // 2. 읽기: 인증된 모든 유저 허용
       allow read: if request.auth != null;
+
+      // 3. 쓰기(업로드/삭제): 인증 + 시스템에서 승인된(authorized) 유저만 허용 + 크기 제한
       allow write: if request.auth != null 
+                   && isAuthorized()
                    && (request.resource == null || request.resource.size < 20 * 1024 * 1024);
     }
   }
