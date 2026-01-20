@@ -711,7 +711,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
           </div>
 
           {/* Chat Content */}
-          <div className="flex-1 overflow-y-auto p-4 pt-20 pb-24 custom-scrollbar" ref={scrollRef} onScroll={handleScroll} style={{ WebkitOverflowScrolling: 'touch' }}>
+          <div className="flex-1 overflow-y-auto p-4 pt-20 pb-32 custom-scrollbar" ref={scrollRef} onScroll={handleScroll} style={{ WebkitOverflowScrolling: 'touch' }}>
               
               <div className="flex justify-center mb-4">
                   <button 
@@ -927,7 +927,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
           </AnimatePresence>
 
           {/* Chat Footer */}
-          <div className="absolute bottom-0 left-0 right-0 z-20 p-3 bg-white/75 dark:bg-black/40 backdrop-blur-xl border-t border-white/20 dark:border-white/10 shrink-0 safe-area-bottom shadow-[0_-5px_15px_rgba(0,0,0,0.05)]">
+          <div className="absolute bottom-0 left-0 right-0 z-20 p-3 bg-white/75 dark:bg-black/40 backdrop-blur-xl border-t border-white/20 dark:border-white/10 shrink-0 shadow-[0_-5px_15px_rgba(0,0,0,0.05)]">
               {/* Replying Banner */}
               <AnimatePresence>
                   {replyingTo && (
@@ -1128,45 +1128,43 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
               {renderContent()}
           </div>
 
-          {!(activeTab === 'chat' && chatView === 'room') && (
-              <div className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 pb-safe-bottom safe-area-bottom">
-                  <div className="flex justify-around items-center h-16">
-                      <button 
-                          onClick={() => setActiveTab('cargo')}
-                          className={`flex flex-col items-center justify-center w-full h-full ${activeTab === 'cargo' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}
-                      >
-                          <ListIcon size={24} />
-                          <span className="text-[10px] font-medium mt-1">{t.cargoList}</span>
-                      </button>
-                      <button 
-                          onClick={() => setActiveTab('cloud')}
-                          className={`flex flex-col items-center justify-center w-full h-full ${activeTab === 'cloud' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}
-                      >
-                          <Cloud size={24} />
-                          <span className="text-[10px] font-medium mt-1">{t.cloud}</span>
-                      </button>
-                      <button 
-                          onClick={() => setActiveTab('chat')}
-                          className={`flex flex-col items-center justify-center w-full h-full relative ${activeTab === 'chat' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}
-                      >
-                          <div className="relative">
-                              <MessageCircle size={24} />
-                              {hasUnreadMessages && (
-                                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-800"></span>
-                              )}
-                          </div>
-                          <span className="text-[10px] font-medium mt-1">{t.messages}</span>
-                      </button>
-                      <button 
-                          onClick={() => setActiveTab('settings')}
-                          className={`flex flex-col items-center justify-center w-full h-full ${activeTab === 'settings' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}
-                      >
-                          <Settings size={24} />
-                          <span className="text-[10px] font-medium mt-1">{t.settings}</span>
-                      </button>
-                  </div>
+          <div className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 pb-safe-bottom safe-area-bottom">
+              <div className="flex justify-around items-center h-16">
+                  <button 
+                      onClick={() => setActiveTab('cargo')}
+                      className={`flex flex-col items-center justify-center w-full h-full ${activeTab === 'cargo' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}
+                  >
+                      <ListIcon size={24} />
+                      <span className="text-[10px] font-medium mt-1">{t.cargoList}</span>
+                  </button>
+                  <button 
+                      onClick={() => setActiveTab('cloud')}
+                      className={`flex flex-col items-center justify-center w-full h-full ${activeTab === 'cloud' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}
+                  >
+                      <Cloud size={24} />
+                      <span className="text-[10px] font-medium mt-1">{t.cloud}</span>
+                  </button>
+                  <button 
+                      onClick={() => setActiveTab('chat')}
+                      className={`flex flex-col items-center justify-center w-full h-full relative ${activeTab === 'chat' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}
+                  >
+                      <div className="relative">
+                          <MessageCircle size={24} />
+                          {hasUnreadMessages && (
+                              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-800"></span>
+                          )}
+                      </div>
+                      <span className="text-[10px] font-medium mt-1">{t.messages}</span>
+                  </button>
+                  <button 
+                      onClick={() => setActiveTab('settings')}
+                      className={`flex flex-col items-center justify-center w-full h-full ${activeTab === 'settings' ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}
+                  >
+                      <Settings size={24} />
+                      <span className="text-[10px] font-medium mt-1">{t.settings}</span>
+                  </button>
               </div>
-          )}
+          </div>
       </div>
   );
 };
