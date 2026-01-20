@@ -14,15 +14,14 @@ interface CloudFileManagerProps {
   onUpload: (files: File[]) => void;
   onDelete: (attachmentId: string) => void;
   onRename: (attachmentId: string, newName: string) => void;
+  zIndex?: number;
+  onFocus?: () => void;
 }
 
 type WindowState = 'default' | 'tall' | 'maximized';
 
-// Global variable to manage z-index for CloudFileManager instances
-let globalHighestZIndex = 1000;
-
 export const CloudFileManager: React.FC<CloudFileManagerProps> = ({ 
-  isOpen, isMinimized, onClose, onMinimize, attachments, onUpload, onDelete, onRename 
+  isOpen, isMinimized, onClose, onMinimize, attachments, onUpload, onDelete, onRename, zIndex = 1300, onFocus 
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; fileId: string | null } | null>(null);
@@ -41,9 +40,6 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
   // Window State Logic (Traffic Lights)
   const [windowState, setWindowState] = useState<WindowState>('default');
   
-  // Local Z-Index state
-  const [zIndex, setZIndex] = useState(globalHighestZIndex);
-
   const fileInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -58,12 +54,6 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
         window.removeEventListener('resize', handleClick);
     };
   }, []);
-
-  // Bring to front on focus (click)
-  const handleFocus = () => {
-      globalHighestZIndex += 1;
-      setZIndex(globalHighestZIndex);
-  };
 
   // Handlers for Traffic Lights
   const handleYellowClick = (e: React.MouseEvent) => {
@@ -302,7 +292,7 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
             onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
             onDragLeave={() => setIsDragOver(false)}
             onDrop={handleDrop}
-            onPointerDown={handleFocus}
+            onPointerDown={onFocus}
         >
             {/* Header (Traffic Lights & Drag Handle) */}
             <div className="h-12 bg-gradient-to-b from-white/10 to-transparent flex items-center px-5 shrink-0 border-b border-white/10 cursor-grab active:cursor-grabbing">

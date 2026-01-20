@@ -70,7 +70,7 @@ export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({
       
       // Initialize folders from jobs
       jobs.forEach(j => {
-          map.set(j.id, { id: j.id, name: j.vesselName, files: [] });
+          map.set(j.id, { id: j.id, name: `${j.vesselName} (${j.voyageNo})`, files: [] });
       });
       // Add Unassigned folder
       map.set('unassigned', { id: 'unassigned', name: 'Unassigned', files: [] });
