@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { BLData, Language, DocumentScanType, BLChecklist, CargoItem, BackgroundTask, ImportSubClass, VesselJob, Attachment } from '../types';
 import { Save, Upload, FileText, ExternalLink, X, Trash2, Plus, BrainCircuit, Box, DollarSign, Loader2, Copy, Ship, Truck, CheckCircle2, CircleDashed, ArrowRight, MessageSquare, ChevronDown, Pencil, Check, FolderPlus } from 'lucide-react';
 import { parseDocument } from '../services/geminiService';
-import { uploadFileToStorage } from '../services/storageService';
+import { uploadFileToStorage, deleteFileFromStorage } from '../services/storageService';
 import { dataService } from '../services/dataService';
 import { CloudFileManager } from './CloudFileManager';
 
@@ -509,6 +509,19 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
     onAddTask({ id: taskId, title: `Upload: ${file.name}`, status: 'processing', progress: 0, message: 'Uploading...' });
 
     try {
+        // CLEANUP: Check if there is an existing file and delete it before overwriting
+        let oldUrl = '';
+        if (type === 'BL') oldUrl = formData.fileUrl || '';
+        else if (type === 'CI') oldUrl = formData.commercialInvoice?.fileUrl || '';
+        else if (type === 'PL') oldUrl = formData.packingList?.fileUrl || '';
+        else if (type === 'EXPORT_DEC') oldUrl = formData.exportDeclaration?.fileUrl || '';
+        else if (type === 'MANIFEST') oldUrl = formData.manifest?.fileUrl || '';
+        else if (type === 'AN') oldUrl = formData.arrivalNotice?.fileUrl || '';
+
+        if (oldUrl) {
+            await deleteFileFromStorage(oldUrl);
+        }
+
         const url = await uploadFileToStorage(file);
         onUpdateTask(taskId, { progress: 80 });
 
@@ -572,6 +585,12 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
 
   const handleAttachmentDelete = async (attachmentId: string) => {
       if(!window.confirm("Delete this file?")) return;
+      
+      // CLEANUP: Delete from storage first
+      const attachment = (formData.attachments || []).find(a => a.id === attachmentId);
+      if (attachment && attachment.url) {
+          await deleteFileFromStorage(attachment.url);
+      }
       
       const newAttachments = (formData.attachments || []).filter(a => a.id !== attachmentId);
       const updates = { attachments: newAttachments };
@@ -639,6 +658,20 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
 
   const handleFileRemove = async (type: DocumentScanType) => {
     if (!window.confirm(t.deleteFile + '?')) return;
+    
+    // CLEANUP: Delete from storage first
+    let urlToDelete = '';
+    if (type === 'BL') urlToDelete = formData.fileUrl || '';
+    else if (type === 'CI') urlToDelete = formData.commercialInvoice?.fileUrl || '';
+    else if (type === 'PL') urlToDelete = formData.packingList?.fileUrl || '';
+    else if (type === 'AN') urlToDelete = formData.arrivalNotice?.fileUrl || '';
+    else if (type === 'EXPORT_DEC') urlToDelete = formData.exportDeclaration?.fileUrl || '';
+    else if (type === 'MANIFEST') urlToDelete = formData.manifest?.fileUrl || '';
+
+    if (urlToDelete) {
+        await deleteFileFromStorage(urlToDelete);
+    }
+
     const updates: Partial<BLData> = {};
     const newFormData = { ...formData };
 

@@ -1,3 +1,4 @@
+
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 admin.initializeApp();
@@ -144,4 +145,71 @@ exports.sendDMNotification = functions.firestore
     } catch (error) {
       console.error("DM notification error:", error);
     }
+  });
+
+// Helper to extract path from download URL
+const getFilePathFromUrl = (url) => {
+  try {
+    // URL format: https://firebasestorage.googleapis.com/v0/b/<bucket>/o/<path>?...
+    const decodedUrl = decodeURIComponent(url);
+    const startIndex = decodedUrl.indexOf('/o/') + 3;
+    const endIndex = decodedUrl.indexOf('?');
+    if (startIndex < 3 || endIndex < 0) return null;
+    return decodedUrl.substring(startIndex, endIndex);
+  } catch (e) {
+    return null;
+  }
+};
+
+// --------------------------------------------------------
+// 4. [Cleanup] Delete Files on B/L Document Deletion
+// Description: Prevents orphaned files by deleting them from Storage when DB doc is removed.
+// --------------------------------------------------------
+exports.onBLDelete = functions.firestore
+  .document("bls/{blId}")
+  .onDelete(async (snapshot, context) => {
+    const data = snapshot.data();
+    const bucket = admin.storage().bucket();
+    const filesToDelete = [];
+
+    // 1. Collect Root File
+    if (data.fileUrl) filesToDelete.push(data.fileUrl);
+
+    // 2. Collect Nested Files
+    if (data.commercialInvoice && data.commercialInvoice.fileUrl) filesToDelete.push(data.commercialInvoice.fileUrl);
+    if (data.packingList && data.packingList.fileUrl) filesToDelete.push(data.packingList.fileUrl);
+    if (data.exportDeclaration && data.exportDeclaration.fileUrl) filesToDelete.push(data.exportDeclaration.fileUrl);
+    if (data.manifest && data.manifest.fileUrl) filesToDelete.push(data.manifest.fileUrl);
+    if (data.arrivalNotice && data.arrivalNotice.fileUrl) filesToDelete.push(data.arrivalNotice.fileUrl);
+
+    // 3. Collect Attachments
+    if (data.attachments && Array.isArray(data.attachments)) {
+      data.attachments.forEach((att) => {
+        if (att.url) filesToDelete.push(att.url);
+      });
+    }
+
+    // 4. Delete Process
+    const deletePromises = filesToDelete.map(async (url) => {
+      const filePath = getFilePathFromUrl(url);
+      if (!filePath) {
+        console.warn("Could not parse file path from URL:", url);
+        return;
+      }
+
+      try {
+        await bucket.file(filePath).delete();
+        console.log("Deleted file:", filePath);
+      } catch (error) {
+        // Ignore "not found" errors
+        if (error.code === 404) {
+          console.log("File already deleted or not found:", filePath);
+        } else {
+          console.error("Error deleting file:", filePath, error);
+        }
+      }
+    });
+
+    await Promise.all(deletePromises);
+    console.log(`Cleanup complete for ${context.params.blId}. Processed ${filesToDelete.length} files.`);
   });

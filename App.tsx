@@ -11,6 +11,7 @@ import { TabNavigation, Tab } from './components/TabNavigation';
 import { ChatWindow } from './components/ChatWindow'; 
 import { MobileLayout } from './components/MobileLayout'; 
 import { AccessGate } from './components/AccessGate';
+import { GlobalCloudManager } from './components/GlobalCloudManager';
 import { VesselJob, BLData, ViewState, BLChecklist, AppSettings, CargoSourceType, BackgroundTask, NotificationLog } from './types';
 import { parseBLImage } from './services/geminiService';
 import { dataService } from './services/dataService';
@@ -365,6 +366,10 @@ const App: React.FC = () => {
       if (!tabs.find(t => t.id === 'bl-list')) setTabs([...tabs, { id: 'bl-list', type: 'bl-list', title: 'Doc Mgmt' }]); 
       activateTab('bl-list'); 
     }
+    else if (view === 'cloud') {
+      if (!tabs.find(t => t.id === 'cloud')) setTabs([...tabs, { id: 'cloud', type: 'cloud', title: 'Global Cloud' }]);
+      activateTab('cloud');
+    }
   };
 
   const handleBLUpload = async (files: File[], sourceType: CargoSourceType = 'TRANSIT') => {
@@ -555,6 +560,14 @@ const App: React.FC = () => {
             lastUpdate={activeTab.data?.timestamp}
             onOpenBLDetail={(id) => openShipmentDetailTab(id)}
           />
+        );
+      case 'cloud':
+        return (
+            <GlobalCloudManager 
+                jobs={vesselJobs} 
+                bls={blData} 
+                onUpdateBL={dataService.updateBL} 
+            />
         );
       default:
         return <div className="p-10">Menu item not implemented yet.</div>;

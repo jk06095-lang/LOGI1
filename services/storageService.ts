@@ -1,6 +1,6 @@
 
 import { storage } from "../lib/firebase";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 
@@ -97,5 +97,26 @@ export const uploadFileToStorage = async (file: File): Promise<string> => {
       console.error("Storage Permission Denied. Please check if storage.rules are deployed.");
     }
     throw error;
+  }
+};
+
+/**
+ * Deletes a file from Firebase Storage using its download URL.
+ * Fails silently if object not found to prevent flow interruption.
+ */
+export const deleteFileFromStorage = async (downloadUrl: string): Promise<void> => {
+  if (!storage || !downloadUrl) return;
+
+  try {
+    // Create a reference from the full URL
+    const fileRef = ref(storage, downloadUrl);
+    await deleteObject(fileRef);
+    console.log(`Deleted file: ${downloadUrl}`);
+  } catch (error: any) {
+    if (error.code === 'storage/object-not-found') {
+      console.warn(`File not found (already deleted?): ${downloadUrl}`);
+    } else {
+      console.error("Error deleting file:", error);
+    }
   }
 };

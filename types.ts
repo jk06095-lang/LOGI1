@@ -203,7 +203,7 @@ export interface AppState {
   checklists: Record<string, BLChecklist>; // Keyed by BL ID
 }
 
-export type ViewState = 'dashboard' | 'vessel-list' | 'vessel-detail' | 'settings' | 'bl-list' | 'shipment-detail';
+export type ViewState = 'dashboard' | 'vessel-list' | 'vessel-detail' | 'settings' | 'bl-list' | 'shipment-detail' | 'cloud';
 
 export enum ProcessingStatus {
   IDLE = 'IDLE',

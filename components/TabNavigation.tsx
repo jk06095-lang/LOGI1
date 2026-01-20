@@ -1,10 +1,10 @@
 
 import React, { useRef } from 'react';
-import { X, FolderOpen, Settings, Ship, Home, FileText, PieChart, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, FolderOpen, Settings, Ship, Home, FileText, PieChart, ChevronLeft, ChevronRight, Cloud } from 'lucide-react';
 
 export interface Tab {
   id: string;
-  type: 'dashboard' | 'vessel-list' | 'vessel-detail' | 'settings' | 'bl-list' | 'shipment-detail' | 'briefing';
+  type: 'dashboard' | 'vessel-list' | 'vessel-detail' | 'settings' | 'bl-list' | 'shipment-detail' | 'briefing' | 'cloud';
   title: string;
   data?: any; // To store vesselId for detail views
 }
@@ -28,6 +28,7 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({ tabs, activeTabId,
       case 'bl-list': return FolderOpen;
       case 'shipment-detail': return FileText;
       case 'briefing': return PieChart;
+      case 'cloud': return Cloud;
       default: return FolderOpen;
     }
   };

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Anchor, Settings, Ship, ChevronLeft, ChevronRight, Home, FolderOpen, MessageCircle, ExternalLink } from 'lucide-react';
+import { Anchor, Settings, Ship, ChevronLeft, ChevronRight, Home, FolderOpen, MessageCircle, ExternalLink, Cloud } from 'lucide-react';
 import { ViewState, Language } from '../types';
 import { User } from 'firebase/auth';
 import { dataService } from '../services/dataService';
@@ -21,9 +21,10 @@ interface SidebarProps {
 const translations = {
   ko: {
     dashboard: '대시보드',
-    vesselMgmt: '선박 목록', // Updated from '선박 관리'
-    blMgmt: '화물 관리', // Unify with Title
+    vesselMgmt: '선박 목록',
+    blMgmt: '화물 관리',
     settings: '환경 설정',
+    cloud: '클라우드',
     role: '운영자',
     menu: '메인 메뉴',
     message: '메시지',
@@ -34,6 +35,7 @@ const translations = {
     vesselMgmt: 'Vessel Mgmt',
     blMgmt: 'Cargo Mgmt',
     settings: 'Settings',
+    cloud: 'Cloud',
     role: 'Operator',
     menu: 'Main Menu',
     message: 'Messages',
@@ -44,6 +46,7 @@ const translations = {
     vesselMgmt: '船舶管理',
     blMgmt: '货物管理',
     settings: '系统设置',
+    cloud: '云盘',
     role: '操作员',
     menu: '主菜单',
     message: '消息',
@@ -131,15 +134,30 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
         <button
            onClick={() => onNavigate('settings')}
            title={isCollapsed ? t.settings : ''}
-           className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white`}
+           className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${currentView === 'settings' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'}`}
         >
           <Settings size={18} />
           {!isCollapsed && <span>{t.settings}</span>}
         </button>
       </nav>
 
-      {/* Message Button Area */}
-      <div className="px-2 mb-2">
+      {/* Cloud & Message Area */}
+      <div className="px-2 mb-2 space-y-1">
+         {/* Global Cloud Manager Button */}
+         <button
+            onClick={() => onNavigate('cloud')}
+            title={isCollapsed ? t.cloud : ''}
+            className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${
+                currentView === 'cloud'
+                ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 shadow-sm' 
+                : 'text-slate-600 dark:text-slate-400 hover:bg-sky-50 dark:hover:bg-sky-900/10 hover:text-sky-600 dark:hover:text-sky-300'
+            }`}
+         >
+            <Cloud size={18} strokeWidth={currentView === 'cloud' ? 2.5 : 2} />
+            {!isCollapsed && <span>{t.cloud}</span>}
+         </button>
+
+         {/* Message Button */}
          <button
             onClick={handleChatClick}
             title={isCollapsed ? t.message : ''}
