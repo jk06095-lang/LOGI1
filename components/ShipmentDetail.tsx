@@ -402,6 +402,7 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
   
   // Cloud File Manager State
   const [isCloudManagerOpen, setIsCloudManagerOpen] = useState(false);
+  const [isCloudManagerMinimized, setIsCloudManagerMinimized] = useState(false);
 
   // Category Dropdown State
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
@@ -781,8 +782,10 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
     <div className="h-full flex flex-col bg-slate-100 dark:bg-slate-900 overflow-hidden relative">
        
        <CloudFileManager 
-          isOpen={isCloudManagerOpen} 
+          isOpen={isCloudManagerOpen}
+          isMinimized={isCloudManagerMinimized}
           onClose={() => setIsCloudManagerOpen(false)}
+          onMinimize={() => setIsCloudManagerMinimized(true)}
           attachments={formData.attachments || []}
           onUpload={handleGenericUpload}
           onDelete={handleAttachmentDelete}
@@ -1130,7 +1133,10 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
                              <FileText size={16} /> {t.documents}
                           </h3>
                           <button 
-                            onClick={() => setIsCloudManagerOpen(true)}
+                            onClick={() => {
+                                setIsCloudManagerOpen(true);
+                                setIsCloudManagerMinimized(false);
+                            }}
                             className="p-1.5 hover:bg-blue-100 dark:hover:bg-slate-600 text-blue-600 dark:text-blue-400 rounded-lg transition-colors relative group"
                             title="Cloud File Manager"
                           >

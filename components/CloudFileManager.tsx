@@ -3,11 +3,13 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Attachment } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, FileImage, FileSpreadsheet, X, Download, Trash2, Edit2, UploadCloud, FolderOpen, Check, AlertCircle } from 'lucide-react';
+import { FileText, FileImage, FileSpreadsheet, X, Download, Trash2, Edit2, UploadCloud, FolderOpen, Check, AlertCircle, Minus, Maximize2 } from 'lucide-react';
 
 interface CloudFileManagerProps {
   isOpen: boolean;
+  isMinimized?: boolean;
   onClose: () => void;
+  onMinimize?: () => void;
   attachments: Attachment[];
   onUpload: (files: File[]) => void;
   onDelete: (attachmentId: string) => void;
@@ -16,8 +18,11 @@ interface CloudFileManagerProps {
 
 type WindowState = 'default' | 'tall' | 'maximized';
 
+// Global variable to manage z-index for CloudFileManager instances
+let globalHighestZIndex = 1000;
+
 export const CloudFileManager: React.FC<CloudFileManagerProps> = ({ 
-  isOpen, onClose, attachments, onUpload, onDelete, onRename 
+  isOpen, isMinimized, onClose, onMinimize, attachments, onUpload, onDelete, onRename 
 }) => {
   const [isDragOver, setIsDragOver] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; fileId: string | null } | null>(null);
@@ -35,6 +40,9 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
   
   // Window State Logic (Traffic Lights)
   const [windowState, setWindowState] = useState<WindowState>('default');
+  
+  // Local Z-Index state
+  const [zIndex, setZIndex] = useState(globalHighestZIndex);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -51,10 +59,16 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
     };
   }, []);
 
+  // Bring to front on focus (click)
+  const handleFocus = () => {
+      globalHighestZIndex += 1;
+      setZIndex(globalHighestZIndex);
+  };
+
   // Handlers for Traffic Lights
   const handleYellowClick = (e: React.MouseEvent) => {
       e.stopPropagation();
-      setWindowState(prev => prev === 'tall' ? 'default' : 'tall');
+      if (onMinimize) onMinimize();
   };
 
   const handleGreenClick = (e: React.MouseEvent) => {
@@ -268,11 +282,12 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
             dragElastic={0.1}
             initial={{ opacity: 0, scale: 0.9, y: 50 }}
             animate={{ 
-                opacity: 1, 
-                scale: 1, 
+                opacity: isMinimized ? 0 : 1, 
+                scale: isMinimized ? 0.9 : 1, 
                 y: 0,
                 width: dimensions.width,
-                height: dimensions.height
+                height: dimensions.height,
+                pointerEvents: isMinimized ? 'none' : 'auto'
             }}
             exit={{ opacity: 0, scale: 0.9, y: 50 }}
             transition={{ type: "spring", stiffness: 350, damping: 25 }}
@@ -280,27 +295,28 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
                 position: 'fixed',
                 bottom: 40,
                 right: 40,
-                zIndex: 100 
+                zIndex: zIndex 
             }}
             className="flex flex-col rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] border border-white/30 dark:border-white/20 bg-white/15 dark:bg-black/20 backdrop-blur-xl backdrop-saturate-150 overflow-hidden pointer-events-auto"
             onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
             onDragLeave={() => setIsDragOver(false)}
             onDrop={handleDrop}
+            onPointerDown={handleFocus}
         >
             {/* Header (Traffic Lights & Drag Handle) */}
             <div className="h-12 bg-gradient-to-b from-white/10 to-transparent flex items-center px-5 shrink-0 border-b border-white/10 cursor-grab active:cursor-grabbing">
                 <div className="flex gap-2 group mr-4" onPointerDown={(e) => e.stopPropagation()}>
                     {/* Red: Close */}
                     <button onClick={onClose} className="w-4 h-4 rounded-full bg-[#FF5F57] border border-[#E0443E] shadow-sm flex items-center justify-center hover:bg-[#FF5F57]/80 transition-transform duration-200 hover:scale-110">
-                        <X size={10} className="opacity-0 group-hover:opacity-100 text-black/50" strokeWidth={3} />
+                        <X size={10} className="opacity-0 group-hover:opacity-100 text-black/60" strokeWidth={3} />
                     </button>
-                    {/* Yellow: Tall */}
+                    {/* Yellow: Minimize */}
                     <button onClick={handleYellowClick} className="w-4 h-4 rounded-full bg-[#FEBC2E] border border-[#D89E24] shadow-sm flex items-center justify-center hover:bg-[#FEBC2E]/80 transition-transform duration-200 hover:scale-110">
-                        <div className="w-2 h-0.5 bg-black/40 opacity-0 group-hover:opacity-100"></div>
+                        <Minus size={10} className="opacity-0 group-hover:opacity-100 text-black/60" strokeWidth={4} />
                     </button>
                     {/* Green: Maximize */}
                     <button onClick={handleGreenClick} className="w-4 h-4 rounded-full bg-[#28C840] border border-[#1AAB29] shadow-sm flex items-center justify-center hover:bg-[#28C840]/80 transition-transform duration-200 hover:scale-110">
-                        <div className="w-1.5 h-1.5 bg-black/40 opacity-0 group-hover:opacity-100 rounded-full"></div>
+                        <Maximize2 size={8} className="opacity-0 group-hover:opacity-100 text-black/60" strokeWidth={3} />
                     </button>
                 </div>
                 <div className="flex-1 text-center font-bold text-slate-700 dark:text-white/90 text-sm flex items-center justify-center gap-2 select-none">

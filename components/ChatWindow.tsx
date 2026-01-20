@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect, useCallback } from 'react';
-import { Send, X, User as UserIcon, MessageCircle, ChevronLeft, Check, CheckCheck, Download, UserPlus, ArrowUpCircle, Settings2, Trash2, ChevronDown, Smile, MoreHorizontal, Reply, Quote } from 'lucide-react';
+import { Send, X, User as UserIcon, MessageCircle, ChevronLeft, Check, CheckCheck, Download, UserPlus, ArrowUpCircle, Settings2, Trash2, ChevronDown, Smile, MoreHorizontal, Reply, Quote, Minus } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { ChatMessage, ChatUser } from '../types';
 import { User } from 'firebase/auth';
@@ -9,7 +9,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 interface ChatWindowProps {
   isOpen: boolean;
+  isMinimized?: boolean;
   onClose: () => void;
+  onMinimize?: () => void;
   sidebarWidth: number;
   user: User | null;
   zIndex: number;
@@ -24,7 +26,7 @@ type WindowState = 'default' | 'tall' | 'maximized';
 // Global Map to persist scroll positions even when component unmounts (closes)
 const globalScrollPositions = new Map<string, { top: number, atBottom: boolean }>();
 
-export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebarWidth, user, zIndex, onFocus }) => {
+export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onClose, onMinimize, sidebarWidth, user, zIndex, onFocus }) => {
   const [activeTab, setActiveTab] = useState<'global' | 'dm'>('global');
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -271,7 +273,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
   // Traffic Light Handlers
   const handleYellowClick = (e: React.MouseEvent) => {
       e.stopPropagation();
-      setWindowState(prev => prev === 'tall' ? 'default' : 'tall');
+      if (onMinimize) onMinimize();
   };
 
   const handleGreenClick = (e: React.MouseEvent) => {
@@ -420,16 +422,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
             dragElastic={0.1}
             initial={{ opacity: 0, scale: 0.9, y: 15 }}
             animate={{ 
-                opacity: 1, 
-                scale: 1, 
+                opacity: isMinimized ? 0 : 1, 
+                scale: isMinimized ? 0.9 : 1, 
                 y: 0, 
                 width: dimensions.width,
-                height: dimensions.height
+                height: dimensions.height,
+                pointerEvents: isMinimized ? 'none' : 'auto'
             }}
             exit={{ opacity: 0, scale: 0.9, y: 15 }}
             onAnimationComplete={() => {
                 // IMPORTANT: Restore scroll position after animation finishes.
-                if (isOpen) {
+                if (isOpen && !isMinimized) {
                     restoreScrollPosition();
                 }
             }}
@@ -450,9 +453,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                      <button onClick={onClose} className="w-4 h-4 rounded-full bg-[#FF5F57] hover:bg-[#FF5F57]/80 flex items-center justify-center shadow-sm transition-transform duration-200 hover:scale-110 border border-[#E0443E]">
                         <X size={10} className="text-black/50 opacity-0 group-hover:opacity-100" strokeWidth={3} />
                      </button>
-                     {/* Yellow: Toggle Tall */}
+                     {/* Yellow: Minimize */}
                      <button onClick={handleYellowClick} className="w-4 h-4 rounded-full bg-[#FEBC2E] hover:bg-[#FEBC2E]/80 flex items-center justify-center shadow-sm border border-[#D89E24] transition-transform duration-200 hover:scale-110">
-                        <div className="w-2 h-0.5 bg-black/40 opacity-0 group-hover:opacity-100"></div>
+                        <Minus size={10} className="text-black/50 opacity-0 group-hover:opacity-100" strokeWidth={4} />
                      </button>
                      {/* Green: Toggle Maximize */}
                      <button onClick={handleGreenClick} className="w-4 h-4 rounded-full bg-[#28C840] hover:bg-[#28C840]/80 flex items-center justify-center shadow-sm border border-[#1AAB29] transition-transform duration-200 hover:scale-110">
@@ -576,20 +579,20 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                                                         : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-sm border-slate-200 dark:border-slate-700'
                                                      } ${msg.pending ? 'opacity-70' : ''}`}>
                                                      
-                                                     {/* Quoted Reply Display */}
+                                                     {/* Reply Fix: Compact & Clean Layout */}
                                                      {msg.replyTo && (
-                                                         <div className={`mb-2 pl-2 border-l-2 text-xs opacity-90 ${isMe ? 'border-white/50 text-blue-100' : 'border-blue-500 text-slate-500 dark:text-slate-400'}`}>
-                                                             <p className="font-bold text-[10px] mb-0.5">{msg.replyTo.senderName}</p>
-                                                             <p className="truncate line-clamp-1 italic">{msg.replyTo.text}</p>
+                                                         <div className={`mb-1 pl-2 border-l-2 text-xs opacity-90 rounded-r py-1 ${isMe ? 'border-white/50 bg-white/10 text-blue-100' : 'border-blue-500 bg-black/5 dark:bg-white/5 text-slate-500 dark:text-slate-400'}`}>
+                                                             <p className="font-bold text-[10px] mb-0.5 opacity-80">{msg.replyTo.senderName}</p>
+                                                             <p className="truncate line-clamp-1 italic text-[10px] opacity-70">{msg.replyTo.text}</p>
                                                          </div>
                                                      )}
 
                                                      {msg.text}
                                                  </div>
                                                  
-                                                 {/* Reactions Display */}
+                                                 {/* Reactions Fix: Visible Badges */}
                                                  {msg.reactions && msg.reactions.length > 0 && (
-                                                     <div className="flex flex-wrap gap-1 mt-1.5 pl-1">
+                                                     <div className="flex flex-wrap gap-1 mt-1">
                                                          {msg.reactions.map((r, i) => (
                                                              <button 
                                                                 key={i}
