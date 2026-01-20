@@ -2,7 +2,7 @@
 import { storage } from "../lib/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 
 /**
  * Compresses an image file.
@@ -72,7 +72,7 @@ export const compressImage = async (file: File): Promise<File> => {
  */
 export const uploadFileToStorage = async (file: File): Promise<string> => {
   if (file.size > MAX_FILE_SIZE) {
-    throw new Error(`File too large. Maximum allowed size is 10MB. (Current: ${(file.size / (1024 * 1024)).toFixed(2)}MB)`);
+    throw new Error(`File too large. Maximum allowed size is 20MB. (Current: ${(file.size / (1024 * 1024)).toFixed(2)}MB)`);
   }
 
   if (!storage) {

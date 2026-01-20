@@ -438,15 +438,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
             <div className="h-12 bg-gradient-to-b from-white/10 to-transparent flex items-center px-5 justify-between cursor-grab active:cursor-grabbing shrink-0 backdrop-blur-sm border-b border-white/10">
                  <div className="flex items-center gap-2 group">
                      {/* Red: Close */}
-                     <button onClick={onClose} className="w-3 h-3 rounded-full bg-[#FF5F57] hover:bg-[#FF5F57]/80 flex items-center justify-center shadow-sm transition-all border border-[#E0443E]">
-                        <X size={8} className="text-black/50 opacity-0 group-hover:opacity-100" strokeWidth={3} />
+                     <button onClick={onClose} className="w-4 h-4 rounded-full bg-[#FF5F57] hover:bg-[#FF5F57]/80 flex items-center justify-center shadow-sm transition-transform duration-200 hover:scale-110 border border-[#E0443E]">
+                        <X size={10} className="text-black/50 opacity-0 group-hover:opacity-100" strokeWidth={3} />
                      </button>
                      {/* Yellow: Toggle Tall */}
-                     <button onClick={handleYellowClick} className="w-3 h-3 rounded-full bg-[#FEBC2E] hover:bg-[#FEBC2E]/80 flex items-center justify-center shadow-sm border border-[#D89E24]">
+                     <button onClick={handleYellowClick} className="w-4 h-4 rounded-full bg-[#FEBC2E] hover:bg-[#FEBC2E]/80 flex items-center justify-center shadow-sm border border-[#D89E24] transition-transform duration-200 hover:scale-110">
                         <div className="w-2 h-0.5 bg-black/40 opacity-0 group-hover:opacity-100"></div>
                      </button>
                      {/* Green: Toggle Maximize */}
-                     <button onClick={handleGreenClick} className="w-3 h-3 rounded-full bg-[#28C840] hover:bg-[#28C840]/80 flex items-center justify-center shadow-sm border border-[#1AAB29]">
+                     <button onClick={handleGreenClick} className="w-4 h-4 rounded-full bg-[#28C840] hover:bg-[#28C840]/80 flex items-center justify-center shadow-sm border border-[#1AAB29] transition-transform duration-200 hover:scale-110">
                         <div className="w-1.5 h-1.5 bg-black/40 opacity-0 group-hover:opacity-100 rounded-full"></div>
                      </button>
                  </div>

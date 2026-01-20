@@ -57,6 +57,9 @@ const App: React.FC = () => {
   const [blData, setBLData] = useState<BLData[]>([]);
   const [checklists, setChecklists] = useState<Record<string, BLChecklist>>({});
   
+  // Report Logo State (Global)
+  const [reportLogoUrl, setReportLogoUrl] = useState<string | null>(null);
+
   // Task & Notification State
   const [tasks, setTasks] = useState<BackgroundTask[]>([]);
   const [notificationHistory, setNotificationHistory] = useState<NotificationLog[]>([]);
@@ -161,11 +164,12 @@ const App: React.FC = () => {
         checkExpiration(data);
     });
     const unsubChecklists = dataService.subscribeChecklists(setChecklists);
+    const unsubReportLogo = dataService.subscribeReportLogo(setReportLogoUrl);
     
     // Subscribe to Unread Message Status (returns timestamp now)
     const unsubUnread = dataService.subscribeUnreadStatus(user.uid, setLatestUnreadTs);
     
-    return () => { unsubJobs(); unsubBLs(); unsubChecklists(); unsubUnread(); };
+    return () => { unsubJobs(); unsubBLs(); unsubChecklists(); unsubUnread(); unsubReportLogo(); };
   }, [user, isAuthorized]);
 
   // Check for files older than 3 months
@@ -425,6 +429,36 @@ const App: React.FC = () => {
       return isValid;
   };
 
+  const handleUpdateLogo = async (file: File) => {
+      try {
+          const url = await uploadFileToStorage(file);
+          setSettings(prev => ({ ...prev, logoUrl: url }));
+          addToHistory('Settings Updated', 'Company logo updated successfully', 'success');
+      } catch (e: any) {
+          addToHistory('Update Failed', `Logo upload failed: ${e.message}`, 'error');
+      }
+  };
+
+  // Report Logo Handlers
+  const handleUpdateReportLogo = async (file: File) => {
+      try {
+          const url = await uploadFileToStorage(file);
+          await dataService.updateReportLogo(url);
+          addToHistory('Report Logo Updated', 'Custom report logo has been updated.', 'success');
+      } catch (e: any) {
+          addToHistory('Logo Update Failed', e.message, 'error');
+      }
+  };
+
+  const handleResetReportLogo = async () => {
+      try {
+          await dataService.updateReportLogo(null);
+          addToHistory('Report Logo Reset', 'Restored default logo.', 'success');
+      } catch (e: any) {
+          console.error(e);
+      }
+  };
+
   const renderContent = () => {
     if (!activeTab) return <div className="p-10 flex flex-col items-center"><Loader2 className="animate-spin text-blue-500 mb-2" /> Loading...</div>;
 
@@ -450,7 +484,11 @@ const App: React.FC = () => {
                 initialDate={activeTab.data?.date || new Date()}
                 language={settings.language}
                 logoUrl={settings.logoUrl}
+                reportLogoUrl={reportLogoUrl}
                 onUpdateBL={dataService.updateBL}
+                onUpdateLogo={handleUpdateLogo}
+                onUpdateReportLogo={handleUpdateReportLogo}
+                onResetReportLogo={handleResetReportLogo}
              />
          );
       case 'vessel-list':

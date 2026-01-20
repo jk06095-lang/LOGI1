@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Attachment } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, FileImage, FileSpreadsheet, X, Download, Trash2, Edit2, UploadCloud, FolderOpen, Check } from 'lucide-react';
+import { FileText, FileImage, FileSpreadsheet, X, Download, Trash2, Edit2, UploadCloud, FolderOpen, Check, AlertCircle } from 'lucide-react';
 
 interface CloudFileManagerProps {
   isOpen: boolean;
@@ -23,7 +23,15 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; fileId: string | null } | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
+  
+  // Safe Rename States
+  const [editNameBase, setEditNameBase] = useState("");
+  const [editExtension, setEditExtension] = useState("");
+  
+  // Custom Alert State
+  const [alertState, setAlertState] = useState<{ show: boolean; title: string; message: string }>({
+      show: false, title: '', message: ''
+  });
   
   // Window State Logic (Traffic Lights)
   const [windowState, setWindowState] = useState<WindowState>('default');
@@ -64,12 +72,46 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
   };
   const dimensions = getWindowDimensions();
 
+  const handleValidationAndUpload = (filesToCheck: File[]) => {
+      const validFiles: File[] = [];
+      const oversizedFiles: string[] = [];
+      const MAX_SIZE = 20 * 1024 * 1024; // 20MB
+
+      filesToCheck.forEach(file => {
+          if (file.size > MAX_SIZE) {
+              oversizedFiles.push(file.name);
+          } else {
+              validFiles.push(file);
+          }
+      });
+
+      if (oversizedFiles.length > 0) {
+          setAlertState({
+              show: true,
+              title: "Upload Failed",
+              message: `The following files exceed the 20MB limit:\n${oversizedFiles.join(', ')}`
+          });
+      }
+
+      if (validFiles.length > 0) {
+          onUpload(validFiles);
+      }
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        onUpload(Array.from(e.dataTransfer.files));
+        handleValidationAndUpload(Array.from(e.dataTransfer.files));
     }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files.length > 0) {
+          handleValidationAndUpload(Array.from(e.target.files));
+      }
+      // Reset input
+      if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleContainerClick = (e: React.MouseEvent) => {
@@ -146,7 +188,15 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
           const file = attachments.find(a => a.id === targetId);
           if (file) {
               setEditingId(file.id);
-              setEditName(file.name);
+              // Split name and extension
+              const lastDotIndex = file.name.lastIndexOf('.');
+              if (lastDotIndex !== -1 && lastDotIndex > 0) {
+                  setEditNameBase(file.name.substring(0, lastDotIndex));
+                  setEditExtension(file.name.substring(lastDotIndex));
+              } else {
+                  setEditNameBase(file.name);
+                  setEditExtension("");
+              }
           }
       }
       setContextMenu(null);
@@ -154,10 +204,13 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
 
   const handleSubmitRename = (e?: React.FormEvent) => {
       e?.preventDefault();
-      if (editingId && editName.trim()) {
-          onRename(editingId, editName.trim());
+      if (editingId && editNameBase.trim()) {
+          const finalName = editNameBase.trim() + editExtension;
+          onRename(editingId, finalName);
       }
       setEditingId(null);
+      setEditNameBase("");
+      setEditExtension("");
   };
 
   const handleBulkDelete = () => {
@@ -238,15 +291,15 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
             <div className="h-12 bg-gradient-to-b from-white/10 to-transparent flex items-center px-5 shrink-0 border-b border-white/10 cursor-grab active:cursor-grabbing">
                 <div className="flex gap-2 group mr-4" onPointerDown={(e) => e.stopPropagation()}>
                     {/* Red: Close */}
-                    <button onClick={onClose} className="w-3 h-3 rounded-full bg-[#FF5F57] border border-[#E0443E] shadow-sm flex items-center justify-center hover:bg-[#FF5F57]/80 transition-colors">
-                        <X size={8} className="opacity-0 group-hover:opacity-100 text-black/50" strokeWidth={3} />
+                    <button onClick={onClose} className="w-4 h-4 rounded-full bg-[#FF5F57] border border-[#E0443E] shadow-sm flex items-center justify-center hover:bg-[#FF5F57]/80 transition-transform duration-200 hover:scale-110">
+                        <X size={10} className="opacity-0 group-hover:opacity-100 text-black/50" strokeWidth={3} />
                     </button>
                     {/* Yellow: Tall */}
-                    <button onClick={handleYellowClick} className="w-3 h-3 rounded-full bg-[#FEBC2E] border border-[#D89E24] shadow-sm flex items-center justify-center hover:bg-[#FEBC2E]/80 transition-colors">
+                    <button onClick={handleYellowClick} className="w-4 h-4 rounded-full bg-[#FEBC2E] border border-[#D89E24] shadow-sm flex items-center justify-center hover:bg-[#FEBC2E]/80 transition-transform duration-200 hover:scale-110">
                         <div className="w-2 h-0.5 bg-black/40 opacity-0 group-hover:opacity-100"></div>
                     </button>
                     {/* Green: Maximize */}
-                    <button onClick={handleGreenClick} className="w-3 h-3 rounded-full bg-[#28C840] border border-[#1AAB29] shadow-sm flex items-center justify-center hover:bg-[#28C840]/80 transition-colors">
+                    <button onClick={handleGreenClick} className="w-4 h-4 rounded-full bg-[#28C840] border border-[#1AAB29] shadow-sm flex items-center justify-center hover:bg-[#28C840]/80 transition-transform duration-200 hover:scale-110">
                         <div className="w-1.5 h-1.5 bg-black/40 opacity-0 group-hover:opacity-100 rounded-full"></div>
                     </button>
                 </div>
@@ -268,7 +321,7 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
                 >
                     <UploadCloud size={14} /> Upload
                 </button>
-                <input type="file" multiple className="hidden" ref={fileInputRef} onChange={(e) => e.target.files && onUpload(Array.from(e.target.files))} />
+                <input type="file" multiple className="hidden" ref={fileInputRef} onChange={handleFileInputChange} />
             </div>
 
             {/* Content Grid */}
@@ -280,7 +333,7 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
                 {attachments.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-slate-500/60 dark:text-slate-400/60 gap-3 border-2 border-dashed border-white/20 rounded-2xl m-4 pointer-events-none">
                         <UploadCloud size={48} className="opacity-50" />
-                        <p className="text-sm font-medium">Drag & Drop files here</p>
+                        <p className="text-sm font-medium">Drag & Drop files here (Max 20MB)</p>
                     </div>
                 ) : (
                     <div className="grid grid-cols-4 sm:grid-cols-5 gap-4">
@@ -305,14 +358,19 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
                                     </div>
                                     
                                     {editingId === file.id ? (
-                                        <form onSubmit={handleSubmitRename} className="w-full relative z-10" onClick={e => e.stopPropagation()}>
+                                        <form onSubmit={handleSubmitRename} className="w-full relative z-10 flex flex-col items-center" onClick={e => e.stopPropagation()}>
                                             <input 
                                                 autoFocus
-                                                value={editName}
-                                                onChange={(e) => setEditName(e.target.value)}
+                                                value={editNameBase}
+                                                onChange={(e) => setEditNameBase(e.target.value)}
                                                 onBlur={() => handleSubmitRename()}
                                                 className="w-full text-center text-xs bg-white dark:bg-black border border-blue-500 rounded px-1 py-0.5 outline-none shadow-sm text-slate-900 dark:text-white"
                                             />
+                                            {editExtension && (
+                                                <span className="text-[9px] text-slate-500 font-mono mt-0.5 bg-white/50 dark:bg-black/50 px-1 rounded">
+                                                    {editExtension}
+                                                </span>
+                                            )}
                                         </form>
                                     ) : (
                                         <div className="text-center w-full">
@@ -330,6 +388,36 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
                     </div>
                 )}
             </div>
+
+            {/* Custom Alert Modal */}
+            <AnimatePresence>
+                {alertState.show && (
+                    <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm">
+                        <motion.div 
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl p-6 max-w-sm w-full"
+                        >
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-full text-red-600 dark:text-red-400">
+                                    <AlertCircle size={24} />
+                                </div>
+                                <h3 className="text-lg font-bold text-slate-800 dark:text-white">{alertState.title}</h3>
+                            </div>
+                            <p className="text-sm text-slate-600 dark:text-slate-300 mb-6 whitespace-pre-wrap">
+                                {alertState.message}
+                            </p>
+                            <button 
+                                onClick={() => setAlertState(prev => ({ ...prev, show: false }))}
+                                className="w-full py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold hover:opacity-90 transition-opacity"
+                            >
+                                OK
+                            </button>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
 
             {/* Context Menu - Rendered via Portal to escape overflow/transform clipping */}
             {contextMenu && createPortal(

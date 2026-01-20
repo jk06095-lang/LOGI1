@@ -1,26 +1,26 @@
 
-
 // ... (imports remain the same)
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { VesselJob, BLData, Language, CargoSourceType, ResourceLock } from '../types';
-import { Folder, Ship, Calendar as CalendarIcon, FileText, List, ChevronLeft, ChevronRight, Package, ArrowRight, Printer, PieChart, ArrowUpDown, ArrowUp, ArrowDown, ZoomIn, ZoomOut, Save, Layers, Home, Filter, X, Lock, Users, ChevronDown, Check, Waves, CloudRain, Edit2, GripVertical, ChevronUp } from 'lucide-react';
+import { Folder, Ship, Calendar as CalendarIcon, FileText, List, ChevronLeft, ChevronRight, Package, ArrowRight, Printer, PieChart, ArrowUpDown, ArrowUp, ArrowDown, ZoomIn, ZoomOut, Save, Layers, Home, Filter, X, Lock, Users, ChevronDown, Check, Waves, CloudRain, Edit2, GripVertical, ChevronUp, Upload, RefreshCw } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { auth } from '../lib/firebase';
 import { dataService } from '../services/dataService';
 import { fetchBusanWeather, WeatherData } from '../services/weatherService';
 import { motion, AnimatePresence } from "framer-motion";
 
-// ... (Interfaces remain the same)
+// ... (Interfaces)
 interface DashboardProps {
   jobs: VesselJob[];
   bls: BLData[];
   onSelectJob: (jobId: string) => void;
   language: Language;
-  logoUrl?: string;
+  logoUrl?: string; // Generic Logo
   onUpdateBL?: (blId: string, updates: Partial<BLData>) => Promise<void>;
   onUpdateJob?: (jobId: string, updates: Partial<VesselJob>) => void; 
   onOpenBriefing: (date: Date) => void; 
   onUploadBLs?: (files: File[], sourceType: CargoSourceType) => void;
+  onUpdateLogo?: (file: File) => Promise<void>; // Generic Logo Update
 }
 
 interface BriefingReportProps {
@@ -28,8 +28,12 @@ interface BriefingReportProps {
   bls: BLData[];
   initialDate: Date;
   language: Language;
-  logoUrl?: string;
+  logoUrl?: string; // Fallback or global logo
+  reportLogoUrl?: string | null; // Specific Report Logo
   onUpdateBL?: (blId: string, updates: Partial<BLData>) => Promise<void>;
+  onUpdateLogo?: (file: File) => Promise<void>;
+  onUpdateReportLogo?: (file: File) => Promise<void>;
+  onResetReportLogo?: () => Promise<void>;
 }
 
 const translations = {
@@ -268,7 +272,7 @@ const AutoResizeTextarea = ({ value, onChange, className, placeholder, readOnly 
 };
 
 // ... (Dashboard Component Logic remains largely same, just referencing it)
-export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, language, onOpenBriefing, onUpdateJob }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, language, onOpenBriefing, onUpdateJob, onUpdateLogo }) => {
   // ... (dashboard implementation same as previous)
   const t = translations[language];
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -723,7 +727,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
 };
 
 // ... BriefingReport Component ...
-export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initialDate, language, logoUrl, onUpdateBL }) => {
+export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initialDate, language, logoUrl, reportLogoUrl, onUpdateBL, onUpdateLogo, onUpdateReportLogo, onResetReportLogo }) => {
   const t = translations[language];
   const [currentDate, setCurrentDate] = useState(new Date(initialDate));
   const [briefingPeriod, setBriefingPeriod] = useState<'week' | 'month'>('month');
@@ -736,6 +740,8 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
   const [isReadOnly, setIsReadOnly] = useState(false);
   const [modifiedBLs, setModifiedBLs] = useState<Record<string, Partial<BLData>>>({});
   const [customOrder, setCustomOrder] = useState<Record<string, string[]>>({});
+  
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   // ... (rest of effects same as before) ...
   useEffect(() => {
@@ -1056,6 +1062,21 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
         setIsSaving(false);
     }
   };
+  
+  // Custom Handler for Report Logo
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files.length > 0 && onUpdateReportLogo) {
+          const file = e.target.files[0];
+          await onUpdateReportLogo(file);
+      }
+  };
+
+  const handleResetLogo = async (e: React.MouseEvent) => {
+      e.stopPropagation(); // Prevent opening file dialog
+      if (onResetReportLogo && confirm("Reset to default logo?")) {
+          await onResetReportLogo();
+      }
+  };
 
   // Improved Pagination Logic
   type RenderRow = { type: 'header', job: VesselJob } | { type: 'item', data: any, seqNo: number };
@@ -1125,6 +1146,9 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
   }, [briefingJobs, summaryItems, customOrder]);
 
   const dateLocale = language === 'cn' ? 'zh-CN' : language === 'ko' ? 'ko-KR' : 'en-US';
+
+  // Determine which logo to show: Custom Report Logo > Global Settings Logo > Default Text
+  const displayLogoUrl = reportLogoUrl || logoUrl;
 
   return (
     <div className="flex flex-col h-full bg-slate-100 dark:bg-slate-900 print-container overflow-hidden">
@@ -1259,9 +1283,38 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
                                 </div>
                             </div>
                             <div className="text-right">
-                                <div className="flex items-center justify-end gap-2 mb-1">
-                                    {logoUrl && <img src={logoUrl} alt="Logo" className="h-5 w-auto object-contain" />}
-                                    <p className="font-black text-xl uppercase tracking-widest text-slate-900 leading-none">LOGI<span className="text-blue-600">1</span></p>
+                                <div 
+                                    className="flex items-center justify-end gap-2 mb-1 cursor-pointer group relative" 
+                                    onClick={() => !isReadOnly && logoInputRef.current?.click()}
+                                    title={!isReadOnly ? "Click to change report logo" : ""}
+                                >
+                                    {!isReadOnly && <input type="file" className="hidden" ref={logoInputRef} onChange={handleLogoChange} accept="image/*" />}
+                                    
+                                    {/* Hover controls for logo */}
+                                    {!isReadOnly && (
+                                        <div className="absolute inset-0 -left-2 -right-2 bg-slate-100/80 opacity-0 group-hover:opacity-100 transition-opacity rounded flex items-center justify-center gap-2 pointer-events-none no-print z-10 backdrop-blur-sm">
+                                            <div className="flex gap-2 pointer-events-auto">
+                                                <button className="p-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200" title="Change Logo">
+                                                    <Edit2 size={14} />
+                                                </button>
+                                                {reportLogoUrl && (
+                                                    <button 
+                                                        onClick={handleResetLogo}
+                                                        className="p-1 bg-red-100 text-red-600 rounded hover:bg-red-200" 
+                                                        title="Reset to Default"
+                                                    >
+                                                        <RefreshCw size={14} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {displayLogoUrl ? (
+                                        <img src={displayLogoUrl} alt="Logo" className="h-8 w-auto object-contain max-w-[150px]" /> 
+                                    ) : (
+                                        <p className="font-black text-xl uppercase tracking-widest text-slate-900 leading-none">LOGI<span className="text-blue-600">1</span></p>
+                                    )}
                                 </div>
                                 <p className="text-[10px] text-black mt-1 font-mono font-bold text-right">{new Date().toLocaleDateString(dateLocale)}</p>
                             </div>

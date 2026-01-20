@@ -270,6 +270,29 @@ export const dataService = {
       }
   },
 
+  // --- Global Settings (Logo, etc) ---
+  
+  subscribeReportLogo: (callback: (url: string | null) => void) => {
+      if (!db) return () => {};
+      return onSnapshot(doc(db, "settings", "general"), (docSnap) => {
+          if (docSnap.exists()) {
+              callback(docSnap.data()?.reportLogoUrl || null);
+          } else {
+              callback(null);
+          }
+      });
+  },
+
+  updateReportLogo: async (url: string | null) => {
+      if (!db) return;
+      try {
+          // If null, we can either set to null or delete the field. Setting to null is safer.
+          await setDoc(doc(db, "settings", "general"), { reportLogoUrl: url }, { merge: true });
+      } catch (e) {
+          console.error("Update Report Logo Error:", e);
+      }
+  },
+
   // --- Concurrency / Locking Methods ---
 
   subscribeLock: (lockId: string, callback: (lock: ResourceLock | null) => void) => {
@@ -309,10 +332,6 @@ export const dataService = {
 
   // --- Chat Methods ---
   
-  // Updated: Accept limitCount instead of startTime for better pagination
-  // NOTE: Removed orderBy and limit from the Firestore query itself to avoid "Missing Index" errors
-  // which can prevent real-time updates. We now fetch all messages for the channel (using simple equality index)
-  // and sort/slice them in client memory.
   subscribeChatMessages: (channelId: string, limitCount: number, callback: (messages: ChatMessage[]) => void) => {
     if (!db) return () => {};
     
@@ -358,7 +377,6 @@ export const dataService = {
       if (!db || !channelId || !userId) return;
       
       try {
-          // Simplified query to avoid composite index issues. Fetching channel messages to find unread.
           const q = query(
               collection(db, "messages"), 
               where("channelId", "==", channelId)
@@ -368,11 +386,8 @@ export const dataService = {
           const batch = writeBatch(db);
           let updateCount = 0;
 
-          // Note: Logic efficiency depends on chat size, but ensures robustness without custom indexes.
-          // For ERPs, reliability > extreme perf optimization here.
           snapshot.docs.forEach((docSnap) => {
               const data = docSnap.data() as ChatMessage;
-              // Strict Check: Only update if I am NOT the sender AND I haven't read it yet
               if (data.senderId !== userId && (!data.readBy || !data.readBy.includes(userId))) {
                   batch.update(docSnap.ref, { readBy: arrayUnion(userId) });
                   updateCount++;
@@ -381,19 +396,14 @@ export const dataService = {
 
           if (updateCount > 0) {
               await batch.commit();
-              // console.log(`Marked ${updateCount} messages read in ${channelId}`);
           }
       } catch (e) {
           console.error("Error marking channel read:", e);
       }
   },
 
-  // Check for ANY unread messages for the Red Dot indicator
-  // UPDATED: Now returns the timestamp of the latest unread message instead of boolean
-  // INCREASED LIMIT to 500 to match markChannelRead scope
   subscribeUnreadStatus: (userId: string, callback: (latestUnreadTs: number) => void) => {
       if (!db) return () => {};
-      // Listen to the latest 500 messages globally.
       const q = query(collection(db, "messages"), orderBy("timestamp", "desc"), limit(500));
       return onSnapshot(q, (snapshot) => {
           let maxTs = 0;
@@ -402,7 +412,6 @@ export const dataService = {
               const isRelevant = data.channelId === 'global' || data.channelId.includes(userId);
               
               if (isRelevant && data.senderId !== userId && (!data.readBy || !data.readBy.includes(userId))) {
-                  // Found unread message
                   if (data.timestamp > maxTs) {
                       maxTs = data.timestamp;
                   }
@@ -412,38 +421,24 @@ export const dataService = {
       });
   },
 
-  // DETAILED UNREAD MAP: Returns a Set of Channel IDs that have unread messages
-  // This allows putting dots on specific DMs.
-  // INCREASED LIMIT to 500 to catch older persistent notifications
   subscribeUnreadMap: (userId: string, callback: (unreadChannels: Set<string>) => void) => {
       if (!db) return () => {};
-      
       const q = query(collection(db, "messages"), orderBy("timestamp", "desc"), limit(500));
-      
       return onSnapshot(q, (snapshot) => {
           const unreadSet = new Set<string>();
-          
           snapshot.docs.forEach(doc => {
               const data = doc.data() as ChatMessage;
               const isRelevant = data.channelId === 'global' || data.channelId.includes(userId);
-              
               if (isRelevant && data.senderId !== userId && (!data.readBy || !data.readBy.includes(userId))) {
                   unreadSet.add(data.channelId);
               }
           });
-          
           callback(unreadSet);
       });
   },
 
-  // --- Chat Data Management (Export & Delete) ---
-
   getMessagesInTimeRange: async (startDate: number, endDate: number) => {
      if (!db) return [];
-     
-     // Note: If this fails due to index, remove orderBy or create index.
-     // Assuming index exists for timestamp ranges or falls back to scan.
-     // For export, performance hit is acceptable if index missing.
      const q = query(
          collection(db, "messages"),
          where("timestamp", ">=", startDate),
@@ -463,7 +458,6 @@ export const dataService = {
   deleteOldChatMessages: async (beforeDate: number) => {
       if (!db) return 0;
       const q = query(collection(db, "messages"), where("timestamp", "<", beforeDate), limit(400));
-      
       const snapshot = await getDocs(q);
       if (snapshot.empty) return 0;
 
@@ -476,8 +470,6 @@ export const dataService = {
       return snapshot.size;
   },
 
-  // --- Typing Indicator ---
-  
   sendTypingStatus: async (channelId: string, user: { uid: string, displayName: string }) => {
       if (!db) return;
       const id = `${channelId}_${user.uid}`;
@@ -599,7 +591,6 @@ export const dataService = {
       }
   },
 
-  // --- Notifications Setup ---
   setupNotifications: async (user: User) => {
     if (!messaging || !db) {
         console.warn("Notifications not supported in this environment");
@@ -632,8 +623,6 @@ export const dataService = {
     }
   },
 
-  // --- Access Control ---
-  
   checkUserAuthorization: async (uid: string): Promise<boolean> => {
       if (!db) return false;
       try {
