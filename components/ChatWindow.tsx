@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect, useCallback } from 'react';
-import { Send, X, User as UserIcon, MessageCircle, ChevronLeft, Check, CheckCheck, Download, UserPlus, ArrowUpCircle, Settings2, Trash2, ChevronDown, Smile, MoreHorizontal, Reply, Quote, Minus, Loader2 } from 'lucide-react';
+import { Send, X, User as UserIcon, MessageCircle, ChevronLeft, Check, CheckCheck, Download, UserPlus, ArrowUpCircle, Settings2, Trash2, ChevronDown, Smile, MoreHorizontal, Reply, Quote, Minus } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { ChatMessage, ChatUser } from '../types';
 import { User } from 'firebase/auth';
@@ -42,12 +42,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   
-  // Reaction Modal State
-  const [reactionModal, setReactionModal] = useState<{ emoji: string, names: string[] } | null>(null);
-
-  // Reaction Loading State: `${messageId}_${emoji}`
-  const [pendingReactions, setPendingReactions] = useState<Set<string>>(new Set());
-
   const [messageLimit, setMessageLimit] = useState(150);
   const isHistoryLoadingRef = useRef(false);
   const previousScrollHeightRef = useRef(0);
@@ -311,48 +305,30 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
       }, 3000);
   };
 
-  // Handler for TOGGLING reaction (Write)
-  const handleReactionToggle = async (emoji: string, messageId: string) => {
+  const handleReaction = async (emoji: string, messageId: string) => {
       if (!user) return;
 
-      const targetMsg = messages.find(m => m.id === messageId);
-      if (!targetMsg) return;
+      // Optimistic Update for immediate feedback
+      setMessages(prev => prev.map(msg => {
+          if (msg.id === messageId) {
+              const reactions = (msg.reactions || []).map(r => ({ ...r, userIds: [...r.userIds] }));
+              const idx = reactions.findIndex(r => r.emoji === emoji);
+              if (idx !== -1) {
+                  if (reactions[idx].userIds.includes(user.uid)) {
+                      reactions[idx].userIds = reactions[idx].userIds.filter(id => id !== user.uid);
+                      if (reactions[idx].userIds.length === 0) reactions.splice(idx, 1);
+                  } else {
+                      reactions[idx].userIds.push(user.uid);
+                  }
+              } else {
+                  reactions.push({ emoji, userIds: [user.uid] });
+              }
+              return { ...msg, reactions };
+          }
+          return msg;
+      }));
 
-      // Prevent reacting to pending messages (ID is temporary)
-      if (targetMsg.pending) return;
-
-      const reactionKey = `${messageId}_${emoji}`;
-      if (pendingReactions.has(reactionKey)) return;
-
-      // Set Loading State
-      setPendingReactions(prev => {
-          const newSet = new Set(prev);
-          newSet.add(reactionKey);
-          return newSet;
-      });
-
-      try {
-          await dataService.toggleMessageReaction(messageId, user.uid, emoji);
-      } catch (error) {
-          console.error("Reaction failed:", error);
-          // Only alert if critical, otherwise fail silently for UX
-      } finally {
-          // Clear Loading State
-          setPendingReactions(prev => {
-              const newSet = new Set(prev);
-              newSet.delete(reactionKey);
-              return newSet;
-          });
-      }
-  };
-
-  // Handler for VIEWING reactions (Read)
-  const handleReactionClick = (emoji: string, userIds: string[]) => {
-      const names = userIds.map(uid => {
-          const u = users.find(user => user.uid === uid);
-          return u ? u.displayName : 'Unknown';
-      });
-      setReactionModal({ emoji, names });
+      await dataService.toggleMessageReaction(messageId, user.uid, emoji);
   };
 
   const handleReply = (msg: ChatMessage) => {
@@ -635,28 +611,23 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
                                                      {msg.text}
                                                  </div>
                                                  
-                                                 {/* Reactions: Visible Badges at bottom - Click to VIEW */}
+                                                 {/* Reactions: Visible Badges at bottom */}
                                                  {msg.reactions && msg.reactions.length > 0 && (
                                                      <div className="flex flex-wrap gap-1 mt-1">
-                                                         {msg.reactions.map((r, i) => {
-                                                             return (
-                                                                <button 
-                                                                    key={i}
-                                                                    onClick={(e) => { 
-                                                                        e.stopPropagation(); 
-                                                                        handleReactionClick(r.emoji, r.userIds); 
-                                                                    }}
-                                                                    className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] border shadow-sm transition-all hover:scale-105 active:scale-95 ${
-                                                                        r.userIds.includes(user?.uid || '') 
-                                                                            ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300' 
-                                                                            : 'bg-white border-slate-200 text-slate-600 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300'
-                                                                    }`}
-                                                                >
-                                                                    <span>{r.emoji}</span>
-                                                                    <span className="font-bold">{r.userIds.length}</span>
-                                                                </button>
-                                                             );
-                                                         })}
+                                                         {msg.reactions.map((r, i) => (
+                                                             <button 
+                                                                key={i}
+                                                                onClick={(e) => { e.stopPropagation(); handleReaction(r.emoji, msg.id); }}
+                                                                className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] border shadow-sm transition-all hover:scale-105 active:scale-95 ${
+                                                                    r.userIds.includes(user?.uid || '') 
+                                                                        ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300' 
+                                                                        : 'bg-white border-slate-200 text-slate-600 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300'
+                                                                }`}
+                                                             >
+                                                                 <span>{r.emoji}</span>
+                                                                 <span className="font-bold">{r.userIds.length}</span>
+                                                             </button>
+                                                         ))}
                                                      </div>
                                                  )}
 
@@ -674,33 +645,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
                                                         )}
                                                      </div>
 
-                                                     {/* Action Menu (Visible on Group Hover) - Toggle Reactions Here */}
+                                                     {/* Action Menu (Visible on Group Hover) */}
                                                      <div className="absolute right-0 -bottom-1.5 opacity-0 group-hover/msg:opacity-100 transition-all duration-200 z-10 translate-y-2 group-hover/msg:translate-y-0">
                                                          <div className="flex items-center gap-0.5 bg-white dark:bg-slate-800 rounded-full shadow-md border border-slate-200 dark:border-slate-700 p-1 ring-1 ring-black/5">
-                                                            {['✅', '❌', '👍', '❤️', '😂'].map(emoji => {
-                                                                const isLoading = pendingReactions.has(`${msg.id}_${emoji}`);
-                                                                return (
-                                                                    <button 
-                                                                        key={emoji} 
-                                                                        onClick={(e) => { 
-                                                                            e.preventDefault(); 
-                                                                            e.stopPropagation(); 
-                                                                            if(!isLoading && user) handleReactionToggle(emoji, msg.id); 
-                                                                        }}
-                                                                        disabled={isLoading}
-                                                                        className={`w-7 h-7 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-transform hover:scale-110 text-base leading-none ${isLoading ? 'opacity-50 cursor-wait' : ''}`}
-                                                                    >
-                                                                        {isLoading ? <Loader2 size={12} className="animate-spin text-slate-500"/> : emoji}
-                                                                    </button>
-                                                                );
-                                                            })}
+                                                            {['✅', '❌', '👍', '❤️'].map(emoji => (
+                                                                <button 
+                                                                    key={emoji} 
+                                                                    onClick={(e) => { e.stopPropagation(); handleReaction(emoji, msg.id); }}
+                                                                    className="w-7 h-7 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-transform hover:scale-110 text-base leading-none"
+                                                                >
+                                                                    {emoji}
+                                                                </button>
+                                                            ))}
                                                             <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1"></div>
                                                             <button 
-                                                                onClick={(e) => { 
-                                                                    e.preventDefault();
-                                                                    e.stopPropagation(); 
-                                                                    handleReply(msg); 
-                                                                }}
+                                                                onClick={(e) => { e.stopPropagation(); handleReply(msg); }}
                                                                 className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-all"
                                                             >
                                                                 <Reply size={14} strokeWidth={2.5} />
@@ -823,34 +782,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
                     >
                         <ChevronDown size={16} />
                     </motion.button>
-                )}
-            </AnimatePresence>
-
-            {/* Reaction Viewer Modal */}
-            <AnimatePresence>
-                {reactionModal && (
-                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm" onClick={() => setReactionModal(null)}>
-                        <motion.div 
-                            initial={{ scale: 0.9, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            exit={{ scale: 0.9, opacity: 0 }}
-                            className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-xl min-w-[200px]" 
-                            onClick={e => e.stopPropagation()}
-                        >
-                            <div className="flex items-center gap-2 mb-3 border-b border-slate-100 dark:border-slate-700 pb-2">
-                                <span className="text-2xl">{reactionModal.emoji}</span>
-                                <span className="font-bold text-sm text-slate-700 dark:text-slate-200">Reactions</span>
-                            </div>
-                            <div className="max-h-40 overflow-y-auto space-y-1 custom-scrollbar">
-                                {reactionModal.names.map((name, i) => (
-                                    <div key={i} className="text-sm text-slate-600 dark:text-slate-300 flex items-center gap-2">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
-                                        {name}
-                                    </div>
-                                ))}
-                            </div>
-                        </motion.div>
-                    </div>
                 )}
             </AnimatePresence>
 

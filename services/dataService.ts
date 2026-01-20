@@ -377,20 +377,16 @@ export const dataService = {
   toggleMessageReaction: async (messageId: string, userId: string, emoji: string) => {
       if (!db) return;
       const msgRef = doc(db, "messages", messageId);
-      
       try {
           await runTransaction(db, async (transaction) => {
               const msgSnap = await transaction.get(msgRef);
-              if (!msgSnap.exists()) {
-                  throw new Error("Message document does not exist");
-              }
+              if (!msgSnap.exists()) return;
               
-              const data = msgSnap.data();
-              // Defensive copy of reactions array
-              const currentReactions = (data.reactions || []) as Reaction[];
-              const reactions = currentReactions.map(r => ({
+              const data = msgSnap.data() as ChatMessage;
+              // Safe deep copy of reactions array to prevent reference issues
+              const reactions = (data.reactions || []).map(r => ({
                   emoji: r.emoji,
-                  userIds: Array.isArray(r.userIds) ? [...r.userIds] : []
+                  userIds: [...r.userIds]
               }));
 
               const existingIndex = reactions.findIndex(r => r.emoji === emoji);
@@ -398,28 +394,24 @@ export const dataService = {
               if (existingIndex !== -1) {
                   const reaction = reactions[existingIndex];
                   if (reaction.userIds.includes(userId)) {
-                      // Toggle Off: Remove user
+                      // Toggle Off
                       reaction.userIds = reaction.userIds.filter(id => id !== userId);
-                      // If no users left for this emoji, remove the reaction entry
+                      // Remove reaction entry if no users left
                       if (reaction.userIds.length === 0) {
                           reactions.splice(existingIndex, 1);
                       }
                   } else {
-                      // Toggle On: Add user
+                      // Toggle On
                       reaction.userIds.push(userId);
                   }
               } else {
-                  // Add New Reaction group
+                  // Add New Reaction
                   reactions.push({ emoji, userIds: [userId] });
               }
               
-              // Update with new reactions array
               transaction.update(msgRef, { reactions: reactions });
           });
-      } catch(e) { 
-          console.error("Toggle Reaction Transaction Error:", e); 
-          throw e;
-      }
+      } catch(e) { console.error("Toggle Reaction Error:", e); }
   },
 
   markChannelRead: async (channelId: string, userId: string) => {
