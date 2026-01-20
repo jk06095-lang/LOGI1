@@ -659,7 +659,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
           <div className="p-6">
              <div className="grid grid-cols-7 gap-px bg-slate-200 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
                 {t.days.map((d: string) => (
-                   <div key={d} className="bg-slate-50 dark:bg-slate-800 p-2 text-center text-xs font-bold text-slate-50 uppercase tracking-wide">
+                   <div key={d} className="bg-slate-50 dark:bg-slate-800 p-2 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
                       {d}
                    </div>
                 ))}
