@@ -1,22 +1,14 @@
-
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     match /{allPaths=**} {
-      // SECURITY & COST OPTIMIZATION
-      // Instead of reading Firestore (expensive), we use Custom Claims.
-      // Ensure the 'authorized' claim is set on the user token via Admin SDK upon verification.
       
-      function isAuthorized() {
-        return request.auth.token.authorized == true;
-      }
-
       // 1. Read: Allow any authenticated user
       allow read: if request.auth != null;
 
-      // 2. Write: Strict check on 'authorized' claim + Size limit
+      // 2. Write: Allow any authenticated user (removed 'authorized' custom claim check)
+      // Enforce 20MB size limit
       allow write: if request.auth != null 
-                   && isAuthorized()
                    && (request.resource == null || request.resource.size < 20 * 1024 * 1024);
     }
   }
