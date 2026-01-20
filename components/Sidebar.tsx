@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { Anchor, Settings, Ship, ChevronLeft, ChevronRight, Home, FolderOpen, MessageCircle, ExternalLink, Cloud } from 'lucide-react';
 import { ViewState, Language } from '../types';
@@ -16,6 +17,8 @@ interface SidebarProps {
   isChatOpen: boolean;
   onToggleChat: () => void;
   hasUnreadMessages?: boolean;
+  isCloudOpen?: boolean; // New Prop
+  onToggleCloud?: () => void; // New Prop
 }
 
 const translations = {
@@ -54,7 +57,9 @@ const translations = {
   }
 };
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCollapsed, onToggleCollapse, language, user, logoUrl, isChatOpen, onToggleChat, hasUnreadMessages }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ 
+  currentView, onNavigate, isCollapsed, onToggleCollapse, language, user, logoUrl, isChatOpen, onToggleChat, hasUnreadMessages, isCloudOpen, onToggleCloud 
+}) => {
   const t = translations[language];
 
   const menuItems = [
@@ -145,15 +150,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isCol
       <div className="px-2 mb-2 space-y-1">
          {/* Global Cloud Manager Button */}
          <button
-            onClick={() => onNavigate('cloud')}
+            onClick={onToggleCloud}
             title={isCollapsed ? t.cloud : ''}
             className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${
-                currentView === 'cloud'
+                isCloudOpen
                 ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 shadow-sm' 
                 : 'text-slate-600 dark:text-slate-400 hover:bg-sky-50 dark:hover:bg-sky-900/10 hover:text-sky-600 dark:hover:text-sky-300'
             }`}
          >
-            <Cloud size={18} strokeWidth={currentView === 'cloud' ? 2.5 : 2} />
+            <Cloud size={18} strokeWidth={isCloudOpen ? 2.5 : 2} />
             {!isCollapsed && <span>{t.cloud}</span>}
          </button>
 

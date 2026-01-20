@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect, useCallback } from 'react';
-import { Send, X, User as UserIcon, MessageCircle, ChevronLeft, Check, CheckCheck, Download, UserPlus, ArrowUpCircle, Settings2, Trash2, ChevronUp, ChevronDown, Smile } from 'lucide-react';
+import { Send, X, User as UserIcon, MessageCircle, ChevronLeft, Check, CheckCheck, Download, UserPlus, ArrowUpCircle, Settings2, Trash2, ChevronDown, Smile, MoreHorizontal, Reply, Quote } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { ChatMessage, ChatUser } from '../types';
 import { User } from 'firebase/auth';
@@ -12,17 +12,19 @@ interface ChatWindowProps {
   onClose: () => void;
   sidebarWidth: number;
   user: User | null;
+  zIndex: number;
+  onFocus?: () => void;
 }
 
-// Basic Emoji List
-const EMOJIS = ['😀', '😂', '😍', '🥰', '😎', '😭', '😡', '👍', '👎', '🙏', '🔥', '✨', '🎉', '❤️', '💔', '👀', '✅', '❌', '🚀', '💼'];
+// Preset Emoji List
+const EMOJIS = ['✅', '❌', '👍', '❤️', '😂', '😮', '😢', '😡'];
 
 type WindowState = 'default' | 'tall' | 'maximized';
 
 // Global Map to persist scroll positions even when component unmounts (closes)
 const globalScrollPositions = new Map<string, { top: number, atBottom: boolean }>();
 
-export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebarWidth, user }) => {
+export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebarWidth, user, zIndex, onFocus }) => {
   const [activeTab, setActiveTab] = useState<'global' | 'dm'>('global');
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -34,8 +36,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
   // Window State for Traffic Lights
   const [windowState, setWindowState] = useState<WindowState>('default');
   
-  // Emoji State
+  // Interaction State
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   
   const [messageLimit, setMessageLimit] = useState(150);
   const isHistoryLoadingRef = useRef(false);
@@ -118,6 +121,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       prevMessagesLengthRef.current = 0;
       previousScrollHeightRef.current = 0;
       messageRefs.current.clear();
+      setReplyingTo(null);
       // Note: We do NOT clear globalScrollPositions here to remember positions if user switches back
   }, [channelId]);
 
@@ -166,8 +170,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
 
   // Event: Handle Scroll (Auto-Save)
   const handleScroll = () => {
-      // CRITICAL: Do not save scroll position if the window is closing or closed.
-      // This prevents the "0" scrollTop from overwriting the valid position during exit animation.
       if (!isOpen || !scrollRef.current) return;
 
       const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
@@ -185,8 +187,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
 
   // Effect: Save scroll position on unmount/close
   useEffect(() => {
-      // When isOpen changes to false (cleanup), save the position immediately.
-      // This runs BEFORE the DOM is destroyed or animated out completely.
       return () => {
           if (isOpen) { 
               saveCurrentScrollPosition();
@@ -303,9 +303,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       }, 3000);
   };
 
-  const handleEmojiClick = (emoji: string) => {
-      setInputText(prev => prev + emoji);
-      setShowEmojiPicker(false);
+  const handleReaction = async (emoji: string, messageId: string) => {
+      if (!user) return;
+      await dataService.toggleMessageReaction(messageId, user.uid, emoji);
+  };
+
+  const handleReply = (msg: ChatMessage) => {
+      setReplyingTo(msg);
       inputRef.current?.focus();
   };
 
@@ -331,14 +335,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       dataService.clearTypingStatus(channelId, user.uid);
       setIsTyping(false);
+      
       const text = inputText.trim();
       setInputText('');
+      
       const tempId = 'temp-' + Date.now();
       const optimisticMsg: ChatMessage = {
           id: tempId, text: text, senderId: user.uid, senderName: user.displayName || 'User', senderPhoto: user.photoURL || '',
-          timestamp: Date.now(), channelId: channelId, readBy: [user.uid], pending: true
+          timestamp: Date.now(), channelId: channelId, readBy: [user.uid], pending: true,
+          replyTo: replyingTo ? { id: replyingTo.id, senderName: replyingTo.senderName, text: replyingTo.text } : undefined
       };
+      
       setMessages(prev => [...prev, optimisticMsg]);
+      setReplyingTo(null);
       
       // Auto-scroll on send
       setTimeout(() => { if(scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, 50);
@@ -420,7 +429,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
             exit={{ opacity: 0, scale: 0.9, y: 15 }}
             onAnimationComplete={() => {
                 // IMPORTANT: Restore scroll position after animation finishes.
-                // This prevents the scroll position from being wrong because content was squeezed during animation.
                 if (isOpen) {
                     restoreScrollPosition();
                 }
@@ -430,13 +438,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                 position: 'fixed',
                 left: sidebarWidth + 20, 
                 bottom: 20,
-                zIndex: 100
+                zIndex: zIndex 
             }}
-            className="flex flex-col rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] border border-white/30 dark:border-white/20 bg-white/15 dark:bg-black/20 backdrop-blur-xl backdrop-saturate-150 overflow-hidden"
+            className="flex flex-col rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] border border-white/30 dark:border-white/20 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl backdrop-saturate-150 overflow-hidden pointer-events-auto"
+            onPointerDown={onFocus}
         >
-            {/* Header - Apple Style Traffic Lights & Drag Area */}
+            {/* Header */}
             <div className="h-12 bg-gradient-to-b from-white/10 to-transparent flex items-center px-5 justify-between cursor-grab active:cursor-grabbing shrink-0 backdrop-blur-sm border-b border-white/10">
-                 <div className="flex items-center gap-2 group">
+                 <div className="flex items-center gap-2 group" onPointerDown={(e) => e.stopPropagation()}>
                      {/* Red: Close */}
                      <button onClick={onClose} className="w-4 h-4 rounded-full bg-[#FF5F57] hover:bg-[#FF5F57]/80 flex items-center justify-center shadow-sm transition-transform duration-200 hover:scale-110 border border-[#E0443E]">
                         <X size={10} className="text-black/50 opacity-0 group-hover:opacity-100" strokeWidth={3} />
@@ -517,7 +526,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                 onScroll={handleScroll}
             >
                  {(activeTab === 'global' || selectedUser) && (
-                     <div className="space-y-4 pb-2">
+                     <div className="space-y-6 pb-8">
                          <div className="flex justify-center">
                             <button 
                                 onClick={loadMoreMessages} 
@@ -547,35 +556,92 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                                                  </div>
                                              </div>
                                          )}
+                                         
                                          <div 
-                                            ref={(el) => {
-                                                if (el && msg.id) messageRefs.current.set(msg.id, el);
-                                            }}
-                                            className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-end`}
+                                            ref={(el) => { if (el && msg.id) messageRefs.current.set(msg.id, el); }}
+                                            className={`flex gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-start group/msg relative mb-2`}
                                          >
                                              {!isMe && (
-                                                 <div className="w-6 h-6 rounded-full bg-white/80 dark:bg-slate-700 flex-shrink-0 overflow-hidden shadow-sm mb-1 ring-2 ring-white/20">
-                                                     {msg.senderPhoto ? <img src={msg.senderPhoto} alt="S" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-1 text-slate-500"/>}
+                                                 <div className="w-8 h-8 rounded-full bg-white/80 dark:bg-slate-700 flex-shrink-0 overflow-hidden shadow-sm mt-1 ring-1 ring-slate-200 dark:ring-slate-600">
+                                                     {msg.senderPhoto ? <img src={msg.senderPhoto} alt="S" className="w-full h-full object-cover" /> : <UserIcon className="w-full h-full p-1.5 text-slate-400"/>}
                                                  </div>
                                              )}
-                                             <div className={`max-w-[75%] flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                                                 {!isMe && <span className="text-[9px] text-slate-500 dark:text-slate-400 ml-1 mb-0.5 font-bold">{msg.senderName}</span>}
-                                                 <div className={`px-3 py-2 rounded-2xl text-sm shadow-sm backdrop-blur-md border border-white/10 relative ${
+                                             
+                                             <div className={`max-w-[75%] flex flex-col ${isMe ? 'items-end' : 'items-start'} relative min-w-[140px]`}>
+                                                 {!isMe && <span className="text-[11px] text-slate-500 dark:text-slate-400 ml-1 mb-1 font-bold">{msg.senderName}</span>}
+                                                 
+                                                 <div className={`px-4 py-2.5 rounded-2xl text-sm shadow-sm backdrop-blur-md border border-transparent relative leading-relaxed ${
                                                      isMe 
-                                                        ? 'bg-blue-600/90 text-white rounded-br-none' 
-                                                        : 'bg-white/60 dark:bg-slate-800/60 text-slate-800 dark:text-slate-100 rounded-bl-none'
+                                                        ? 'bg-blue-600 text-white rounded-tr-sm' 
+                                                        : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-sm border-slate-200 dark:border-slate-700'
                                                      } ${msg.pending ? 'opacity-70' : ''}`}>
+                                                     
+                                                     {/* Quoted Reply Display */}
+                                                     {msg.replyTo && (
+                                                         <div className={`mb-2 pl-2 border-l-2 text-xs opacity-90 ${isMe ? 'border-white/50 text-blue-100' : 'border-blue-500 text-slate-500 dark:text-slate-400'}`}>
+                                                             <p className="font-bold text-[10px] mb-0.5">{msg.replyTo.senderName}</p>
+                                                             <p className="truncate line-clamp-1 italic">{msg.replyTo.text}</p>
+                                                         </div>
+                                                     )}
+
                                                      {msg.text}
                                                  </div>
-                                                 <div className="flex items-center gap-1 mt-0.5 px-1">
-                                                     <span className="text-[9px] text-slate-500/80 dark:text-slate-400/80 font-medium">
-                                                         {formatTime(msg.timestamp)}
-                                                     </span>
-                                                     {isMe && (
-                                                        <span className={`${isRead ? 'text-blue-500' : 'text-slate-400/70'}`}>
-                                                            {isRead ? <CheckCheck size={12} /> : <Check size={12} />}
+                                                 
+                                                 {/* Reactions Display */}
+                                                 {msg.reactions && msg.reactions.length > 0 && (
+                                                     <div className="flex flex-wrap gap-1 mt-1.5 pl-1">
+                                                         {msg.reactions.map((r, i) => (
+                                                             <button 
+                                                                key={i}
+                                                                onClick={() => handleReaction(r.emoji, msg.id)}
+                                                                className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] border shadow-sm transition-all hover:scale-105 ${
+                                                                    r.userIds.includes(user?.uid || '') 
+                                                                        ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300' 
+                                                                        : 'bg-white border-slate-200 text-slate-600 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300'
+                                                                }`}
+                                                             >
+                                                                 <span>{r.emoji}</span>
+                                                                 <span className="font-bold">{r.userIds.length}</span>
+                                                             </button>
+                                                         ))}
+                                                     </div>
+                                                 )}
+
+                                                 {/* Time & Action Menu Row */}
+                                                 <div className="flex items-center justify-between w-full mt-1 px-1 relative h-6">
+                                                     {/* Time */}
+                                                     <div className="flex items-center gap-1.5">
+                                                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium tabular-nums">
+                                                            {formatTime(msg.timestamp)}
                                                         </span>
-                                                     )}
+                                                        {isMe && (
+                                                            <span className={`${isRead ? 'text-blue-500' : 'text-slate-300 dark:text-slate-600'}`}>
+                                                                {isRead ? <CheckCheck size={12} /> : <Check size={12} />}
+                                                            </span>
+                                                        )}
+                                                     </div>
+
+                                                     {/* Action Menu (Visible on Group Hover) */}
+                                                     <div className="absolute right-0 -bottom-1.5 opacity-0 group-hover/msg:opacity-100 transition-all duration-200 z-10 translate-y-2 group-hover/msg:translate-y-0">
+                                                         <div className="flex items-center gap-0.5 bg-white dark:bg-slate-800 rounded-full shadow-md border border-slate-200 dark:border-slate-700 p-1 ring-1 ring-black/5">
+                                                            {['✅', '❌', '👍', '❤️'].map(emoji => (
+                                                                <button 
+                                                                    key={emoji} 
+                                                                    onClick={(e) => { e.stopPropagation(); handleReaction(emoji, msg.id); }}
+                                                                    className="w-7 h-7 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-transform hover:scale-110 text-base leading-none"
+                                                                >
+                                                                    {emoji}
+                                                                </button>
+                                                            ))}
+                                                            <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); handleReply(msg); }}
+                                                                className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-all"
+                                                            >
+                                                                <Reply size={14} strokeWidth={2.5} />
+                                                            </button>
+                                                         </div>
+                                                     </div>
                                                  </div>
                                              </div>
                                          </div>
@@ -688,47 +754,77 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, onClose, sidebar
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.8, y: 10 }}
                         onClick={scrollToBottom}
-                        className="absolute bottom-20 left-1/2 -translate-x-1/2 w-10 h-10 bg-white/70 dark:bg-black/70 backdrop-blur-md rounded-full shadow-lg border border-white/20 flex items-center justify-center text-blue-600 dark:text-blue-400 z-30 hover:bg-white/90 transition-colors"
+                        className="absolute bottom-24 left-1/2 -translate-x-1/2 w-8 h-8 bg-white/70 dark:bg-black/70 backdrop-blur-md rounded-full shadow-lg border border-white/20 flex items-center justify-center text-blue-600 dark:text-blue-400 z-30 hover:bg-white/90 transition-colors"
                     >
-                        <ChevronDown size={20} />
+                        <ChevronDown size={16} />
                     </motion.button>
                 )}
             </AnimatePresence>
 
-            {/* Input Area - Floating Glass Pill */}
+            {/* Input Area */}
             {(activeTab === 'global' || selectedUser) && (
-                <div className="p-3 shrink-0 relative">
-                    {/* Emoji Picker Popover */}
+                <div className="p-3 shrink-0 relative flex flex-col gap-2">
+                    
+                    {/* Replying Banner */}
                     <AnimatePresence>
-                        {showEmojiPicker && (
+                        {replyingTo && (
                             <motion.div
-                                initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                                animate={{ opacity: 1, scale: 1, y: 0 }}
-                                exit={{ opacity: 0, scale: 0.9, y: 10 }}
-                                className="absolute bottom-16 left-3 bg-white/60 dark:bg-black/60 backdrop-blur-xl border border-white/20 rounded-2xl p-2 shadow-2xl grid grid-cols-5 gap-1 z-30"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: 10 }}
+                                className="flex items-center justify-between bg-white/80 dark:bg-slate-800/80 backdrop-blur-md px-3 py-2 rounded-xl border border-blue-200 dark:border-blue-900 shadow-sm mx-1"
                             >
-                                {EMOJIS.map(emoji => (
-                                    <button
-                                        key={emoji}
-                                        onClick={() => handleEmojiClick(emoji)}
-                                        className="w-8 h-8 flex items-center justify-center text-lg hover:bg-white/50 rounded-lg transition-colors"
-                                    >
-                                        {emoji}
-                                    </button>
-                                ))}
+                                <div className="flex items-center gap-2 overflow-hidden">
+                                    <Reply size={14} className="text-blue-500 shrink-0"/>
+                                    <div className="flex flex-col text-xs">
+                                        <span className="font-bold text-blue-600 dark:text-blue-400">Replying to {replyingTo.senderName}</span>
+                                        <span className="truncate text-slate-500 max-w-[200px]">{replyingTo.text}</span>
+                                    </div>
+                                </div>
+                                <button onClick={() => setReplyingTo(null)} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full">
+                                    <X size={14} className="text-slate-500"/>
+                                </button>
                             </motion.div>
                         )}
                     </AnimatePresence>
 
-                    <form onSubmit={handleSend} className="flex gap-2 bg-white/40 dark:bg-black/40 backdrop-blur-md border border-white/20 rounded-full p-1.5 shadow-lg relative z-20">
+                    <form onSubmit={handleSend} className="flex gap-2 bg-white/40 dark:bg-black/40 backdrop-blur-md border border-white/20 rounded-3xl p-1.5 shadow-lg relative z-20">
                         {/* Emoji Button */}
-                        <button 
-                            type="button" 
-                            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                            className={`p-2 transition-colors rounded-full hover:bg-white/50 ${showEmojiPicker ? 'text-blue-500' : 'text-slate-400 hover:text-blue-500'}`}
-                        >
-                            <Smile size={18} />
-                        </button>
+                        <div className="relative">
+                            <button 
+                                type="button" 
+                                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                                className={`p-2 transition-colors rounded-full hover:bg-white/50 ${showEmojiPicker ? 'text-blue-500' : 'text-slate-400 hover:text-blue-500'}`}
+                            >
+                                <Smile size={18} />
+                            </button>
+                            {/* Emoji Popover */}
+                            <AnimatePresence>
+                                {showEmojiPicker && (
+                                    <motion.div
+                                        initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                                        exit={{ opacity: 0, scale: 0.9, y: 10 }}
+                                        className="absolute bottom-12 left-0 bg-white/80 dark:bg-black/80 backdrop-blur-xl border border-white/20 rounded-2xl p-2 shadow-2xl grid grid-cols-4 gap-1 z-30 min-w-[160px]"
+                                    >
+                                        {EMOJIS.map(emoji => (
+                                            <button
+                                                key={emoji}
+                                                type="button"
+                                                onClick={() => {
+                                                    setInputText(prev => prev + emoji);
+                                                    inputRef.current?.focus();
+                                                }}
+                                                className="w-8 h-8 flex items-center justify-center text-lg hover:bg-white/30 rounded-lg transition-colors"
+                                            >
+                                                {emoji}
+                                            </button>
+                                        ))}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </div>
+
                         <input 
                             ref={inputRef}
                             type="text" 

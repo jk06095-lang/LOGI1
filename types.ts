@@ -229,6 +229,11 @@ export interface AppSettings {
 }
 
 // Chat Types
+export interface Reaction {
+  emoji: string;
+  userIds: string[];
+}
+
 export interface ChatMessage {
   id: string;
   text: string;
@@ -239,6 +244,12 @@ export interface ChatMessage {
   channelId: string; // 'global' or 'uidA_uidB'
   readBy: string[]; // List of user IDs who have read the message
   pending?: boolean; // Optimistic UI state
+  reactions?: Reaction[];
+  replyTo?: {
+    id: string;
+    senderName: string;
+    text: string;
+  };
 }
 
 export interface ChatUser {

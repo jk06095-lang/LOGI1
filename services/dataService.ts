@@ -1,4 +1,5 @@
 
+
 import { db, messaging, functions } from "../lib/firebase";
 import { collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy, setDoc, deleteDoc, writeBatch, getDoc, arrayUnion, arrayRemove, runTransaction, where, limit, getDocs, Timestamp, Unsubscribe } from "firebase/firestore";
 import { getToken } from "firebase/messaging";
@@ -372,6 +373,46 @@ export const dataService = {
         const msgWithRead = { ...message, readBy: [message.senderId] };
         await addDoc(collection(db, "messages"), msgWithRead);
     } catch (e) { console.error("Send Message Error:", e); }
+  },
+
+  toggleMessageReaction: async (messageId: string, userId: string, emoji: string) => {
+      if (!db) return;
+      const msgRef = doc(db, "messages", messageId);
+      try {
+          await runTransaction(db, async (transaction) => {
+              const msgSnap = await transaction.get(msgRef);
+              if (!msgSnap.exists()) return;
+              
+              const data = msgSnap.data() as ChatMessage;
+              const reactions = data.reactions || [];
+              const existingReactionIndex = reactions.findIndex(r => r.emoji === emoji);
+              
+              let newReactions = [...reactions];
+
+              if (existingReactionIndex !== -1) {
+                  const r = newReactions[existingReactionIndex];
+                  if (r.userIds.includes(userId)) {
+                      // Remove user
+                      r.userIds = r.userIds.filter(id => id !== userId);
+                      if (r.userIds.length === 0) {
+                          // Remove emoji if no users left
+                          newReactions = newReactions.filter((_, i) => i !== existingReactionIndex);
+                      } else {
+                          newReactions[existingReactionIndex] = r;
+                      }
+                  } else {
+                      // Add user
+                      r.userIds.push(userId);
+                      newReactions[existingReactionIndex] = r;
+                  }
+              } else {
+                  // New emoji
+                  newReactions.push({ emoji, userIds: [userId] });
+              }
+              
+              transaction.update(msgRef, { reactions: newReactions });
+          });
+      } catch(e) { console.error("Toggle Reaction Error:", e); }
   },
 
   markChannelRead: async (channelId: string, userId: string) => {

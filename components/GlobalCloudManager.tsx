@@ -1,13 +1,18 @@
-
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { BLData, VesselJob, Attachment } from '../types';
-import { Folder, FileText, FileImage, FileSpreadsheet, Download, Trash2, Search, ArrowLeft, Cloud, Ship, Box } from 'lucide-react';
-import { dataService } from '../services/dataService'; // Import Service
+import { Folder, FileText, FileImage, FileSpreadsheet, Download, Trash2, Search, ArrowLeft, Cloud, Ship, Box, X, Share2, Info, UploadCloud } from 'lucide-react';
+import { dataService } from '../services/dataService'; 
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface GlobalCloudManagerProps {
+  isOpen: boolean;
+  onClose: () => void;
   jobs: VesselJob[];
   bls: BLData[];
   onUpdateBL: (blId: string, updates: Partial<BLData>) => Promise<void>;
+  zIndex: number;
+  onFocus?: () => void;
 }
 
 // Helper to get file icon
@@ -38,11 +43,24 @@ const formatSize = (bytes: number) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 };
 
-export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({ jobs, bls }) => {
-  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
+type WindowState = 'default' | 'tall' | 'maximized';
 
-  // Aggregation Logic
+export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({ isOpen, onClose, jobs, bls, onUpdateBL, zIndex, onFocus }) => {
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null); // null = All/Root, or specific folder ID
+  const [searchTerm, setSearchTerm] = useState('');
+  const [windowState, setWindowState] = useState<WindowState>('default');
+  
+  // Context Menu State
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; file: (Attachment & { blId: string }) | null } | null>(null);
+
+  // Close context menu on click outside
+  useEffect(() => {
+    const handleClick = () => setContextMenu(null);
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, []);
+
+  // Aggregation Logic for Sidebar Tree
   const folders = useMemo(() => {
       const map = new Map<string, { id: string; name: string; files: (Attachment & { blId: string })[] }>();
       
@@ -67,7 +85,7 @@ export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({ jobs, bl
           }
       });
 
-      // Filter: Keep folders that have files OR match search term
+      // Filter: Keep folders that have files OR match search term if needed (but sidebar usually shows structure)
       let result = Array.from(map.values());
       
       // Sort: Folders with files first, then by Name
@@ -80,191 +98,276 @@ export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({ jobs, bl
       return result;
   }, [jobs, bls]);
 
-  // Derive Current Folder View
-  const currentFolder = useMemo(() => {
-      if (!currentFolderId) return null;
-      return folders.find(f => f.id === currentFolderId);
-  }, [currentFolderId, folders]);
+  // Derive Current Content
+  const displayedFiles = useMemo(() => {
+      let files: (Attachment & { blId: string })[] = [];
+      
+      if (currentFolderId === 'all' || currentFolderId === null) {
+          // Flatten all files
+          files = folders.flatMap(f => f.files);
+      } else {
+          const folder = folders.find(f => f.id === currentFolderId);
+          files = folder ? folder.files : [];
+      }
 
-  // Filter Logic
-  const filteredFolders = useMemo(() => {
-      if (searchTerm.trim() === '') return folders;
-      return folders.filter(f => f.name.toLowerCase().includes(searchTerm.toLowerCase()));
-  }, [folders, searchTerm]);
+      if (searchTerm.trim() !== '') {
+          files = files.filter(f => f.name.toLowerCase().includes(searchTerm.toLowerCase()));
+      }
 
-  const filteredFiles = useMemo(() => {
-      if (!currentFolder) return [];
-      if (searchTerm.trim() === '') return currentFolder.files;
-      return currentFolder.files.filter(f => f.name.toLowerCase().includes(searchTerm.toLowerCase()));
-  }, [currentFolder, searchTerm]);
+      return files;
+  }, [currentFolderId, folders, searchTerm]);
+
+  // Window Controls
+  const handleYellowClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setWindowState(prev => prev === 'tall' ? 'default' : 'tall');
+  };
+
+  const handleGreenClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setWindowState(prev => prev === 'maximized' ? 'default' : 'maximized');
+  };
+
+  const getWindowDimensions = () => {
+      switch (windowState) {
+          case 'tall': return { width: 950, height: '90vh' };
+          case 'maximized': return { width: '95vw', height: '95vh' };
+          default: return { width: 900, height: 600 };
+      }
+  };
+  const dimensions = getWindowDimensions();
 
   // Actions
-  const handleDeleteFile = async (e: React.MouseEvent, file: Attachment & { blId: string }) => {
+  const handleContextMenu = (e: React.MouseEvent, file: Attachment & { blId: string }) => {
+      e.preventDefault();
       e.stopPropagation();
-      if (!window.confirm(`Delete ${file.name}?`)) return;
+      setContextMenu({ x: e.clientX, y: e.clientY, file });
+  };
 
-      // Use Transactional Update to prevent data loss if multiple deletes happen rapidly
+  const handleDeleteFile = async (file: Attachment & { blId: string }) => {
+      if (!window.confirm(`Delete ${file.name}?`)) return;
       try {
           await dataService.updateAttachmentsTransaction(file.blId, 'remove', file.id);
       } catch (error) {
           console.error("Delete failed", error);
           alert("Could not delete file. Please try again.");
       }
+      setContextMenu(null);
   };
 
-  const handleDownloadFile = (e: React.MouseEvent, url: string) => {
-      e.stopPropagation();
+  const handleDownloadFile = (url: string) => {
       window.open(url, '_blank');
+      setContextMenu(null);
+  };
+
+  const handleShareFile = (url: string) => {
+      navigator.clipboard.writeText(url);
+      alert("Link copied to clipboard!");
+      setContextMenu(null);
   };
 
   return (
-    <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-900 overflow-hidden animate-fade-in">
-        {/* Header Bar */}
-        <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-5 flex items-center justify-between shadow-sm z-10">
-            <div className="flex items-center gap-4">
-                <div className="p-2.5 bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 rounded-xl">
-                    <Cloud size={24} />
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+            key="global-cloud-popup"
+            drag
+            dragMomentum={false}
+            dragElastic={0.1}
+            initial={{ opacity: 0, scale: 0.8, x: 0, y: 0 }}
+            animate={{ 
+                opacity: 1, 
+                scale: 1, 
+                width: dimensions.width,
+                height: dimensions.height,
+                x: 100,
+                y: 50
+            }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ type: "spring", stiffness: 350, damping: 25 }}
+            style={{ 
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                zIndex: zIndex 
+            }}
+            className="flex flex-col rounded-2xl shadow-2xl border border-white/20 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl backdrop-saturate-150 overflow-hidden pointer-events-auto"
+            onPointerDown={onFocus}
+        >
+            {/* Header (Mac Style) */}
+            <div className="h-12 bg-gradient-to-b from-white/20 to-transparent flex items-center px-5 shrink-0 border-b border-white/10 cursor-grab active:cursor-grabbing">
+                <div className="flex gap-2 group mr-4" onPointerDown={(e) => e.stopPropagation()}>
+                    <button onClick={onClose} className="w-4 h-4 rounded-full bg-[#FF5F57] border border-[#E0443E] shadow-sm flex items-center justify-center hover:bg-[#FF5F57]/80 transition-transform hover:scale-110">
+                        <X size={10} className="opacity-0 group-hover:opacity-100 text-black/50" strokeWidth={3} />
+                    </button>
+                    <button onClick={handleYellowClick} className="w-4 h-4 rounded-full bg-[#FEBC2E] border border-[#D89E24] shadow-sm flex items-center justify-center hover:bg-[#FEBC2E]/80 transition-transform hover:scale-110">
+                        <div className="w-2 h-0.5 bg-black/40 opacity-0 group-hover:opacity-100"></div>
+                    </button>
+                    <button onClick={handleGreenClick} className="w-4 h-4 rounded-full bg-[#28C840] border border-[#1AAB29] shadow-sm flex items-center justify-center hover:bg-[#28C840]/80 transition-transform hover:scale-110">
+                        <div className="w-1.5 h-1.5 bg-black/40 opacity-0 group-hover:opacity-100 rounded-full"></div>
+                    </button>
                 </div>
-                <div>
-                    <h2 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                        Global Cloud
-                    </h2>
-                    <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-                        <span 
-                            className={`cursor-pointer hover:text-blue-600 transition-colors ${!currentFolderId ? 'font-bold text-blue-600' : ''}`}
-                            onClick={() => { setCurrentFolderId(null); setSearchTerm(''); }}
+                
+                <div className="flex-1 flex justify-center gap-2 font-bold text-slate-700 dark:text-white/90 text-sm select-none">
+                    Cloud Manager
+                </div>
+                
+                <div className="w-20"></div> {/* Spacer */}
+            </div>
+
+            {/* Finder Body Layout */}
+            <div className="flex flex-1 overflow-hidden">
+                
+                {/* Sidebar */}
+                <div className="w-60 bg-white/40 dark:bg-black/20 backdrop-blur-md border-r border-white/10 flex flex-col p-2 select-none overflow-y-auto custom-scrollbar">
+                    <div className="mb-4">
+                        <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest px-3 mb-2 mt-2">Library</p>
+                        <div 
+                            onClick={() => setCurrentFolderId(null)}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${!currentFolderId ? 'bg-blue-500 text-white shadow-sm' : 'hover:bg-black/5 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200'}`}
                         >
-                            All Folders
-                        </span>
-                        {currentFolder && (
-                            <>
-                                <span>/</span>
-                                <span className="font-bold text-slate-800 dark:text-slate-200">{currentFolder.name}</span>
-                            </>
+                            <Cloud size={16} />
+                            <span className="text-xs font-medium">All Files</span>
+                        </div>
+                        <div 
+                            onClick={() => setCurrentFolderId('unassigned')}
+                            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${currentFolderId === 'unassigned' ? 'bg-blue-500 text-white shadow-sm' : 'hover:bg-black/5 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200'}`}
+                        >
+                            <Box size={16} />
+                            <span className="text-xs font-medium">Unassigned</span>
+                        </div>
+                    </div>
+
+                    <div>
+                        <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest px-3 mb-2">Vessels</p>
+                        {folders.filter(f => f.id !== 'unassigned').map(folder => (
+                            <div 
+                                key={folder.id}
+                                onClick={() => setCurrentFolderId(folder.id)}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg cursor-pointer transition-colors ${currentFolderId === folder.id ? 'bg-blue-500 text-white shadow-sm' : 'hover:bg-black/5 dark:hover:bg-white/10 text-slate-700 dark:text-slate-200'}`}
+                            >
+                                <Ship size={16} />
+                                <span className="text-xs font-medium truncate">{folder.name}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Main Content Area */}
+                <div className="flex-1 flex flex-col bg-white/60 dark:bg-slate-900/40">
+                    
+                    {/* Toolbar */}
+                    <div className="h-12 border-b border-white/10 flex items-center px-4 justify-between shrink-0">
+                        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400">
+                            <button 
+                                onClick={() => setCurrentFolderId(null)}
+                                className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded transition-colors"
+                                title="Back to All"
+                            >
+                                <ArrowLeft size={16} />
+                            </button>
+                            <span className="text-xs font-medium">
+                                {currentFolderId === null ? 'All Files' : 
+                                 currentFolderId === 'unassigned' ? 'Unassigned' : 
+                                 folders.find(f => f.id === currentFolderId)?.name || 'Unknown'}
+                            </span>
+                            <span className="text-[10px] opacity-60">({displayedFiles.length} items)</span>
+                        </div>
+
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
+                            <input 
+                                type="text" 
+                                placeholder="Search"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-8 pr-3 py-1 bg-black/5 dark:bg-white/10 border border-transparent focus:bg-white dark:focus:bg-black focus:border-blue-500 rounded-md text-xs w-48 outline-none transition-all text-slate-800 dark:text-white"
+                            />
+                        </div>
+                    </div>
+
+                    {/* File Grid */}
+                    <div className="flex-1 overflow-y-auto p-4 custom-scrollbar" onContextMenu={(e) => e.stopPropagation()}>
+                        {displayedFiles.length === 0 ? (
+                            <div className="h-full flex flex-col items-center justify-center text-slate-400">
+                                <Folder size={48} className="opacity-20 mb-2" />
+                                <p className="text-sm">No files found.</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 content-start">
+                                {displayedFiles.map((file, idx) => (
+                                    <div 
+                                        key={file.id + idx}
+                                        onContextMenu={(e) => handleContextMenu(e, file)}
+                                        onDoubleClick={() => handleDownloadFile(file.url)}
+                                        className="group flex flex-col items-center gap-2 p-3 rounded-xl hover:bg-blue-500/10 dark:hover:bg-blue-400/20 cursor-pointer transition-colors border border-transparent hover:border-blue-500/30"
+                                        title={file.name}
+                                    >
+                                        <div className="w-16 h-16 flex items-center justify-center bg-white dark:bg-slate-800 rounded-xl shadow-sm group-hover:scale-105 transition-transform duration-200 pointer-events-none">
+                                            {getFileIcon(file)}
+                                        </div>
+                                        <div className="text-center w-full">
+                                            <p className="text-[11px] font-medium text-slate-700 dark:text-slate-200 truncate w-full px-1">
+                                                {file.name}
+                                            </p>
+                                            <p className="text-[9px] text-slate-400 mt-0.5">
+                                                {formatSize(file.size)}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         )}
                     </div>
                 </div>
             </div>
 
-            <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input 
-                    type="text" 
-                    placeholder={currentFolderId ? "Search files..." : "Search folders..."}
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 pr-4 py-2 bg-slate-100 dark:bg-slate-700 border-none rounded-xl text-sm w-64 focus:ring-2 focus:ring-blue-500 outline-none text-slate-800 dark:text-white"
-                />
-            </div>
-        </div>
-
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-            {!currentFolderId ? (
-                // Folder Grid View
-                <>
-                    <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4">Vessel Folders</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                        {filteredFolders.map(folder => {
-                            const hasFiles = folder.files.length > 0;
-                            return (
-                                <div 
-                                    key={folder.id}
-                                    onClick={() => { setCurrentFolderId(folder.id); setSearchTerm(''); }}
-                                    className={`group bg-white dark:bg-slate-800 p-5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col items-center text-center gap-3 hover:shadow-lg
-                                        ${hasFiles 
-                                            ? 'border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500' 
-                                            : 'border-slate-100 dark:border-slate-700/50 opacity-60 hover:opacity-100'
-                                        }`}
-                                >
-                                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-1 transition-colors ${hasFiles ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-500' : 'bg-slate-100 dark:bg-slate-700 text-slate-400'}`}>
-                                        {folder.id === 'unassigned' ? <Box size={32} /> : <Folder size={32} fill={hasFiles ? "currentColor" : "none"} />}
-                                    </div>
-                                    <div className="w-full">
-                                        <h4 className="font-bold text-slate-700 dark:text-slate-200 truncate w-full" title={folder.name}>
-                                            {folder.name}
-                                        </h4>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
-                                            {folder.files.length} items
-                                        </p>
-                                    </div>
-                                    {hasFiles && (
-                                        <div className="absolute top-3 right-3 w-2 h-2 bg-blue-500 rounded-full"></div>
-                                    )}
-                                </div>
-                            );
-                        })}
+            {/* Context Menu Portal */}
+            {contextMenu && createPortal(
+                <div 
+                    className="fixed z-[9999] min-w-[160px] bg-white/90 dark:bg-slate-900/95 backdrop-blur-xl border border-white/40 dark:border-slate-700 rounded-xl shadow-2xl overflow-hidden animate-fade-in text-xs font-medium"
+                    style={{ top: contextMenu.y, left: contextMenu.x }}
+                    onClick={(e) => e.stopPropagation()} 
+                    onContextMenu={(e) => e.preventDefault()}
+                >
+                    <div className="px-3 py-2 text-[10px] text-slate-500 uppercase font-bold border-b border-slate-200/50 dark:border-slate-700/50 mb-1 bg-white/20 dark:bg-black/20 truncate max-w-[200px]">
+                        {contextMenu.file?.name}
                     </div>
-                </>
-            ) : (
-                // File Grid View (Inside Folder)
-                <div className="space-y-6">
-                    <div className="flex items-center gap-3">
-                        <button 
-                            onClick={() => setCurrentFolderId(null)}
-                            className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors"
-                        >
-                            <ArrowLeft size={20} className="text-slate-600 dark:text-slate-300" />
-                        </button>
-                        <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                            {currentFolder?.id === 'unassigned' ? <Box size={20} /> : <Ship size={20} />}
-                            {currentFolder?.name}
-                        </h3>
-                        <span className="text-sm bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-full text-slate-500 dark:text-slate-400 font-bold">
-                            {filteredFiles.length}
-                        </span>
-                    </div>
+                    
+                    <button 
+                        onClick={() => contextMenu.file && handleDownloadFile(contextMenu.file.url)} 
+                        className="w-full text-left px-3 py-2 hover:bg-blue-500 hover:text-white dark:text-slate-200 flex items-center gap-2 transition-colors"
+                    >
+                        <Download size={14} /> Download
+                    </button>
 
-                    {filteredFiles.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-64 text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
-                            <Folder size={48} className="opacity-20 mb-2" />
-                            <p>No cloud files found in this folder.</p>
-                        </div>
-                    ) : (
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                            {filteredFiles.map(file => (
-                                <div 
-                                    key={file.id}
-                                    onClick={(e) => handleDownloadFile(e, file.url)}
-                                    className="group bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md transition-all cursor-pointer relative flex flex-col items-center text-center gap-2"
-                                    title={file.name}
-                                >
-                                    <div className="w-16 h-16 flex items-center justify-center bg-slate-50 dark:bg-slate-700/50 rounded-lg group-hover:scale-105 transition-transform">
-                                        {getFileIcon(file)}
-                                    </div>
-                                    <div className="w-full mt-1">
-                                        <p className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate w-full px-1">
-                                            {file.name}
-                                        </p>
-                                        <p className="text-[10px] text-slate-400 mt-0.5">
-                                            {formatSize(file.size)} • {new Date(file.uploadDate).toLocaleDateString()}
-                                        </p>
-                                    </div>
-                                    
-                                    {/* Overlay Actions */}
-                                    <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button 
-                                            onClick={(e) => handleDownloadFile(e, file.url)}
-                                            className="p-1.5 bg-white/90 dark:bg-black/50 text-blue-600 rounded-md hover:bg-blue-50 shadow-sm border border-slate-200 dark:border-slate-600"
-                                            title="Download"
-                                        >
-                                            <Download size={14} />
-                                        </button>
-                                        <button 
-                                            onClick={(e) => handleDeleteFile(e, file)}
-                                            className="p-1.5 bg-white/90 dark:bg-black/50 text-red-500 rounded-md hover:bg-red-50 shadow-sm border border-slate-200 dark:border-slate-600"
-                                            title="Delete"
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
+                    <button 
+                        onClick={() => contextMenu.file && handleShareFile(contextMenu.file.url)} 
+                        className="w-full text-left px-3 py-2 hover:bg-blue-500 hover:text-white dark:text-slate-200 flex items-center gap-2 transition-colors"
+                    >
+                        <Share2 size={14} /> Copy Link
+                    </button>
+
+                    <button 
+                        className="w-full text-left px-3 py-2 hover:bg-blue-500 hover:text-white dark:text-slate-200 flex items-center gap-2 transition-colors"
+                        onClick={() => alert(`Size: ${formatSize(contextMenu.file?.size || 0)}\nType: ${contextMenu.file?.type}\nDate: ${new Date(contextMenu.file?.uploadDate || '').toLocaleString()}`)}
+                    >
+                        <Info size={14} /> Details
+                    </button>
+                    
+                    <div className="h-px bg-slate-200/50 dark:bg-slate-700/50 my-1 mx-2"></div>
+                    
+                    <button 
+                        onClick={() => contextMenu.file && handleDeleteFile(contextMenu.file)}
+                        className="w-full text-left px-3 py-2 hover:bg-red-500 hover:text-white text-red-500 flex items-center gap-2 transition-colors"
+                    >
+                        <Trash2 size={14} /> Delete
+                    </button>
+                </div>,
+                document.body
             )}
-        </div>
-    </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard, BriefingReport } from './components/Dashboard';
@@ -40,6 +39,42 @@ const App: React.FC = () => {
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false); // Chat State
+  const [isGlobalCloudOpen, setIsGlobalCloudOpen] = useState(false); // New Cloud State
+  
+  // Window Layer Management
+  // Stack of window IDs. The last element is the topmost window.
+  const [windowStack, setWindowStack] = useState<string[]>(['chat', 'cloud']);
+
+  const focusWindow = (windowId: string) => {
+    setWindowStack(prev => {
+      // Move windowId to the end of the array
+      const filtered = prev.filter(id => id !== windowId);
+      return [...filtered, windowId];
+    });
+  };
+
+  const getZIndex = (windowId: string) => {
+    const baseZ = 100;
+    const index = windowStack.indexOf(windowId);
+    return index === -1 ? baseZ : baseZ + index;
+  };
+
+  const handleToggleChat = () => {
+      const nextState = !isChatOpen;
+      setIsChatOpen(nextState);
+      if (nextState) {
+          focusWindow('chat');
+          updateLastRead();
+      }
+  };
+
+  const handleToggleCloud = () => {
+      const nextState = !isGlobalCloudOpen;
+      setIsGlobalCloudOpen(nextState);
+      if (nextState) {
+          focusWindow('cloud');
+      }
+  };
   
   // Unread Messages Logic (Timestamp based)
   const [latestUnreadTs, setLatestUnreadTs] = useState<number>(0);
@@ -194,16 +229,6 @@ const App: React.FC = () => {
       const now = Date.now();
       setLastReadTs(now);
       localStorage.setItem('LOGI1_lastReadTs', now.toString());
-  };
-
-  // Chat Toggle Logic
-  const handleToggleChat = () => {
-      const nextState = !isChatOpen;
-      setIsChatOpen(nextState);
-      if (nextState) {
-          // If opening chat, update last read ts
-          updateLastRead();
-      }
   };
 
   // Called by Mobile Layout when switching to Chat tab
@@ -366,10 +391,7 @@ const App: React.FC = () => {
       if (!tabs.find(t => t.id === 'bl-list')) setTabs([...tabs, { id: 'bl-list', type: 'bl-list', title: 'Doc Mgmt' }]); 
       activateTab('bl-list'); 
     }
-    else if (view === 'cloud') {
-      if (!tabs.find(t => t.id === 'cloud')) setTabs([...tabs, { id: 'cloud', type: 'cloud', title: 'Global Cloud' }]);
-      activateTab('cloud');
-    }
+    // Cloud is now handled via overlay, not navigation
   };
 
   const handleBLUpload = async (files: File[], sourceType: CargoSourceType = 'TRANSIT') => {
@@ -561,14 +583,6 @@ const App: React.FC = () => {
             onOpenBLDetail={(id) => openShipmentDetailTab(id)}
           />
         );
-      case 'cloud':
-        return (
-            <GlobalCloudManager 
-                jobs={vesselJobs} 
-                bls={blData} 
-                onUpdateBL={dataService.updateBL} 
-            />
-        );
       default:
         return <div className="p-10">Menu item not implemented yet.</div>;
     }
@@ -628,6 +642,19 @@ const App: React.FC = () => {
         onToggleChat={handleToggleChat}
         logoUrl={settings.logoUrl}
         hasUnreadMessages={hasUnreadMessages}
+        isCloudOpen={isGlobalCloudOpen}
+        onToggleCloud={handleToggleCloud}
+      />
+      
+      {/* Global Cloud Manager Overlay */}
+      <GlobalCloudManager 
+          isOpen={isGlobalCloudOpen}
+          onClose={() => setIsGlobalCloudOpen(false)}
+          jobs={vesselJobs}
+          bls={blData}
+          onUpdateBL={dataService.updateBL}
+          zIndex={getZIndex('cloud')}
+          onFocus={() => focusWindow('cloud')}
       />
       
       {/* Chat Window Component */}
@@ -635,7 +662,9 @@ const App: React.FC = () => {
          isOpen={isChatOpen} 
          onClose={() => setIsChatOpen(false)} 
          sidebarWidth={isSidebarCollapsed ? 64 : 224} 
-         user={user} // Pass user to ChatWindow
+         user={user} 
+         zIndex={getZIndex('chat')}
+         onFocus={() => focusWindow('chat')}
       />
 
       <main className="flex-1 flex flex-col overflow-hidden relative print:overflow-visible print:h-auto">
