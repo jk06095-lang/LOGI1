@@ -1,10 +1,9 @@
 
-
 import { db, messaging, functions } from "../lib/firebase";
 import { collection, onSnapshot, addDoc, updateDoc, doc, query, orderBy, setDoc, deleteDoc, writeBatch, getDoc, arrayUnion, arrayRemove, runTransaction, where, limit, getDocs, Timestamp, Unsubscribe } from "firebase/firestore";
 import { getToken } from "firebase/messaging";
 import { httpsCallable } from "firebase/functions";
-import { VesselJob, BLData, BLChecklist, ResourceLock, ChatMessage, ChatUser, Attachment } from "../types";
+import { VesselJob, BLData, BLChecklist, ResourceLock, ChatMessage, ChatUser, Attachment, Reaction } from "../types";
 import { User } from "firebase/auth";
 
 // State Containers (Singleton Cache)
@@ -354,7 +353,7 @@ export const dataService = {
       await updateDoc(doc(db, "locks", lockId), { timestamp: Date.now() });
   },
 
-  // --- Chat (Existing Implementation - Kept as is) ---
+  // --- Chat ---
   subscribeChatMessages: (channelId: string, limitCount: number, callback: (messages: ChatMessage[]) => void) => {
     if (!db) return () => {};
     const safeLimit = limitCount || 100;
@@ -384,33 +383,33 @@ export const dataService = {
               if (!msgSnap.exists()) return;
               
               const data = msgSnap.data() as ChatMessage;
-              const reactions = data.reactions || [];
-              const existingReactionIndex = reactions.findIndex(r => r.emoji === emoji);
-              
-              let newReactions = [...reactions];
+              // Safe deep copy of reactions array to prevent reference issues
+              const reactions = (data.reactions || []).map(r => ({
+                  emoji: r.emoji,
+                  userIds: [...r.userIds]
+              }));
 
-              if (existingReactionIndex !== -1) {
-                  const r = newReactions[existingReactionIndex];
-                  if (r.userIds.includes(userId)) {
-                      // Remove user
-                      r.userIds = r.userIds.filter(id => id !== userId);
-                      if (r.userIds.length === 0) {
-                          // Remove emoji if no users left
-                          newReactions = newReactions.filter((_, i) => i !== existingReactionIndex);
-                      } else {
-                          newReactions[existingReactionIndex] = r;
+              const existingIndex = reactions.findIndex(r => r.emoji === emoji);
+              
+              if (existingIndex !== -1) {
+                  const reaction = reactions[existingIndex];
+                  if (reaction.userIds.includes(userId)) {
+                      // Toggle Off
+                      reaction.userIds = reaction.userIds.filter(id => id !== userId);
+                      // Remove reaction entry if no users left
+                      if (reaction.userIds.length === 0) {
+                          reactions.splice(existingIndex, 1);
                       }
                   } else {
-                      // Add user
-                      r.userIds.push(userId);
-                      newReactions[existingReactionIndex] = r;
+                      // Toggle On
+                      reaction.userIds.push(userId);
                   }
               } else {
-                  // New emoji
-                  newReactions.push({ emoji, userIds: [userId] });
+                  // Add New Reaction
+                  reactions.push({ emoji, userIds: [userId] });
               }
               
-              transaction.update(msgRef, { reactions: newReactions });
+              transaction.update(msgRef, { reactions: reactions });
           });
       } catch(e) { console.error("Toggle Reaction Error:", e); }
   },

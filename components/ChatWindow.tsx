@@ -307,6 +307,27 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
 
   const handleReaction = async (emoji: string, messageId: string) => {
       if (!user) return;
+
+      // Optimistic Update for immediate feedback
+      setMessages(prev => prev.map(msg => {
+          if (msg.id === messageId) {
+              const reactions = (msg.reactions || []).map(r => ({ ...r, userIds: [...r.userIds] }));
+              const idx = reactions.findIndex(r => r.emoji === emoji);
+              if (idx !== -1) {
+                  if (reactions[idx].userIds.includes(user.uid)) {
+                      reactions[idx].userIds = reactions[idx].userIds.filter(id => id !== user.uid);
+                      if (reactions[idx].userIds.length === 0) reactions.splice(idx, 1);
+                  } else {
+                      reactions[idx].userIds.push(user.uid);
+                  }
+              } else {
+                  reactions.push({ emoji, userIds: [user.uid] });
+              }
+              return { ...msg, reactions };
+          }
+          return msg;
+      }));
+
       await dataService.toggleMessageReaction(messageId, user.uid, emoji);
   };
 
@@ -579,25 +600,25 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
                                                         : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-sm border-slate-200 dark:border-slate-700'
                                                      } ${msg.pending ? 'opacity-70' : ''}`}>
                                                      
-                                                     {/* Reply Fix: Compact & Clean Layout */}
+                                                     {/* Reply Fix: Compact & Clean Layout with Wrapping */}
                                                      {msg.replyTo && (
-                                                         <div className={`mb-1 pl-2 border-l-2 text-xs opacity-90 rounded-r py-1 ${isMe ? 'border-white/50 bg-white/10 text-blue-100' : 'border-blue-500 bg-black/5 dark:bg-white/5 text-slate-500 dark:text-slate-400'}`}>
-                                                             <p className="font-bold text-[10px] mb-0.5 opacity-80">{msg.replyTo.senderName}</p>
-                                                             <p className="truncate line-clamp-1 italic text-[10px] opacity-70">{msg.replyTo.text}</p>
+                                                         <div className={`mb-1 pl-2 border-l-2 text-xs opacity-90 rounded-r py-1 max-w-full ${isMe ? 'border-white/50 bg-white/10 text-blue-100' : 'border-blue-500 bg-black/5 dark:bg-white/5 text-slate-500 dark:text-slate-400'}`}>
+                                                             <p className="font-bold text-[10px] mb-0.5 opacity-80 truncate">{msg.replyTo.senderName}</p>
+                                                             <p className="italic text-[10px] opacity-70 break-words whitespace-pre-wrap line-clamp-3">{msg.replyTo.text}</p>
                                                          </div>
                                                      )}
 
                                                      {msg.text}
                                                  </div>
                                                  
-                                                 {/* Reactions Fix: Visible Badges */}
+                                                 {/* Reactions: Visible Badges at bottom */}
                                                  {msg.reactions && msg.reactions.length > 0 && (
                                                      <div className="flex flex-wrap gap-1 mt-1">
                                                          {msg.reactions.map((r, i) => (
                                                              <button 
                                                                 key={i}
-                                                                onClick={() => handleReaction(r.emoji, msg.id)}
-                                                                className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] border shadow-sm transition-all hover:scale-105 ${
+                                                                onClick={(e) => { e.stopPropagation(); handleReaction(r.emoji, msg.id); }}
+                                                                className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] border shadow-sm transition-all hover:scale-105 active:scale-95 ${
                                                                     r.userIds.includes(user?.uid || '') 
                                                                         ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300' 
                                                                         : 'bg-white border-slate-200 text-slate-600 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300'

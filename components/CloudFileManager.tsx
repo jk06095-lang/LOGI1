@@ -272,7 +272,8 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
       return <FileText size={32} className="text-slate-400" />;
   };
 
-  return (
+  // Render via Portal to break out of stacking contexts (e.g. ShipmentDetail tabs)
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <motion.div 
@@ -476,6 +477,7 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
             )}
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };
