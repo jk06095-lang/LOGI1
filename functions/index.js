@@ -314,3 +314,46 @@ exports.cleanupOrphanedFiles = functions.pubsub
     console.log(`Cleanup finished. Deleted ${deletedCount} orphaned files.`);
     return null;
   });
+
+// [임시 코드] 주소창에 URL을 입력하면 실행되는 마이그레이션 도구
+exports.grantAuthToAllUsers = functions.https.onRequest(async (req, res) => {
+  // admin은 이미 상단에서 초기화되었지만, 요청하신 스니펫을 그대로 사용합니다.
+  const admin = require('firebase-admin');
+  
+  // 앱 초기화 체크
+  if (admin.apps.length === 0) {
+    admin.initializeApp();
+  }
+
+  try {
+    const listUsersResult = await admin.auth().listUsers(1000);
+    let updatedCount = 0;
+    let skippedCount = 0;
+
+    for (const user of listUsersResult.users) {
+      // 1. DB(Firestore) 확인
+      const userDoc = await admin.firestore().collection('users').doc(user.uid).get();
+      
+      // 2. DB에 'authorized: true'라고 적혀 있는 유저만 골라냄
+      if (userDoc.exists && userDoc.data().authorized === true) {
+        // 3. 실제 신분증(Token)에 'authorized: true' 도장 찍기 (Custom Claim)
+        await admin.auth().setCustomUserClaims(user.uid, { authorized: true });
+        updatedCount++;
+      } else {
+        skippedCount++;
+      }
+    }
+
+    res.status(200).send(`
+      <h1>작업 완료!</h1>
+      <ul>
+        <li><b>${updatedCount}명</b>: 인증 도장(Custom Claim) 발급 성공</li>
+        <li><b>${skippedCount}명</b>: 권한 없음 또는 DB 누락으로 건너뜀</li>
+      </ul>
+      <p>이제 이 코드를 삭제하고 다시 배포하셔도 됩니다.</p>
+    `);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("에러 발생: " + error.message);
+  }
+});
