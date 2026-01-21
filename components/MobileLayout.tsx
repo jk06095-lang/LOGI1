@@ -1,12 +1,12 @@
 
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
-import { BLData, VesselJob, AppSettings, ChatMessage, ChatUser, CargoSourceType, BLChecklist, BackgroundTask, Language } from '../types';
+import { BLData, VesselJob, AppSettings, ChatMessage, ChatUser, BLChecklist, BackgroundTask, Language } from '../types';
 import { 
-    Search, Download, FileText, MessageCircle, Settings, LogOut, 
-    Monitor, X, Menu, Filter, ArrowLeft, Send, User as UserIcon, 
-    Check, CheckCheck, Grid, List as ListIcon, Ship, Anchor, Box, Home, ExternalLink, ChevronDown, Truck, ArrowUpCircle, Smile, LayoutGrid, Globe
+    Search, FileText, MessageCircle, LogOut, X, ArrowLeft, Send, User as UserIcon, 
+    Check, CheckCheck, List as ListIcon, Box, ExternalLink, ChevronDown, Truck, ArrowUpCircle, Smile, LayoutGrid, Globe
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
+import { chatService } from '../services/chatService';
 import { User } from 'firebase/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -192,26 +192,26 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   const [isTyping, setIsTyping] = useState(false);
   
   useEffect(() => {
-    const unsub = dataService.subscribeChatUsers(setUsers);
+    const unsub = chatService.subscribeChatUsers(setUsers);
     return () => unsub();
   }, []);
 
   useEffect(() => {
       if (!user) return;
-      const unsub = dataService.subscribeUnreadMap(user.uid, setUnreadMap);
+      const unsub = chatService.subscribeUnreadMap(user.uid, setUnreadMap);
       return () => unsub();
   }, [user]);
 
   useEffect(() => {
       if (view === 'room' && activeChannel.id && user) {
-          dataService.markChannelRead(activeChannel.id, user.uid);
+          chatService.markChannelRead(activeChannel.id, user.uid);
       }
   }, [view, activeChannel, user, messages.length]);
 
   useEffect(() => {
     if (view !== 'room' || !activeChannel.id) return;
     
-    const unsub = dataService.subscribeChatMessages(activeChannel.id, messageLimit, (msgs) => {
+    const unsub = chatService.subscribeChatMessages(activeChannel.id, messageLimit, (msgs) => {
         setMessages(msgs);
     });
     return () => unsub();
@@ -246,7 +246,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
 
   useEffect(() => {
       if (view !== 'room' || !activeChannel.id || !user) return;
-      const unsub = dataService.subscribeTyping(activeChannel.id, (list) => {
+      const unsub = chatService.subscribeTyping(activeChannel.id, (list) => {
           const others = list.filter(u => u.userId !== user.uid).map(u => u.displayName);
           setTypingUsers(others);
       });
@@ -277,7 +277,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
 
       if (val.trim() === '') {
           if (isTyping) {
-              dataService.clearTypingStatus(activeChannel.id, user.uid);
+              chatService.clearTypingStatus(activeChannel.id, user.uid);
               setIsTyping(false);
           }
           return;
@@ -285,7 +285,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
 
       const now = Date.now();
       if (!isTyping || now - lastTypingSentRef.current > 2500) {
-          dataService.sendTypingStatus(activeChannel.id, { 
+          chatService.sendTypingStatus(activeChannel.id, { 
               uid: user.uid, 
               displayName: user.displayName || 'User' 
           });
@@ -295,7 +295,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
 
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = setTimeout(() => {
-          dataService.clearTypingStatus(activeChannel.id, user.uid);
+          chatService.clearTypingStatus(activeChannel.id, user.uid);
           setIsTyping(false);
       }, 3000);
   };
@@ -308,9 +308,9 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
 
   const handleInputFocus = () => {
       if (!user || !activeChannel.id) return;
-      dataService.markChannelRead(activeChannel.id, user.uid);
+      chatService.markChannelRead(activeChannel.id, user.uid);
 
-      dataService.sendTypingStatus(activeChannel.id, { 
+      chatService.sendTypingStatus(activeChannel.id, { 
           uid: user.uid, 
           displayName: user.displayName || 'User' 
       });
@@ -321,7 +321,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   const handleInputBlur = () => {
       if (!user || !activeChannel.id) return;
       if (isTyping) {
-          dataService.clearTypingStatus(activeChannel.id, user.uid);
+          chatService.clearTypingStatus(activeChannel.id, user.uid);
           setIsTyping(false);
       }
   };
@@ -331,7 +331,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
       if (!inputText.trim() || !user || !activeChannel.id) return;
       
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      dataService.clearTypingStatus(activeChannel.id, user.uid);
+      chatService.clearTypingStatus(activeChannel.id, user.uid);
       setIsTyping(false);
       setShowEmojiPicker(false);
 
@@ -357,7 +357,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
           }, 50);
       }
       
-      await dataService.sendChatMessage(msg);
+      await chatService.sendChatMessage(msg);
 
       if (inputRef.current) {
           inputRef.current.focus();
@@ -614,133 +614,77 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   );
 };
 
-// Dedicated Read-Only Mobile Detail View
-const MobileShipmentDetail = ({ bl, onClose, language }: { bl: BLData, onClose: () => void, language: Language }) => {
+// Define MobileShipmentDetail component
+const MobileShipmentDetail: React.FC<{
+  bl: BLData;
+  onClose: () => void;
+  language: Language;
+}> = ({ bl, onClose, language }) => {
   const t = mobileTranslations[language];
-  const docs = [
-    { label: 'Bill of Lading', fileUrl: bl.fileUrl },
-    { label: t.arrivalNotice, fileUrl: bl.arrivalNotice?.fileUrl }, 
-    { label: 'Commercial Invoice', fileUrl: bl.commercialInvoice?.fileUrl },
-    { label: 'Packing List', fileUrl: bl.packingList?.fileUrl },
-    { label: 'Manifest', fileUrl: bl.manifest?.fileUrl },
-    { label: 'Export Dec', fileUrl: bl.exportDeclaration?.fileUrl },
-  ];
-
+  
   return (
-    <div className="flex flex-col h-full bg-slate-50/30 dark:bg-slate-900/30 backdrop-blur-2xl animate-fade-in fixed inset-0 z-[60]">
-      {/* Header */}
-      <div className="absolute top-0 left-0 right-0 z-20 px-4 py-3 bg-white/40 dark:bg-black/40 backdrop-blur-2xl backdrop-saturate-150 border-b border-white/30 dark:border-white/20 shadow-sm flex items-center justify-between shrink-0 safe-area-top transition-all">
-         <div className="flex items-center gap-3">
-             <button 
-                onClick={onClose} 
-                className="p-2 -ml-2 text-slate-600 dark:text-slate-300 hover:bg-white/20 dark:hover:bg-white/10 rounded-full transition-colors"
-             >
+    <div className="absolute inset-0 bg-slate-50 dark:bg-slate-900 z-50 flex flex-col">
+        <div className="px-4 py-3 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center gap-3 pt-safe-top shadow-sm">
+            <button onClick={onClose} className="p-2 -ml-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300">
                 <ArrowLeft size={20} />
-             </button>
-             <div className="overflow-hidden">
-                <h2 className="font-bold text-slate-800 dark:text-white text-lg leading-none truncate max-w-[200px]">{bl.blNumber}</h2>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium mt-0.5 truncate max-w-[200px]">{bl.shipper}</p>
-             </div>
-         </div>
-         <div className={`px-2 py-1 rounded text-[10px] font-bold uppercase whitespace-nowrap ${bl.sourceType === 'TRANSIT' ? 'bg-slate-100/50 dark:bg-slate-700/50 text-slate-600 dark:text-slate-300' : 'bg-blue-100/50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300'}`}>
-            {bl.sourceType}
-         </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar pb-20 pt-20">
-         
-         {/* 1. DOCUMENTS SECTION */}
-         <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-xl shadow-sm border border-white/20 dark:border-white/10 overflow-hidden">
-            <div className="px-4 py-3 border-b border-slate-100/50 dark:border-slate-700/50 bg-slate-50/30 dark:bg-slate-700/30 flex items-center gap-2">
-                <FileText size={16} className="text-slate-500 dark:text-slate-400"/>
-                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">{t.attachedDocs}</span>
+            </button>
+            <div className="flex-1 min-w-0">
+                <h2 className="font-bold text-base text-slate-800 dark:text-white truncate">{bl.blNumber}</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{bl.vesselName} {bl.voyageNo}</p>
             </div>
-            <div className="divide-y divide-slate-50/50 dark:divide-slate-700/50">
-               {docs.map((doc, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3 hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors">
-                     <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${doc.fileUrl ? 'bg-blue-100/80 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400' : 'bg-slate-100/80 dark:bg-slate-700/50 text-slate-300 dark:text-slate-500'}`}>
-                           <FileText size={16} />
-                        </div>
-                        <span className={`text-sm font-bold ${doc.fileUrl ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500'}`}>
-                            {doc.label}
-                        </span>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar pb-safe-bottom">
+            <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-100 dark:border-slate-700 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t.shipper}</label>
+                        <p className="text-sm font-medium text-slate-800 dark:text-slate-200 mt-0.5 break-words">{bl.shipper}</p>
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t.consignee}</label>
+                        <p className="text-sm font-medium text-slate-800 dark:text-slate-200 mt-0.5 break-words">{bl.consignee}</p>
+                    </div>
+                </div>
+                
+                <div className="border-t border-slate-100 dark:border-slate-700 my-2"></div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t.pol}</label>
+                        <p className="text-sm font-medium text-slate-800 dark:text-slate-200 mt-0.5">{bl.portOfLoading}</p>
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t.pod}</label>
+                        <p className="text-sm font-medium text-slate-800 dark:text-slate-200 mt-0.5">{bl.portOfDischarge}</p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg">
+                     <div>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">{t.cargoItems}</label>
+                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{bl.cargoItems.reduce((acc, i) => acc + (i.quantity || 0), 0)}</p>
                      </div>
-                     
-                     {doc.fileUrl ? (
-                        <button 
-                            onClick={() => window.open(doc.fileUrl, '_blank')}
-                            className="p-2 text-blue-600 dark:text-blue-400 bg-blue-50/80 dark:bg-blue-900/40 hover:bg-blue-100/80 dark:hover:bg-blue-900/60 rounded-lg transition-colors"
-                        >
-                            <ExternalLink size={16} />
-                        </button>
-                     ) : (
-                        <span className="text-[10px] text-slate-300 dark:text-slate-600 italic px-2">{t.empty}</span>
-                     )}
-                  </div>
-               ))}
+                     <div>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">{t.weight}</label>
+                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{bl.cargoItems.reduce((acc, i) => acc + (i.grossWeight || 0), 0)}</p>
+                     </div>
+                     <div>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase">{t.vol}</label>
+                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{bl.cargoItems.reduce((acc, i) => acc + (i.measurement || 0), 0).toFixed(3)}</p>
+                     </div>
+                </div>
+                
+                {bl.fileUrl && (
+                    <button 
+                        onClick={() => window.open(bl.fileUrl, '_blank')}
+                        className="w-full flex items-center justify-center gap-2 py-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-bold rounded-xl text-sm mt-2"
+                    >
+                        <FileText size={16} /> {t.attachedDocs}
+                    </button>
+                )}
             </div>
-         </div>
-
-         {/* 2. LOGISTICS INFO */}
-         <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-xl shadow-sm border border-white/20 dark:border-white/10 overflow-hidden">
-             <div className="px-4 py-3 border-b border-slate-100/50 dark:border-slate-700/50 bg-slate-50/30 dark:bg-slate-700/30 flex items-center gap-2">
-                <Truck size={16} className="text-slate-500 dark:text-slate-400"/>
-                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">{t.logisticsInfo}</span>
-            </div>
-            <div className="p-4 grid grid-cols-2 gap-y-4 gap-x-2 text-sm">
-                 <div>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold mb-0.5">{t.vessel}</p>
-                    <p className="font-bold text-slate-800 dark:text-slate-200 truncate">{bl.vesselName || '-'}</p>
-                 </div>
-                 <div>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold mb-0.5">{t.voyage}</p>
-                    <p className="font-bold text-slate-800 dark:text-slate-200 truncate">{bl.voyageNo || '-'}</p>
-                 </div>
-                 <div>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold mb-0.5">{t.pol}</p>
-                    <p className="font-medium text-slate-700 dark:text-slate-300 truncate">{bl.portOfLoading || '-'}</p>
-                 </div>
-                 <div>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold mb-0.5">{t.pod}</p>
-                    <p className="font-medium text-slate-700 dark:text-slate-300 truncate">{bl.portOfDischarge || '-'}</p>
-                 </div>
-                 <div className="col-span-2">
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold mb-0.5">{t.consignee}</p>
-                    <p className="font-medium text-slate-700 dark:text-slate-300 truncate">{bl.consignee || '-'}</p>
-                 </div>
-            </div>
-         </div>
-
-         {/* 3. CARGO ITEMS */}
-         <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-xl shadow-sm border border-white/20 dark:border-white/10 overflow-hidden">
-             <div className="px-4 py-3 border-b border-slate-100/50 dark:border-slate-700/50 bg-slate-50/30 dark:bg-slate-700/30 flex items-center gap-2">
-                <Box size={16} className="text-slate-500 dark:text-slate-400"/>
-                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">{t.cargoItems}</span>
-            </div>
-            <div className="divide-y divide-slate-100/50 dark:divide-slate-700/50">
-               {bl.cargoItems.map((item, i) => (
-                   <div key={i} className="p-4">
-                       <div className="flex justify-between items-start mb-1">
-                           <span className="font-bold text-slate-800 dark:text-slate-200 text-sm line-clamp-2">{item.description}</span>
-                           <span className="font-mono font-bold text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/30 px-2 py-0.5 rounded text-xs whitespace-nowrap ml-2">
-                               {item.quantity} {item.packageType}
-                           </span>
-                       </div>
-                       <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-2 flex-wrap">
-                           {item.containerNo && <span className="bg-slate-100/50 dark:bg-slate-700/50 px-1.5 py-0.5 rounded text-[10px] font-mono">{item.containerNo}</span>}
-                           <span>{t.weight}: <strong className="text-slate-700 dark:text-slate-300">{item.grossWeight}</strong> kg</span>
-                           <span>{t.vol}: <strong className="text-slate-700 dark:text-slate-300">{item.measurement}</strong> CBM</span>
-                       </div>
-                   </div>
-               ))}
-               {bl.cargoItems.length === 0 && (
-                   <div className="p-6 text-center text-slate-400 dark:text-slate-500 text-sm italic">{t.noItems}</div>
-               )}
-            </div>
-         </div>
-
-      </div>
+        </div>
     </div>
   );
 };

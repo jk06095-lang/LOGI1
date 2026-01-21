@@ -1,10 +1,9 @@
 
-
 import React from 'react';
 import { Anchor, Settings, Ship, ChevronLeft, ChevronRight, Home, FolderOpen, MessageCircle, ExternalLink, Cloud } from 'lucide-react';
 import { ViewState, Language } from '../types';
 import { User } from 'firebase/auth';
-import { dataService } from '../services/dataService';
+import { chatService } from '../services/chatService';
 
 interface SidebarProps {
   currentView: ViewState;
@@ -17,8 +16,8 @@ interface SidebarProps {
   isChatOpen: boolean;
   onToggleChat: () => void;
   hasUnreadMessages?: boolean;
-  isCloudOpen?: boolean; // New Prop
-  onToggleCloud?: () => void; // New Prop
+  isCloudOpen?: boolean; 
+  onToggleCloud?: () => void;
 }
 
 const translations = {
@@ -70,9 +69,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const handleChatClick = () => {
       onToggleChat();
-      // If opening chat, clear global notification immediately
       if (!isChatOpen && user) {
-          dataService.markChannelRead('global', user.uid);
+          chatService.markChannelRead('global', user.uid);
       }
   };
 
@@ -148,7 +146,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Cloud & Message Area */}
       <div className="px-2 mb-2 space-y-1">
-         {/* Global Cloud Manager Button */}
          <button
             onClick={onToggleCloud}
             title={isCollapsed ? t.cloud : ''}
@@ -162,7 +159,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {!isCollapsed && <span>{t.cloud}</span>}
          </button>
 
-         {/* Message Button */}
          <button
             onClick={handleChatClick}
             title={isCollapsed ? t.message : ''}

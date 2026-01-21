@@ -16,6 +16,7 @@ import { CloudFileManager } from './components/CloudFileManager';
 import { VesselJob, BLData, BLChecklist, AppSettings, CargoSourceType, BackgroundTask, NotificationLog, ViewState } from './types';
 import { parseBLImage } from './services/geminiService';
 import { dataService } from './services/dataService';
+import { chatService } from './services/chatService';
 import { uploadFileToStorage, deleteFileFromStorage } from './services/storageService';
 import { auth } from './lib/firebase';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
@@ -280,7 +281,8 @@ const App: React.FC = () => {
     });
     const unsubChecklists = dataService.subscribeChecklists(setChecklists);
     const unsubReportLogo = dataService.subscribeReportLogo(setReportLogoUrl);
-    const unsubUnread = dataService.subscribeUnreadStatus(user.uid, setLatestUnreadTs);
+    // Use chatService for unread status
+    const unsubUnread = chatService.subscribeUnreadStatus(user.uid, setLatestUnreadTs);
     return () => { unsubJobs(); unsubBLs(); unsubChecklists(); unsubUnread(); unsubReportLogo(); };
   }, [user, isAuthorized]);
 

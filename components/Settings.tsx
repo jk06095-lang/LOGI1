@@ -4,6 +4,7 @@ import { Moon, Sun, Monitor, Globe, Type, LogOut, Upload, Image as ImageIcon, X,
 import { AppSettings, Language, Theme, FontSize, FontStyle, BLData, VesselJob } from '../types';
 import { User } from 'firebase/auth';
 import { dataService } from '../services/dataService';
+import { chatService } from '../services/chatService';
 import JSZip from 'jszip';
 import saveAs from 'file-saver';
 
@@ -272,7 +273,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdateSettings, 
       const end = new Date(year, month, 0, 23, 59, 59).getTime();
 
       try {
-          const messages = await dataService.getMessagesInTimeRange(start, end);
+          const messages = await chatService.getMessagesInTimeRange(start, end);
           
           // Filter based on type
           const filtered = messages.filter(msg => {
@@ -337,7 +338,7 @@ export const Settings: React.FC<SettingsProps> = ({ settings, onUpdateSettings, 
               let deletedCount = 0;
               let batchCount = 0;
               do {
-                  batchCount = await dataService.deleteOldChatMessages(oneYearAgo.getTime());
+                  batchCount = await chatService.deleteOldChatMessages(oneYearAgo.getTime());
                   deletedCount += batchCount;
               } while (batchCount >= 400); // 400 matches batch limit in service
 
