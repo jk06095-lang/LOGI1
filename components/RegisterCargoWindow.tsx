@@ -238,7 +238,7 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
   };
 
   const getWindowDimensions = () => {
-      if (typeof window === 'undefined') return { width: 950, height: 620, x: 50, y: 50 };
+      if (typeof window === 'undefined') return { width: 950, height: 650, x: 50, y: 50 };
       const w = window.innerWidth;
       const h = window.innerHeight;
       
@@ -255,7 +255,7 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
       }
       
       const targetW = Math.min(950, w - 20); 
-      const targetH = Math.min(620, h - 20);
+      const targetH = Math.min(650, h - 20); // Increased height for better fit
       return { width: targetW, height: targetH, x: Math.max(0, (w - targetW) / 2), y: Math.max(0, (h - targetH) / 2) };
   };
   const dims = getWindowDimensions();
@@ -372,7 +372,7 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
             </div>
 
             {/* Main Content (Action Area) */}
-            <div className="flex-1 p-8 relative flex flex-col scrollbar-hide">
+            <div className="flex-1 p-6 relative flex flex-col scrollbar-hide">
                 {inputMode === 'upload' ? (
                     <div className="h-full flex flex-col items-center justify-center animate-fade-in">
                         <div className="text-center mb-8">
@@ -392,67 +392,69 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
                         </div>
                     </div>
                 ) : (
-                    <div className="h-full flex flex-col overflow-y-auto custom-scrollbar pr-2 animate-fade-in">
-                        <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
-                            <FileText size={20} className="text-blue-500" /> 
-                            {t.basicInfo}
-                        </h3>
+                    <div className="h-full flex flex-col animate-fade-in">
                         
-                        <div className="bg-white/50 dark:bg-slate-800/50 p-6 rounded-3xl border border-white/30 dark:border-white/5 shadow-sm mb-6">
-                            <div className="grid grid-cols-3 gap-6 mb-6">
+                        {/* Basic Info Card */}
+                        <div className="bg-white/50 dark:bg-slate-800/50 p-5 rounded-2xl border border-white/30 dark:border-white/5 shadow-sm mb-4">
+                            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2 uppercase tracking-wide opacity-80">
+                                <FileText size={16} className="text-blue-500" /> 
+                                {t.basicInfo}
+                            </h3>
+                            <div className="grid grid-cols-3 gap-4 mb-4">
                                 <div>
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block ml-1">{t.blNo}</label>
-                                    <input type="text" className="w-full bg-white/70 dark:bg-slate-800/70 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-100 font-bold transition-all placeholder-slate-400" value={manualForm.blNumber} onChange={e => setManualForm({...manualForm, blNumber: e.target.value})} autoFocus placeholder="Required" />
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block ml-1">{t.blNo}</label>
+                                    <input type="text" className="w-full bg-white/70 dark:bg-slate-800/70 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-100 font-bold transition-all placeholder-slate-400" value={manualForm.blNumber} onChange={e => setManualForm({...manualForm, blNumber: e.target.value})} autoFocus placeholder="Required" />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block ml-1">{t.shipper}</label>
-                                    <input type="text" className="w-full bg-white/70 dark:bg-slate-800/70 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-100 transition-all placeholder-slate-400" value={manualForm.shipper} onChange={e => setManualForm({...manualForm, shipper: e.target.value})} placeholder="Required" />
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block ml-1">{t.shipper}</label>
+                                    <input type="text" className="w-full bg-white/70 dark:bg-slate-800/70 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-100 transition-all placeholder-slate-400" value={manualForm.shipper} onChange={e => setManualForm({...manualForm, shipper: e.target.value})} placeholder="Required" />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block ml-1">{t.consignee}</label>
-                                    <input type="text" className="w-full bg-white/70 dark:bg-slate-800/70 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-100 transition-all placeholder-slate-400" value={manualForm.consignee} onChange={e => setManualForm({...manualForm, consignee: e.target.value})} />
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block ml-1">{t.consignee}</label>
+                                    <input type="text" className="w-full bg-white/70 dark:bg-slate-800/70 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-100 transition-all placeholder-slate-400" value={manualForm.consignee} onChange={e => setManualForm({...manualForm, consignee: e.target.value})} />
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-6">
+                            <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block ml-1">{t.loadingPort}</label>
-                                    <input type="text" className="w-full bg-white/70 dark:bg-slate-800/70 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-100 transition-all placeholder-slate-400" value={manualForm.portOfLoading} onChange={e => setManualForm({...manualForm, portOfLoading: e.target.value})} />
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block ml-1">{t.loadingPort}</label>
+                                    <input type="text" className="w-full bg-white/70 dark:bg-slate-800/70 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-100 transition-all placeholder-slate-400" value={manualForm.portOfLoading} onChange={e => setManualForm({...manualForm, portOfLoading: e.target.value})} />
                                 </div>
                                 <div>
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block ml-1">{t.dischargePort}</label>
-                                    <input type="text" className="w-full bg-white/70 dark:bg-slate-800/70 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-100 transition-all placeholder-slate-400" value={manualForm.portOfDischarge} onChange={e => setManualForm({...manualForm, portOfDischarge: e.target.value})} />
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block ml-1">{t.dischargePort}</label>
+                                    <input type="text" className="w-full bg-white/70 dark:bg-slate-800/70 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-100 transition-all placeholder-slate-400" value={manualForm.portOfDischarge} onChange={e => setManualForm({...manualForm, portOfDischarge: e.target.value})} />
                                 </div>
                             </div>
                         </div>
 
-                        <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2 mt-4">
-                            <Box size={20} className="text-emerald-500" /> 
-                            {t.itemDetails}
-                        </h3>
+                        {/* Item Details Card */}
+                        <div className="bg-white/50 dark:bg-slate-800/50 p-5 rounded-2xl border border-white/30 dark:border-white/5 shadow-sm flex-1">
+                            <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2 uppercase tracking-wide opacity-80">
+                                <Box size={16} className="text-emerald-500" /> 
+                                {t.itemDetails}
+                            </h3>
 
-                        <div className="bg-white/50 dark:bg-slate-800/50 p-6 rounded-3xl border border-white/30 dark:border-white/5 shadow-sm">
-                            <div className="grid grid-cols-12 gap-4">
+                            <div className="grid grid-cols-12 gap-3 items-end">
                                 <div className="col-span-6">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block ml-1">{t.desc}</label>
-                                    <input type="text" className="w-full bg-white/80 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-100 font-medium transition-all" value={manualForm.items[0].description} onChange={e => handleItemChange('description', e.target.value)} />
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block ml-1">{t.desc}</label>
+                                    <input type="text" className="w-full bg-white/80 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-100 font-medium transition-all" value={manualForm.items[0].description} onChange={e => handleItemChange('description', e.target.value)} />
                                 </div>
                                 <div className="col-span-2">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block text-right pr-1">{t.qty}</label>
-                                    <input type="number" className="w-full bg-white/80 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-right text-slate-800 dark:text-slate-100 font-mono transition-all" value={manualForm.items[0].quantity} onChange={e => handleItemChange('quantity', Number(e.target.value))} />
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block text-right pr-1">{t.qty}</label>
+                                    <input type="number" className="w-full bg-white/80 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-right text-slate-800 dark:text-slate-100 font-mono transition-all" value={manualForm.items[0].quantity} onChange={e => handleItemChange('quantity', Number(e.target.value))} />
                                 </div>
                                 <div className="col-span-2">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block text-right pr-1">{t.weight}</label>
-                                    <input type="number" className="w-full bg-white/80 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-right text-slate-800 dark:text-slate-100 font-mono transition-all" value={manualForm.items[0].grossWeight} onChange={e => handleItemChange('grossWeight', Number(e.target.value))} />
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block text-right pr-1">{t.weight}</label>
+                                    <input type="number" className="w-full bg-white/80 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-right text-slate-800 dark:text-slate-100 font-mono transition-all" value={manualForm.items[0].grossWeight} onChange={e => handleItemChange('grossWeight', Number(e.target.value))} />
                                 </div>
                                 <div className="col-span-2">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block text-right pr-1">{t.cbm}</label>
-                                    <input type="number" className="w-full bg-white/80 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-right text-slate-800 dark:text-slate-100 font-mono transition-all" value={manualForm.items[0].measurement} onChange={e => handleItemChange('measurement', Number(e.target.value))} />
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block text-right pr-1">{t.cbm}</label>
+                                    <input type="number" className="w-full bg-white/80 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-right text-slate-800 dark:text-slate-100 font-mono transition-all" value={manualForm.items[0].measurement} onChange={e => handleItemChange('measurement', Number(e.target.value))} />
                                 </div>
                             </div>
                         </div>
                         
-                        <div className="mt-8 flex justify-end">
+                        <div className="mt-4 flex justify-end shrink-0">
                             <button onClick={handleManualSubmit} className="px-8 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition-all shadow-lg shadow-blue-500/30 text-sm uppercase tracking-wide active:scale-95 flex items-center gap-2">
                                 <Check size={18} /> {t.save}
                             </button>
