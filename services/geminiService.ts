@@ -69,7 +69,7 @@ const fullDocSchema: Schema = {
 
     // Export Declaration Specific
     declarationNo: { type: Type.STRING, description: "Export Declaration Number (수출신고번호)" },
-    mainHsCode: { type: Type.STRING, description: "Main HS Code from Export Declaration" },
+    mainHsCode: { type: Type.STRING, description: "Main HS Code. If not explicitly found, INFER the most likely 6-digit HS Code based on the cargo description." },
 
     // A/N Specific
     anEta: { type: Type.STRING, description: "ETA Date from Arrival Notice" },
@@ -125,6 +125,9 @@ export const parseDocument = async (file: File, docType: DocumentScanType, sourc
             - **Total CBM / Weight / Packages**
             - **Item Details**: EXTRACT TABLE DATA.
               For EACH item, extract: Description, Qty, Weight, CBM, Container No, Seal No, Container Type (e.g. 20GP, 40HC).
+            
+            INTELLIGENT INFERENCE:
+            - **HS Code**: Look at the cargo 'Description'. Suggest the most likely 6-digit HS Code for this type of goods and put it in 'mainHsCode'.
             
             CLASSIFICATION RULES:
             - **Cargo Type**: Look for terms 'CY/CY' or 'FCL' -> Set to 'FCL'. Look for 'CFS/CFS' or 'LCL' -> Set to 'LCL'.

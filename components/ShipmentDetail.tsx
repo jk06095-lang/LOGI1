@@ -121,7 +121,8 @@ const translations = {
       date: 'YYYY-MM-DD',
       cntr: 'CNTR...',
       type: '20GP'
-    }
+    },
+    usdCopied: 'USD 환산 금액 복사 완료: '
   },
   en: {
     // ... existing ...
@@ -222,7 +223,8 @@ const translations = {
       date: 'YYYY-MM-DD',
       cntr: 'CNTR...',
       type: '20GP'
-    }
+    },
+    usdCopied: 'USD Copied: '
   },
   cn: {
     // ... existing ...
@@ -323,7 +325,8 @@ const translations = {
       date: 'YYYY-MM-DD',
       cntr: 'CNTR...',
       type: '20GP'
-    }
+    },
+    usdCopied: 'USD 已复制: '
   }
 };
 
@@ -335,14 +338,26 @@ const HS_CODE_DEFAULTS: Record<string, string> = {
     'GENERAL': ''
 };
 
-const DetailInput = ({ label, value, onChange, className = "", placeholder = "", asTextarea = false, enableCopy = false }: any) => {
+interface DetailInputProps {
+    label?: string;
+    value: string | number | undefined;
+    onChange: (e: any) => void;
+    className?: string;
+    placeholder?: string;
+    asTextarea?: boolean;
+    enableCopy?: boolean;
+    icon?: React.ReactNode;
+    onIconClick?: () => void;
+}
+
+const DetailInput = ({ label, value, onChange, className = "", placeholder = "", asTextarea = false, enableCopy = false, icon, onIconClick }: DetailInputProps) => {
     const [copied, setCopied] = useState(false);
 
     const handleCopy = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
         if (value) {
-            navigator.clipboard.writeText(value);
+            navigator.clipboard.writeText(value.toString());
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         }
@@ -371,13 +386,24 @@ const DetailInput = ({ label, value, onChange, className = "", placeholder = "",
                     placeholder={placeholder}
                 />
             ) : (
-                <input 
-                    type="text" 
-                    className="w-full bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-sm px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-shadow text-slate-800 dark:text-slate-100 placeholder-slate-400 font-medium" 
-                    value={value || ''} 
-                    onChange={onChange} 
-                    placeholder={placeholder} 
-                />
+                <div className="relative">
+                    <input 
+                        type="text" 
+                        className={`w-full bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-sm px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-shadow text-slate-800 dark:text-slate-100 placeholder-slate-400 font-medium ${icon ? 'pr-8' : ''}`}
+                        value={value || ''} 
+                        onChange={onChange} 
+                        placeholder={placeholder} 
+                    />
+                    {icon && (
+                        <button 
+                            onClick={onIconClick}
+                            className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded transition-colors"
+                            title="Action"
+                        >
+                            {icon}
+                        </button>
+                    )}
+                </div>
             )}
         </div>
     );
@@ -542,6 +568,30 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
     }
   };
 
+  const handleConvertCurrency = async () => {
+      const currency = formData.commercialInvoice?.currency || 'KRW';
+      const amount = formData.commercialInvoice?.totalAmount || 0;
+      
+      if (!amount) return;
+
+      try {
+          const res = await fetch(`https://api.exchangerate-api.com/v4/latest/${currency}`);
+          if (!res.ok) throw new Error('Exchange rate API failed');
+          
+          const data = await res.json();
+          const rate = data.rates.USD;
+          
+          if (rate) {
+              const usdAmount = (amount * rate).toFixed(2);
+              await navigator.clipboard.writeText(usdAmount);
+              alert(`${t.usdCopied}$${usdAmount}`);
+          }
+      } catch (error) {
+          console.error("Currency conversion failed:", error);
+          alert("Conversion failed. Please try again later.");
+      }
+  };
+
   const handleFileUploadImpl = async (type: DocumentScanType, file: File) => {
     setUploadingDoc(type);
     const taskId = `upload-${Date.now()}`;
@@ -605,6 +655,9 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
           } else if (type === 'AN') {
               updates.arrivalNotice = { ...formData.arrivalNotice!, eta: ocrResult.anEta, location: ocrResult.anLocation, freightCost: ocrResult.anFreightCost, otherCosts: ocrResult.anOtherCosts };
               newFormData.arrivalNotice = { ...newFormData.arrivalNotice, ...updates.arrivalNotice };
+          } else if (type === 'EXPORT_DEC') {
+              updates.exportDeclaration = { ...formData.exportDeclaration!, declarationNo: ocrResult.declarationNo, hsCode: ocrResult.mainHsCode };
+              newFormData.exportDeclaration = { ...newFormData.exportDeclaration, ...updates.exportDeclaration };
           } else if (type === 'BL') {
              if (ocrResult.shipper) { updates.shipper = ocrResult.shipper; newFormData.shipper = ocrResult.shipper; }
              if (ocrResult.blNumber) { updates.blNumber = ocrResult.blNumber; newFormData.blNumber = ocrResult.blNumber; }
@@ -616,6 +669,11 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
              if (ocrResult.consignee) { updates.consignee = ocrResult.consignee; newFormData.consignee = ocrResult.consignee; }
              if (ocrResult.notifyParty) { updates.notifyParty = ocrResult.notifyParty; newFormData.notifyParty = ocrResult.notifyParty; }
              if (ocrResult.cargoItems && ocrResult.cargoItems.length > 0) { updates.cargoItems = ocrResult.cargoItems; newFormData.cargoItems = ocrResult.cargoItems; }
+             // Also populate inferred HS Code from BL analysis to Export Dec if available
+             if (ocrResult.mainHsCode) {
+                 updates.exportDeclaration = { ...formData.exportDeclaration!, hsCode: ocrResult.mainHsCode };
+                 newFormData.exportDeclaration = { ...newFormData.exportDeclaration, ...updates.exportDeclaration };
+             }
           }
 
           setFormData(newFormData);
@@ -894,7 +952,13 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
                                 <DetailInput label={t.storagePeriod} value={formData.storagePeriod} onChange={(e: any) => handleInputChange('storagePeriod', e.target.value)} placeholder={t.placeholders.date + " ~ " + t.placeholders.date} />
                                 <div className="grid grid-cols-2 gap-2">
                                     <DetailInput label={t.invAmount} value={formData.commercialInvoice?.totalAmount} onChange={(e: any) => handleNestedChange('commercialInvoice', 'totalAmount', e.target.value)} />
-                                    <DetailInput label={t.currency} value={formData.commercialInvoice?.currency} onChange={(e: any) => handleNestedChange('commercialInvoice', 'currency', e.target.value)} />
+                                    <DetailInput 
+                                        label={t.currency} 
+                                        value={formData.commercialInvoice?.currency} 
+                                        onChange={(e: any) => handleNestedChange('commercialInvoice', 'currency', e.target.value)} 
+                                        icon={<DollarSign size={14} />}
+                                        onIconClick={handleConvertCurrency}
+                                    />
                                 </div>
                            </div>
                        </div>
