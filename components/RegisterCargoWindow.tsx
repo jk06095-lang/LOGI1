@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Minus, Maximize2, Layers, Upload, Keyboard, Container, Anchor, Box, Ship, ArrowDownCircle, Check, FileText } from 'lucide-react';
@@ -35,7 +35,8 @@ const translations = {
     typeThird: '타사 공급 (3rd Party)',
     fileUpload: '파일 업로드',
     manualInput: '직접 입력',
-    uploadDesc: '이미지를 업로드하면 AI가 데이터를 추출합니다.',
+    uploadTitle: 'B/L 문서 업로드',
+    uploadDesc: '여러 개의 B/L 이미지를 스캔하여 자동으로 ERP 데이터를 생성합니다.',
     manualDesc: '직접 정보를 입력하세요.',
     basicInfo: '기본 정보',
     itemDetails: '화물 상세 정보',
@@ -65,7 +66,8 @@ const translations = {
     typeThird: '3rd Party Supply',
     fileUpload: 'File Upload',
     manualInput: 'Manual Entry',
-    uploadDesc: 'AI extracts data from uploaded images.',
+    uploadTitle: 'Upload B/L Documents',
+    uploadDesc: 'Scan multiple B/L images to automatically generate ERP data.',
     manualDesc: 'Enter details manually.',
     basicInfo: 'Basic Info',
     itemDetails: 'Details',
@@ -95,7 +97,8 @@ const translations = {
     typeThird: '第三方 供应',
     fileUpload: '文件上传',
     manualInput: '手动输入',
-    uploadDesc: 'AI自动提取上传图片中的数据。',
+    uploadTitle: '上传提单文档',
+    uploadDesc: '扫描多个提单图像以自动生成 ERP 数据。',
     manualDesc: '手动输入详细信息。',
     basicInfo: '基本信息',
     itemDetails: '货物详情',
@@ -119,23 +122,22 @@ const translations = {
 
 type CargoMode = 'TRANSIT' | 'IMPORT' | 'FISCO' | 'THIRD_PARTY';
 
-// Define ModeButton outside to prevent re-renders losing focus/state or causing flickers
 const ModeButton = ({ mode, icon: Icon, label, activeMode, setActiveMode }: { mode: string, icon: any, label: string, activeMode: string, setActiveMode: (m: CargoMode) => void }) => {
     const isActive = activeMode === mode;
     return (
         <button 
           onClick={() => setActiveMode(mode as CargoMode)}
-          className={`flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-all duration-200 group relative overflow-hidden w-full ${
+          className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl text-left transition-all duration-300 group relative overflow-hidden w-full ${
               isActive 
-              ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' 
-              : 'bg-white/50 dark:bg-slate-800/50 hover:bg-white/80 dark:hover:bg-slate-700/80 text-slate-600 dark:text-slate-300 border border-transparent hover:border-slate-200 dark:hover:border-slate-600'
+              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 scale-[1.02]' 
+              : 'bg-white/40 dark:bg-white/5 hover:bg-white/60 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300'
           }`}
         >
-            <div className={`p-1.5 rounded-lg transition-colors ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:text-blue-500'}`}>
-                <Icon size={18} />
+            <div className={`p-1.5 rounded-lg transition-colors ${isActive ? 'bg-white/20 text-white' : 'bg-transparent text-slate-500 dark:text-slate-400 group-hover:text-blue-500'}`}>
+                <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
             </div>
-            <span className="text-xs font-bold flex-1">{label}</span>
-            {isActive && <Check size={16} className="text-white animate-fade-in" strokeWidth={3} />}
+            <span className={`text-sm font-bold flex-1 ${isActive ? 'text-white' : ''}`}>{label}</span>
+            {isActive && <Check size={18} className="text-white animate-fade-in" strokeWidth={3} />}
         </button>
     );
 };
@@ -235,9 +237,8 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
     setManualForm({ ...manualForm, items: updatedItems });
   };
 
-  // Safe window dimension calculation to prevent off-screen rendering
   const getWindowDimensions = () => {
-      if (typeof window === 'undefined') return { width: 900, height: 580, x: 50, y: 50 };
+      if (typeof window === 'undefined') return { width: 950, height: 620, x: 50, y: 50 };
       
       const w = window.innerWidth;
       const h = window.innerHeight;
@@ -246,9 +247,8 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
           return { width: w - 40, height: h - 40, x: 20, y: 20 };
       }
       
-      // Responsive width: max 900, but fit on smaller screens
-      const targetW = Math.min(900, w - 20); 
-      const targetH = Math.min(580, h - 20);
+      const targetW = Math.min(950, w - 20); 
+      const targetH = Math.min(620, h - 20);
       
       return { 
           width: targetW, 
@@ -259,6 +259,17 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
   };
   const dims = getWindowDimensions();
 
+  // Traffic Lights Handler
+  const handleYellowClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (onMinimize) onMinimize();
+  };
+
+  const handleGreenClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setWindowState(prev => prev === 'maximized' ? 'default' : 'maximized');
+  };
+
   return createPortal(
     <AnimatePresence>
       {isOpen && (
@@ -267,7 +278,7 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
         drag={windowState !== 'maximized'}
         dragMomentum={false}
         dragElastic={0.1}
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        initial={{ opacity: 0, scale: 0.95, y: 30 }}
         animate={{ 
             opacity: isMinimized ? 0 : 1, 
             scale: isMinimized ? 0.95 : 1,
@@ -277,30 +288,32 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
             y: dims.y,
             pointerEvents: isMinimized ? 'none' : 'auto'
         }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        transition={{ type: "spring", stiffness: 350, damping: 30 }}
+        exit={{ opacity: 0, scale: 0.95, y: 30 }}
+        transition={{ type: "spring", stiffness: 300, damping: 30 }}
         style={{ 
             position: 'fixed',
+            top: 0,
+            left: 0,
             zIndex: zIndex 
         }}
-        className="flex flex-col rounded-3xl shadow-2xl border border-white/40 dark:border-white/10 overflow-hidden bg-white/75 dark:bg-slate-900/80 backdrop-blur-xl backdrop-saturate-150"
+        className="flex flex-col rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] border border-white/30 dark:border-white/20 overflow-hidden bg-white/70 dark:bg-black/40 backdrop-blur-xl backdrop-saturate-150"
         onPointerDown={onFocus}
       >
-        {/* Header - Mac Style */}
-        <div className="h-12 flex items-center px-5 justify-between shrink-0 select-none bg-gradient-to-b from-white/30 to-transparent dark:from-white/5 border-b border-white/20 dark:border-white/5 cursor-grab active:cursor-grabbing">
+        {/* Mac-style Header */}
+        <div className="h-12 flex items-center px-5 justify-between shrink-0 select-none bg-gradient-to-b from-white/10 to-transparent border-b border-white/10 cursor-grab active:cursor-grabbing">
             <div className="flex gap-2 group mr-4" onPointerDown={(e) => e.stopPropagation()}>
-                <button onClick={onClose} className="w-3.5 h-3.5 rounded-full bg-[#FF5F57] hover:bg-[#FF5F57]/80 shadow-sm transition-transform hover:scale-110 active:scale-95 border border-[#E0443E] flex items-center justify-center group/btn">
+                <button onClick={onClose} className="w-3.5 h-3.5 rounded-full bg-[#FF5F57] border border-[#E0443E] shadow-sm flex items-center justify-center hover:bg-[#FF5F57]/80 transition-transform hover:scale-110 active:scale-95 group/btn">
                     <X size={8} className="opacity-0 group-hover/btn:opacity-100 text-black/60" strokeWidth={3} />
                 </button>
-                <button onClick={onMinimize} className="w-3.5 h-3.5 rounded-full bg-[#FEBC2E] hover:bg-[#FEBC2E]/80 shadow-sm transition-transform hover:scale-110 active:scale-95 border border-[#D89E24] flex items-center justify-center group/btn">
+                <button onClick={handleYellowClick} className="w-3.5 h-3.5 rounded-full bg-[#FEBC2E] border border-[#D89E24] shadow-sm flex items-center justify-center hover:bg-[#FEBC2E]/80 transition-transform hover:scale-110 active:scale-95 group/btn">
                     <Minus size={8} className="opacity-0 group-hover/btn:opacity-100 text-black/60" strokeWidth={4} />
                 </button>
-                <button onClick={() => setWindowState(prev => prev === 'maximized' ? 'default' : 'maximized')} className="w-3.5 h-3.5 rounded-full bg-[#28C840] hover:bg-[#28C840]/80 shadow-sm transition-transform hover:scale-110 active:scale-95 border border-[#1AAB29] flex items-center justify-center group/btn">
+                <button onClick={handleGreenClick} className="w-3.5 h-3.5 rounded-full bg-[#28C840] border border-[#1AAB29] shadow-sm flex items-center justify-center hover:bg-[#28C840]/80 transition-transform hover:scale-110 active:scale-95 group/btn">
                     <Maximize2 size={8} className="opacity-0 group-hover/btn:opacity-100 text-black/60" strokeWidth={3} />
                 </button>
             </div>
-            <div className="flex-1 text-center font-bold text-slate-800 dark:text-white/90 text-sm flex items-center justify-center gap-2 drop-shadow-sm">
-                <Layers size={14} className="text-blue-600 dark:text-blue-400" />
+            <div className="flex-1 text-center font-bold text-slate-700 dark:text-white/90 text-sm flex items-center justify-center gap-2 drop-shadow-sm">
+                <Layers size={14} className="text-blue-500" />
                 {t.title}
             </div>
             <div className="w-14"></div>
@@ -308,33 +321,33 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
 
         <div className="flex-1 flex overflow-hidden">
             {/* Sidebar (Configuration) */}
-            <div className="w-72 bg-white/40 dark:bg-black/20 border-r border-white/20 dark:border-white/5 p-5 flex flex-col gap-6 overflow-y-auto">
+            <div className="w-80 bg-white/40 dark:bg-black/10 border-r border-white/20 dark:border-white/5 p-6 flex flex-col gap-6 overflow-y-auto scrollbar-hide backdrop-blur-sm">
                 
                 {/* Vessel Select */}
-                <div className="space-y-2">
+                <div className="space-y-3">
                     <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider pl-1">{t.selectVessel}</label>
                     <div className="relative group">
                         <select 
                             value={selectedJobId} 
                             onChange={(e) => setSelectedJobId(e.target.value)} 
-                            className="w-full pl-10 pr-4 py-2.5 bg-white/60 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-600/60 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all appearance-none shadow-sm truncate hover:bg-white/80 dark:hover:bg-slate-800/80"
+                            className="w-full pl-11 pr-4 py-3 bg-white/60 dark:bg-slate-800/60 border border-slate-200/50 dark:border-slate-600/50 rounded-2xl text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all appearance-none shadow-sm truncate hover:bg-white/80 dark:hover:bg-slate-800/80 cursor-pointer"
                         >
                             <option value="">{t.selectVessel}...</option>
                             {jobs.map(j => (
                                 <option key={j.id} value={j.id}>{j.vesselName}</option>
                             ))}
                         </select>
-                        <Ship className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-blue-500 transition-colors" size={16} />
+                        <Ship className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 group-hover:text-blue-500 transition-colors pointer-events-none" size={18} />
                         <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                            <ArrowDownCircle size={14} className="text-slate-400" />
+                            <ArrowDownCircle size={16} className="text-slate-400" />
                         </div>
                     </div>
                 </div>
 
                 {/* Cargo Type */}
-                <div className="space-y-2">
+                <div className="space-y-3">
                     <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider pl-1">{t.selectType}</label>
-                    <div className="space-y-2">
+                    <div className="space-y-2.5">
                         <ModeButton mode="TRANSIT" icon={Container} label={t.typeTransit} activeMode={activeMode} setActiveMode={setActiveMode} />
                         <ModeButton mode="IMPORT" icon={ArrowDownCircle} label={t.typeImport} activeMode={activeMode} setActiveMode={setActiveMode} />
                         <ModeButton mode="FISCO" icon={Anchor} label={t.typeFisco} activeMode={activeMode} setActiveMode={setActiveMode} />
@@ -345,16 +358,16 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
                 {/* Input Method - Toggle */}
                 <div className="mt-auto">
                     <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 block pl-1">{t.selectMethod}</label>
-                    <div className="bg-slate-200/50 dark:bg-black/30 p-1 rounded-xl flex shadow-inner">
+                    <div className="bg-slate-200/50 dark:bg-white/10 p-1.5 rounded-2xl flex shadow-inner backdrop-blur-md">
                         <button 
                             onClick={() => setInputMode('upload')}
-                            className={`flex-1 py-2 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 ${inputMode === 'upload' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'}`}
+                            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${inputMode === 'upload' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm scale-[1.02]' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                         >
                             <Upload size={14} /> {t.fileUpload}
                         </button>
                         <button 
                             onClick={() => setInputMode('manual')}
-                            className={`flex-1 py-2 rounded-lg text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 ${inputMode === 'manual' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'}`}
+                            className={`flex-1 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${inputMode === 'manual' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-white shadow-sm scale-[1.02]' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
                         >
                             <Keyboard size={14} /> {t.manualInput}
                         </button>
@@ -363,88 +376,91 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
             </div>
 
             {/* Main Content (Action Area) */}
-            <div className="flex-1 bg-white/40 dark:bg-slate-800/40 p-8 relative">
+            <div className="flex-1 p-8 relative flex flex-col scrollbar-hide">
                 {inputMode === 'upload' ? (
-                    <div className="h-full flex flex-col items-center justify-center border-2 border-dashed border-slate-300/50 dark:border-slate-600/50 rounded-3xl bg-slate-50/30 dark:bg-slate-800/30 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors shadow-inner">
-                        <FileUpload 
-                            onFilesSelected={handleUploadSubmit} 
-                            isProcessing={isProcessing} 
-                            progressMessage={progressMessage} 
-                        />
+                    <div className="h-full flex flex-col items-center justify-center animate-fade-in">
+                        <div className="text-center mb-8">
+                            <h3 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight mb-2">{t.uploadTitle}</h3>
+                            <p className="text-slate-500 dark:text-slate-300 font-medium">{t.uploadDesc}</p>
+                        </div>
+                        
+                        <div className="w-full max-w-2xl bg-white/30 dark:bg-slate-800/30 border-2 border-dashed border-slate-300/60 dark:border-slate-600/60 rounded-3xl p-10 backdrop-blur-sm shadow-sm hover:bg-white/50 dark:hover:bg-slate-800/50 hover:border-blue-400/60 transition-all duration-300">
+                            <FileUpload 
+                                onFilesSelected={handleUploadSubmit} 
+                                isProcessing={isProcessing} 
+                                progressMessage={progressMessage} 
+                            />
+                        </div>
                     </div>
                 ) : (
-                    <div className="h-full flex flex-col overflow-y-auto custom-scrollbar pr-2">
-                        <h3 className="text-sm font-bold text-slate-800 dark:text-white mb-5 flex items-center gap-2 pb-2 border-b border-slate-200/50 dark:border-slate-700/50">
-                            <FileText size={18} className="text-blue-500" /> 
+                    <div className="h-full flex flex-col overflow-y-auto custom-scrollbar pr-2 animate-fade-in">
+                        <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
+                            <FileText size={20} className="text-blue-500" /> 
                             {t.basicInfo}
                         </h3>
                         
-                        <div className="grid grid-cols-3 gap-5 mb-6">
-                            <div className="col-span-1">
-                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block ml-1">{t.blNo}</label>
-                                <input type="text" className="w-full bg-white/70 dark:bg-slate-800/70 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-100 font-bold transition-all placeholder-slate-400" value={manualForm.blNumber} onChange={e => setManualForm({...manualForm, blNumber: e.target.value})} autoFocus placeholder="Required" />
+                        <div className="bg-white/50 dark:bg-slate-800/50 p-6 rounded-3xl border border-white/30 dark:border-white/5 shadow-sm mb-6">
+                            <div className="grid grid-cols-3 gap-6 mb-6">
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block ml-1">{t.blNo}</label>
+                                    <input type="text" className="w-full bg-white/70 dark:bg-slate-800/70 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-100 font-bold transition-all placeholder-slate-400" value={manualForm.blNumber} onChange={e => setManualForm({...manualForm, blNumber: e.target.value})} autoFocus placeholder="Required" />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block ml-1">{t.shipper}</label>
+                                    <input type="text" className="w-full bg-white/70 dark:bg-slate-800/70 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-100 transition-all placeholder-slate-400" value={manualForm.shipper} onChange={e => setManualForm({...manualForm, shipper: e.target.value})} placeholder="Required" />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block ml-1">{t.consignee}</label>
+                                    <input type="text" className="w-full bg-white/70 dark:bg-slate-800/70 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-100 transition-all placeholder-slate-400" value={manualForm.consignee} onChange={e => setManualForm({...manualForm, consignee: e.target.value})} />
+                                </div>
                             </div>
-                            <div className="col-span-1">
-                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block ml-1">{t.shipper}</label>
-                                <input type="text" className="w-full bg-white/70 dark:bg-slate-800/70 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-100 transition-all placeholder-slate-400" value={manualForm.shipper} onChange={e => setManualForm({...manualForm, shipper: e.target.value})} placeholder="Required" />
-                            </div>
-                            <div className="col-span-1">
-                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block ml-1">{t.consignee}</label>
-                                <input type="text" className="w-full bg-white/70 dark:bg-slate-800/70 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-100 transition-all placeholder-slate-400" value={manualForm.consignee} onChange={e => setManualForm({...manualForm, consignee: e.target.value})} />
+
+                            <div className="grid grid-cols-2 gap-6">
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block ml-1">{t.loadingPort}</label>
+                                    <input type="text" className="w-full bg-white/70 dark:bg-slate-800/70 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-100 transition-all placeholder-slate-400" value={manualForm.portOfLoading} onChange={e => setManualForm({...manualForm, portOfLoading: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block ml-1">{t.dischargePort}</label>
+                                    <input type="text" className="w-full bg-white/70 dark:bg-slate-800/70 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-100 transition-all placeholder-slate-400" value={manualForm.portOfDischarge} onChange={e => setManualForm({...manualForm, portOfDischarge: e.target.value})} />
+                                </div>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-5 mb-8">
-                            <div>
-                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block ml-1">{t.loadingPort}</label>
-                                <input type="text" className="w-full bg-white/70 dark:bg-slate-800/70 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-100 transition-all placeholder-slate-400" value={manualForm.portOfLoading} onChange={e => setManualForm({...manualForm, portOfLoading: e.target.value})} />
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block ml-1">{t.dischargePort}</label>
-                                <input type="text" className="w-full bg-white/70 dark:bg-slate-800/70 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-100 transition-all placeholder-slate-400" value={manualForm.portOfDischarge} onChange={e => setManualForm({...manualForm, portOfDischarge: e.target.value})} />
-                            </div>
-                        </div>
-
-                        <h3 className="text-sm font-bold text-slate-800 dark:text-white mb-5 flex items-center gap-2 pb-2 border-b border-slate-200/50 dark:border-slate-700/50 mt-auto">
-                            <Box size={18} className="text-emerald-500" /> 
+                        <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2 mt-4">
+                            <Box size={20} className="text-emerald-500" /> 
                             {t.itemDetails}
                         </h3>
 
-                        <div className="bg-white/50 dark:bg-slate-800/50 p-5 rounded-2xl border border-slate-200/50 dark:border-slate-600/50 shadow-sm">
+                        <div className="bg-white/50 dark:bg-slate-800/50 p-6 rounded-3xl border border-white/30 dark:border-white/5 shadow-sm">
                             <div className="grid grid-cols-12 gap-4">
                                 <div className="col-span-6">
                                     <label className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block ml-1">{t.desc}</label>
-                                    <input type="text" className="w-full bg-white/80 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-100 font-medium transition-all" value={manualForm.items[0].description} onChange={e => handleItemChange('description', e.target.value)} />
+                                    <input type="text" className="w-full bg-white/80 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-800 dark:text-slate-100 font-medium transition-all" value={manualForm.items[0].description} onChange={e => handleItemChange('description', e.target.value)} />
                                 </div>
                                 <div className="col-span-2">
                                     <label className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block text-right pr-1">{t.qty}</label>
-                                    <input type="number" className="w-full bg-white/80 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-right text-slate-800 dark:text-slate-100 font-mono transition-all" value={manualForm.items[0].quantity} onChange={e => handleItemChange('quantity', Number(e.target.value))} />
+                                    <input type="number" className="w-full bg-white/80 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-right text-slate-800 dark:text-slate-100 font-mono transition-all" value={manualForm.items[0].quantity} onChange={e => handleItemChange('quantity', Number(e.target.value))} />
                                 </div>
                                 <div className="col-span-2">
                                     <label className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block text-right pr-1">{t.weight}</label>
-                                    <input type="number" className="w-full bg-white/80 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-right text-slate-800 dark:text-slate-100 font-mono transition-all" value={manualForm.items[0].grossWeight} onChange={e => handleItemChange('grossWeight', Number(e.target.value))} />
+                                    <input type="number" className="w-full bg-white/80 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-right text-slate-800 dark:text-slate-100 font-mono transition-all" value={manualForm.items[0].grossWeight} onChange={e => handleItemChange('grossWeight', Number(e.target.value))} />
                                 </div>
                                 <div className="col-span-2">
                                     <label className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block text-right pr-1">{t.cbm}</label>
-                                    <input type="number" className="w-full bg-white/80 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-right text-slate-800 dark:text-slate-100 font-mono transition-all" value={manualForm.items[0].measurement} onChange={e => handleItemChange('measurement', Number(e.target.value))} />
+                                    <input type="number" className="w-full bg-white/80 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-600/60 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500/50 text-right text-slate-800 dark:text-slate-100 font-mono transition-all" value={manualForm.items[0].measurement} onChange={e => handleItemChange('measurement', Number(e.target.value))} />
                                 </div>
                             </div>
+                        </div>
+                        
+                        <div className="mt-8 flex justify-end">
+                            <button onClick={handleManualSubmit} className="px-8 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition-all shadow-lg shadow-blue-500/30 text-sm uppercase tracking-wide active:scale-95 flex items-center gap-2">
+                                <Check size={18} /> {t.save}
+                            </button>
                         </div>
                     </div>
                 )}
             </div>
-        </div>
-
-        {/* Footer */}
-        <div className="h-16 border-t border-white/20 dark:border-white/5 bg-white/40 dark:bg-black/20 flex items-center justify-end px-6 gap-3 shrink-0 backdrop-blur-md">
-            <button onClick={onClose} className="px-6 py-2.5 rounded-xl text-slate-600 dark:text-slate-300 font-bold hover:bg-white/50 dark:hover:bg-slate-700/50 transition-colors text-xs uppercase tracking-wide">
-                {t.cancel}
-            </button>
-            {inputMode === 'manual' && (
-                <button onClick={handleManualSubmit} className="px-8 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition-all shadow-lg shadow-blue-500/30 text-xs uppercase tracking-wide active:scale-95">
-                    {t.save}
-                </button>
-            )}
         </div>
       </motion.div>
       )}

@@ -1,3 +1,4 @@
+
 import React, { useCallback, useState } from 'react';
 import { Upload, FileText, X, Loader2, CheckCircle } from 'lucide-react';
 
@@ -46,22 +47,15 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFilesSelected, isProce
   const handleProcessStart = () => {
     if (selectedFiles.length > 0) {
       onFilesSelected(selectedFiles);
-      // We don't clear selected files here immediately to show them being processed,
-      // but the parent might switch views.
     }
   };
 
   return (
-    <div className="p-8 h-full flex flex-col items-center justify-center animate-fade-in">
-      <div className="w-full max-w-3xl">
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold text-slate-800">B/L 문서 업로드</h2>
-          <p className="text-slate-500 mt-2">여러 개의 B/L 이미지를 스캔하여 자동으로 ERP 데이터를 생성합니다.</p>
-        </div>
-
+    <div className="w-full h-full flex flex-col items-center justify-center">
+      <div className="w-full h-full flex flex-col">
         <div
-          className={`relative border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-200 ${
-            dragActive ? 'border-blue-500 bg-blue-50' : 'border-slate-300 bg-white hover:border-slate-400'
+          className={`flex-1 relative rounded-2xl p-8 text-center transition-all duration-300 flex flex-col items-center justify-center border-2 border-dashed ${
+            dragActive ? 'border-blue-500 bg-blue-50/50' : 'border-slate-300/0 hover:border-blue-400/50'
           }`}
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}
@@ -77,59 +71,53 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFilesSelected, isProce
             disabled={isProcessing}
           />
 
-          <div className="flex flex-col items-center pointer-events-none">
-            <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4">
-              {isProcessing ? <Loader2 className="animate-spin" size={32} /> : <Upload size={32} />}
+          <div className="flex flex-col items-center pointer-events-none transform transition-transform duration-300 hover:scale-105">
+            <div className="w-20 h-20 bg-blue-100/50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-blue-500/10 backdrop-blur-md">
+              {isProcessing ? <Loader2 className="animate-spin" size={36} /> : <Upload size={36} />}
             </div>
             {isProcessing ? (
                <div className="space-y-2">
-                 <h3 className="text-lg font-semibold text-slate-800">문서 분석 중...</h3>
-                 <p className="text-slate-500 text-sm">{progressMessage}</p>
+                 <h3 className="text-xl font-bold text-slate-800 dark:text-white">Processing...</h3>
+                 <p className="text-slate-500 dark:text-slate-300 text-sm font-medium">{progressMessage}</p>
                </div>
             ) : (
               <>
-                <h3 className="text-lg font-semibold text-slate-800">파일을 드래그하거나 클릭하여 업로드</h3>
-                <p className="text-slate-500 text-sm mt-1">지원 형식: JPG, PNG (최대 10MB)</p>
+                <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Drag & Drop or Click</h3>
+                <p className="text-slate-500 dark:text-slate-400 text-sm">Supports JPG, PNG, PDF (Max 10MB)</p>
               </>
             )}
           </div>
         </div>
 
         {selectedFiles.length > 0 && !isProcessing && (
-          <div className="mt-8">
-            <h4 className="text-sm font-semibold text-slate-600 mb-3 flex items-center justify-between">
-              <span>선택된 파일 ({selectedFiles.length})</span>
-              <button
-                 onClick={() => setSelectedFiles([])}
-                 className="text-xs text-red-500 hover:text-red-600"
-              >
-                모두 지우기
-              </button>
-            </h4>
-            <div className="grid grid-cols-1 gap-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+          <div className="mt-6 animate-fade-in-up">
+            <div className="flex items-center justify-between mb-3 px-1">
+               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Selected ({selectedFiles.length})</span>
+               <button onClick={() => setSelectedFiles([])} className="text-xs text-red-500 hover:text-red-600 font-bold">Clear All</button>
+            </div>
+            
+            <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar mb-6">
               {selectedFiles.map((file, idx) => (
-                <div key={idx} className="flex items-center justify-between bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                <div key={idx} className="flex items-center justify-between bg-white/60 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200/50 dark:border-slate-700/50 shadow-sm backdrop-blur-sm">
                   <div className="flex items-center gap-3 overflow-hidden">
-                    <FileText size={20} className="text-slate-400 flex-shrink-0" />
-                    <span className="text-sm text-slate-700 truncate font-medium">{file.name}</span>
-                    <span className="text-xs text-slate-400 flex-shrink-0">({(file.size / 1024).toFixed(1)} KB)</span>
+                    <div className="p-1.5 bg-blue-100/50 rounded-lg text-blue-600"><FileText size={16} /></div>
+                    <span className="text-sm text-slate-700 dark:text-slate-200 truncate font-bold">{file.name}</span>
+                    <span className="text-[10px] text-slate-400 font-mono">({(file.size / 1024).toFixed(0)} KB)</span>
                   </div>
-                  <button onClick={() => removeFile(idx)} className="text-slate-400 hover:text-red-500 transition-colors p-1">
-                    <X size={16} />
+                  <button onClick={() => removeFile(idx)} className="text-slate-400 hover:text-red-500 transition-colors p-1 hover:bg-slate-100 rounded-full">
+                    <X size={14} />
                   </button>
                 </div>
               ))}
             </div>
 
-            <div className="mt-6 flex justify-end">
-              <button
-                onClick={handleProcessStart}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-semibold shadow-lg shadow-blue-500/20 transition-all active:scale-95 flex items-center gap-2"
-              >
-                <CheckCircle size={20} />
-                OCR 분석 시작
-              </button>
-            </div>
+            <button
+              onClick={handleProcessStart}
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3.5 rounded-2xl font-bold shadow-lg shadow-blue-600/30 transition-all active:scale-[0.98] flex items-center justify-center gap-2 text-sm uppercase tracking-wide"
+            >
+              <CheckCircle size={18} />
+              Start OCR Analysis
+            </button>
           </div>
         )}
       </div>

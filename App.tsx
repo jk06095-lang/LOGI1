@@ -535,7 +535,25 @@ const App: React.FC = () => {
       case 'vessel-detail':
         const currentJob = vesselJobs.find(j => j.id === tab.data.vesselId);
         if (!currentJob) return <div className="p-10 text-slate-400">Vessel not found</div>;
-        return <VesselDetail key={tab.id} job={currentJob} bls={blData.filter(bl => bl.vesselJobId === currentJob.id)} checklists={checklists} onClose={() => closeTab(tab.id)} onUploadBLs={(f, type) => handleBLUpload(f, type, undefined, currentJob.id)} onCreateManualBL={dataService.addBL} onUpdateChecklist={dataService.updateChecklist} onUpdateBL={dataService.updateBL} isProcessing={isProcessing} progressMessage={progressMessage} language={settings.language} initialTab={tab.data?.initialTab} initialBLId={tab.data?.initialBLId} lastUpdate={tab.data?.timestamp} onOpenBLDetail={(id) => openShipmentDetailTab(id)} onOpenRegister={() => handleOpenRegister(currentJob.id)} />;
+        return <VesselDetail 
+            key={tab.id} 
+            job={currentJob} 
+            bls={blData.filter(bl => bl.vesselJobId === currentJob.id)} 
+            checklists={checklists} 
+            onClose={() => closeTab(tab.id)} 
+            onUploadBLs={(f, type) => handleBLUpload(f, type, undefined, currentJob.id)} 
+            onCreateManualBL={dataService.addBL} 
+            onUpdateChecklist={dataService.updateChecklist} 
+            onUpdateBL={dataService.updateBL} 
+            isProcessing={isProcessing} 
+            progressMessage={progressMessage} 
+            language={settings.language} 
+            initialTab={tab.data?.initialTab} 
+            initialBLId={tab.data?.initialBLId} 
+            lastUpdate={tab.data?.timestamp} 
+            onOpenBLDetail={(id) => openShipmentDetailTab(id)} 
+            onOpenRegister={() => handleOpenRegister(currentJob.id)} 
+        />;
       default: return null;
     }
   };
@@ -574,7 +592,7 @@ const App: React.FC = () => {
             isMinimized={isRegisterMinimized}
             onClose={() => setIsRegisterOpen(false)}
             onMinimize={() => setIsRegisterMinimized(true)}
-            zIndex={getZIndex('register')}
+            zIndex={getZIndex('register') + 2000} 
             onFocus={() => focusWindow('register')}
             targetJobId={registerTargetJobId}
             jobs={vesselJobs}
