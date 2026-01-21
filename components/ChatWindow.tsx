@@ -44,6 +44,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
   const lastTypingSentRef = useRef<number>(0);
   const [isTyping, setIsTyping] = useState(false);
 
+  // Map to store promises of messages currently being sent
+  // Key: Temporary ID, Value: Promise resolving to Real ID
+  const pendingMsgPromises = useRef<Map<string, Promise<string>>>(new Map());
+
   const dimensions = useMemo(() => {
       switch (windowState) {
           case 'tall': return { width: 380, height: '90vh' };
@@ -139,8 +143,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
   const handleSend = async (text: string) => {
       if (!user || !channelId) return;
       
+      const tempId = 'temp-' + Date.now();
       const optimisticMsg: ChatMessage = {
-          id: 'temp-' + Date.now(), text, senderId: user.uid, senderName: user.displayName || 'User', senderPhoto: user.photoURL || '',
+          id: tempId, text, senderId: user.uid, senderName: user.displayName || 'User', senderPhoto: user.photoURL || '',
           timestamp: Date.now(), channelId: channelId, readBy: [user.uid], pending: true,
           replyTo: replyingTo ? { id: replyingTo.id, senderName: replyingTo.senderName, text: replyingTo.text } : undefined
       };
@@ -148,13 +153,38 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
       setMessages(prev => [...prev, optimisticMsg]);
       setReplyingTo(null);
       setTimeout(scrollToBottom, 50);
-      await chatService.sendChatMessage(optimisticMsg);
+      
+      // Store the promise to track completion and real ID
+      const sendPromise = chatService.sendChatMessage(optimisticMsg);
+      pendingMsgPromises.current.set(tempId, sendPromise);
+
+      try {
+          const realId = await sendPromise;
+          
+          // Update local state immediately: swap temp ID for real ID and remove pending status
+          setMessages(prev => prev.map(msg => 
+              msg.id === tempId ? { ...msg, id: realId, pending: false } : msg
+          ));
+
+          // Once resolved, remove from pending map. 
+          pendingMsgPromises.current.delete(tempId);
+      } catch (error) {
+          console.error("Failed to send message", error);
+          // Remove the optimistic message on error to prevent infinite spinner
+          setMessages(prev => prev.filter(msg => msg.id !== tempId));
+          pendingMsgPromises.current.delete(tempId);
+          alert("Failed to send message. Please try again.");
+      }
   };
 
   const handleReaction = async (emoji: string, messageId: string) => {
       if (!user) return;
-      // Optimistic
+      
+      let targetId = messageId;
+
+      // Optimistic Update
       setMessages(prev => prev.map(msg => {
+          // Update matches if ID matches OR if we are updating a temp message and this is the one
           if (msg.id === messageId) {
               const reactions = (msg.reactions || []).map(r => ({ ...r, userIds: [...r.userIds] }));
               const idx = reactions.findIndex(r => r.emoji === emoji);
@@ -172,7 +202,25 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
           }
           return msg;
       }));
-      await chatService.toggleMessageReaction(messageId, user.uid, emoji);
+
+      // Check if this is a pending message
+      if (targetId.startsWith('temp-')) {
+          const pendingPromise = pendingMsgPromises.current.get(targetId);
+          if (pendingPromise) {
+              try {
+                  // Wait for the real ID to be available
+                  targetId = await pendingPromise;
+              } catch (e) {
+                  console.error("Cannot react: message failed to send");
+                  return;
+              }
+          } else {
+              console.warn("Attempted to react to a temp message without a tracking promise.");
+              return;
+          }
+      }
+
+      await chatService.toggleMessageReaction(targetId, user.uid, emoji);
   };
 
   const handleUserSelect = (targetUser: ChatUser) => {

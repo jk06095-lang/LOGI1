@@ -2,7 +2,7 @@
 import React from 'react';
 import { ChatMessage, ChatUser } from '../../types';
 import { User } from 'firebase/auth';
-import { User as UserIcon, Check, CheckCheck, Reply } from 'lucide-react';
+import { User as UserIcon, Check, CheckCheck, Reply, Loader2 } from 'lucide-react';
 
 interface MessageListProps {
   messages: ChatMessage[];
@@ -115,24 +115,32 @@ export const MessageList: React.FC<MessageListProps> = ({
                                     </div>
 
                                     {/* Action Menu (Visible on Group Hover) */}
-                                    <div className="absolute right-0 -bottom-1.5 opacity-0 group-hover/msg:opacity-100 transition-all duration-200 z-10 translate-y-2 group-hover/msg:translate-y-0">
+                                    <div className={`absolute right-0 -bottom-1.5 transition-all duration-200 z-10 translate-y-2 ${msg.pending ? 'opacity-50 pointer-events-none' : 'opacity-0 group-hover/msg:opacity-100 group-hover/msg:translate-y-0'}`}>
                                         <div className="flex items-center gap-0.5 bg-white dark:bg-slate-800 rounded-full shadow-md border border-slate-200 dark:border-slate-700 p-1 ring-1 ring-black/5">
-                                           {['✅', '❌', '👍', '❤️'].map(emoji => (
-                                               <button 
-                                                   key={emoji} 
-                                                   onClick={(e) => { e.stopPropagation(); onReaction(emoji, msg.id); }}
-                                                   className="w-7 h-7 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-transform hover:scale-110 text-base leading-none"
-                                               >
-                                                   {emoji}
-                                               </button>
-                                           ))}
-                                           <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1"></div>
-                                           <button 
-                                               onClick={(e) => { e.stopPropagation(); onReply(msg); }}
-                                               className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-all"
-                                           >
-                                               <Reply size={14} strokeWidth={2.5} />
-                                           </button>
+                                           {msg.pending ? (
+                                               <div className="px-2 py-1 flex items-center justify-center">
+                                                   <Loader2 size={12} className="animate-spin text-slate-400" />
+                                               </div>
+                                           ) : (
+                                               <>
+                                                   {['✅', '❌', '👍', '❤️'].map(emoji => (
+                                                       <button 
+                                                           key={emoji} 
+                                                           onClick={(e) => { e.stopPropagation(); onReaction(emoji, msg.id); }}
+                                                           className="w-7 h-7 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-transform hover:scale-110 text-base leading-none"
+                                                       >
+                                                           {emoji}
+                                                       </button>
+                                                   ))}
+                                                   <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                                                   <button 
+                                                       onClick={(e) => { e.stopPropagation(); onReply(msg); }}
+                                                       className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-all"
+                                                   >
+                                                       <Reply size={14} strokeWidth={2.5} />
+                                                   </button>
+                                               </>
+                                           )}
                                         </div>
                                     </div>
                                 </div>
