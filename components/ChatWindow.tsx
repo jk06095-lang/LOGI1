@@ -58,6 +58,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
     return null;
   }, [activeTab, selectedUser, user?.uid]);
 
+  // Derived state for live user status
+  const liveSelectedUser = useMemo(() => {
+      if (!selectedUser) return null;
+      return users.find(u => u.uid === selectedUser.uid) || selectedUser;
+  }, [users, selectedUser]);
+
   const { scrollRef, handleScroll, scrollToBottom, showScrollDown, messageRefs, signalHistoryLoad, restoreScrollPosition } = useChatScroll(messages, channelId, user?.uid, isOpen);
 
   useEffect(() => {
@@ -233,7 +239,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
                      <button onClick={(e) => { e.stopPropagation(); setWindowState(prev => prev === 'maximized' ? 'default' : 'maximized'); }} className="w-4 h-4 rounded-full bg-[#28C840] hover:bg-[#28C840]/80 flex items-center justify-center shadow-sm hover:scale-110"><div className="w-1.5 h-1.5 bg-black/40 opacity-0 group-hover:opacity-100 rounded-full"></div></button>
                  </div>
                  <div className="font-semibold text-slate-800 dark:text-white/90 text-sm select-none drop-shadow-sm flex items-center gap-2">
-                    {selectedUser ? <><span className="w-2 h-2 rounded-full bg-green-500 shadow-sm"></span>{selectedUser.displayName}</> : <><MessageCircle size={14} className="text-blue-500 fill-current" />Team Chat</>}
+                    {liveSelectedUser ? (
+                        <>
+                            <span className={`w-2.5 h-2.5 rounded-full shadow-sm border border-white/20 transition-colors duration-500 ${
+                                liveSelectedUser.status === 'online' ? 'bg-emerald-500 shadow-emerald-500/50' : 
+                                liveSelectedUser.status === 'away' ? 'bg-amber-500 shadow-amber-500/50' : 'bg-slate-400'
+                            }`}></span>
+                            {liveSelectedUser.displayName}
+                        </>
+                    ) : (
+                        <><MessageCircle size={14} className="text-blue-500 fill-current" />Team Chat</>
+                    )}
                  </div>
                  <div className="flex items-center gap-2">
                      {(activeTab === 'global' || selectedUser) && <button onClick={() => { const blob = new Blob([JSON.stringify(messages, null, 2)], {type: "application/json"}); saveAs(blob, `Chat_Log.json`); }} className="text-slate-500 hover:text-blue-600 dark:text-slate-400 transition-colors"><Download size={16} /></button>}
