@@ -43,6 +43,42 @@ const App: React.FC = () => {
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   
+  // --- Window Management System ---
+  // Stack of window IDs. The last element has the highest Z-Index.
+  const [windowStack, setWindowStack] = useState<string[]>([]);
+
+  const focusWindow = (windowId: string) => {
+    setWindowStack(prev => {
+      // If already at the top, do nothing to prevent unnecessary re-renders
+      if (prev.length > 0 && prev[prev.length - 1] === windowId) return prev;
+      
+      const filtered = prev.filter(id => id !== windowId);
+      return [...filtered, windowId];
+    });
+  };
+
+  const getZIndex = (windowId: string) => {
+    const baseZ = 1000;
+    const index = windowStack.indexOf(windowId);
+    // If window is not in stack (just opened), put it on top tentatively
+    return index === -1 ? baseZ + windowStack.length * 10 : baseZ + (index * 10);
+  };
+
+  const openWindow = (windowId: string) => {
+      setWindowStack(prev => {
+          if (prev.includes(windowId)) {
+              // Move to top
+              return [...prev.filter(id => id !== windowId), windowId];
+          }
+          return [...prev, windowId];
+      });
+  };
+
+  const closeWindow = (windowId: string) => {
+      setWindowStack(prev => prev.filter(id => id !== windowId));
+  };
+  // --------------------------------
+
   // Floating Windows State (Apps)
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isChatMinimized, setIsChatMinimized] = useState(false);
@@ -57,34 +93,19 @@ const App: React.FC = () => {
   // BL-specific Cloud Managers (Hoisted)
   const [activeBLClouds, setActiveBLClouds] = useState<{ id: string; minimized: boolean }[]>([]);
   
-  // Window Z-Index Stack
-  const [windowStack, setWindowStack] = useState<string[]>(['chat', 'cloud', 'register']);
-
-  const focusWindow = (windowId: string) => {
-    setWindowStack(prev => {
-      const filtered = prev.filter(id => id !== windowId);
-      return [...filtered, windowId];
-    });
-  };
-
-  const getZIndex = (windowId: string) => {
-    const baseZ = 100;
-    const index = windowStack.indexOf(windowId);
-    return index === -1 ? baseZ : baseZ + (index * 10);
-  };
-
   const handleToggleChat = () => {
       if (isChatOpen) {
           if (isChatMinimized) {
-              setIsChatMinimized(false); // Restore
+              setIsChatMinimized(false);
               focusWindow('chat');
           } else {
-              setIsChatOpen(false); // Close
+              setIsChatOpen(false);
+              closeWindow('chat');
           }
       } else {
           setIsChatOpen(true);
           setIsChatMinimized(false);
-          focusWindow('chat');
+          openWindow('chat');
           updateLastRead();
       }
   };
@@ -92,15 +113,16 @@ const App: React.FC = () => {
   const handleToggleCloud = () => {
       if (isCloudOpen) {
           if (isCloudMinimized) {
-              setIsCloudMinimized(false); // Restore
+              setIsCloudMinimized(false);
               focusWindow('cloud');
           } else {
-              setIsCloudOpen(false); // Close
+              setIsCloudOpen(false);
+              closeWindow('cloud');
           }
       } else {
           setIsCloudOpen(true);
           setIsCloudMinimized(false);
-          focusWindow('cloud');
+          openWindow('cloud');
       }
   };
 
@@ -108,11 +130,12 @@ const App: React.FC = () => {
       setRegisterTargetJobId(targetJobId);
       setIsRegisterOpen(true);
       setIsRegisterMinimized(false);
-      focusWindow('register');
+      openWindow('register');
   };
 
   // BL Cloud Window Handlers
   const openBLCloud = (blId: string) => {
+    const winId = `bl-cloud-${blId}`;
     setActiveBLClouds(prev => {
         const exists = prev.find(w => w.id === blId);
         if (exists) {
@@ -120,17 +143,19 @@ const App: React.FC = () => {
         }
         return [...prev, { id: blId, minimized: false }];
     });
-    focusWindow(`bl-cloud-${blId}`);
+    openWindow(winId);
   };
 
   const closeBLCloud = (blId: string) => {
     setActiveBLClouds(prev => prev.filter(w => w.id !== blId));
+    closeWindow(`bl-cloud-${blId}`);
   };
 
   const minimizeBLCloud = (blId: string) => {
     setActiveBLClouds(prev => prev.map(w => w.id === blId ? { ...w, minimized: true } : w));
   };
 
+  // ... (Keep existing BL Cloud File Operations: handleBLCloudUpload, handleBLCloudDelete, handleBLCloudRename) ...
   // BL Cloud File Operations
   const handleBLCloudUpload = async (blId: string, files: File[]) => {
       const taskId = `cloud-upload-${Date.now()}`;
@@ -232,6 +257,7 @@ const App: React.FC = () => {
     }
   }, [settings.theme, settings.fontStyle, settings.fontSize]);
 
+  // ... (Keep Auth Effects) ...
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
@@ -293,7 +319,6 @@ const App: React.FC = () => {
     });
     const unsubChecklists = dataService.subscribeChecklists(setChecklists);
     const unsubReportLogo = dataService.subscribeReportLogo(setReportLogoUrl);
-    // Use chatService for unread status
     const unsubUnread = chatService.subscribeUnreadStatus(user.uid, setLatestUnreadTs);
     return () => { unsubJobs(); unsubBLs(); unsubChecklists(); unsubUnread(); unsubReportLogo(); };
   }, [user, isAuthorized]);
@@ -585,14 +610,14 @@ const App: React.FC = () => {
           onToggleCloud={handleToggleCloud}
         />
         
-        {/* Global Windows Layer */}
+        {/* Global Windows Layer managed by App State & Z-Index Stack */}
         
         <RegisterCargoWindow
             isOpen={isRegisterOpen}
             isMinimized={isRegisterMinimized}
             onClose={() => setIsRegisterOpen(false)}
             onMinimize={() => setIsRegisterMinimized(true)}
-            zIndex={getZIndex('register') + 2000} 
+            zIndex={getZIndex('register')} 
             onFocus={() => focusWindow('register')}
             targetJobId={registerTargetJobId}
             jobs={vesselJobs}
@@ -635,14 +660,12 @@ const App: React.FC = () => {
             return (
                <CloudFileManager 
                   key={winId}
-                  isOpen={true} // Array presence implies open
+                  isOpen={true} 
                   isMinimized={window.minimized}
                   onClose={() => closeBLCloud(bl.id)}
                   onMinimize={() => minimizeBLCloud(bl.id)}
-                  
                   zIndex={getZIndex(winId)}
                   onFocus={() => focusWindow(winId)}
-                  
                   attachments={bl.attachments || []}
                   onUpload={(files) => handleBLCloudUpload(bl.id, files)}
                   onDelete={(id) => handleBLCloudDelete(bl.id, id)}
@@ -652,6 +675,7 @@ const App: React.FC = () => {
         })}
 
         <main className="flex-1 flex flex-col overflow-hidden relative print:overflow-visible print:h-auto">
+          {/* ... (Main Content remains similar, kept concise for brevity) ... */}
           <div className="flex justify-between items-end bg-slate-100 dark:bg-slate-900 pr-4 print:hidden">
               <TabNavigation tabs={tabs} activeTabId={activeTabId} onTabClick={activateTab} onTabClose={closeTab} />
               
@@ -708,7 +732,6 @@ const App: React.FC = () => {
           )}
 
           <div className="flex-1 relative bg-slate-50 dark:bg-slate-900 print:overflow-visible print:h-auto overflow-hidden">
-              {/* Multi-Window Rendering Implementation */}
               {tabs.map(tab => (
                 <div 
                   key={tab.id}

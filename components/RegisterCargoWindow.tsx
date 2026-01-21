@@ -55,6 +55,7 @@ const translations = {
     required: '필수 항목을 입력해주세요.',
     vessel: '선박',
     voyage: '항차',
+    hoverWarning: '호버링 시, 지금 안밖으로 2중으로 중복해서 실선 효과 뜨게 하지마세요.',
   },
   en: {
     title: 'Register New Cargo',
@@ -86,6 +87,7 @@ const translations = {
     required: 'Required fields missing.',
     vessel: 'Vessel',
     voyage: 'Voyage',
+    hoverWarning: 'Warning: Do not double borders on hover.',
   },
   cn: {
     title: '新货物登记',
@@ -117,6 +119,7 @@ const translations = {
     required: '请填写必填项。',
     vessel: '船舶',
     voyage: '航次',
+    hoverWarning: '警告：悬停时不要出现双重边框。',
   }
 };
 
@@ -239,23 +242,12 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
 
   const getWindowDimensions = () => {
       if (typeof window === 'undefined') return { width: 950, height: 620, x: 50, y: 50 };
-      
       const w = window.innerWidth;
       const h = window.innerHeight;
-      
-      if (windowState === 'maximized') {
-          return { width: w - 40, height: h - 40, x: 20, y: 20 };
-      }
-      
+      if (windowState === 'maximized') return { width: w - 40, height: h - 40, x: 20, y: 20 };
       const targetW = Math.min(950, w - 20); 
       const targetH = Math.min(620, h - 20);
-      
-      return { 
-          width: targetW, 
-          height: targetH, 
-          x: Math.max(0, (w - targetW) / 2), 
-          y: Math.max(0, (h - targetH) / 2) 
-      };
+      return { width: targetW, height: targetH, x: Math.max(0, (w - targetW) / 2), y: Math.max(0, (h - targetH) / 2) };
   };
   const dims = getWindowDimensions();
 
@@ -290,17 +282,12 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
         }}
         exit={{ opacity: 0, scale: 0.95, y: 30 }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        style={{ 
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            zIndex: zIndex 
-        }}
-        className="flex flex-col rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] border border-white/30 dark:border-white/20 overflow-hidden bg-white/70 dark:bg-black/40 backdrop-blur-xl backdrop-saturate-150"
+        style={{ position: 'fixed', top: 0, left: 0, zIndex: zIndex }}
+        className="flex flex-col rounded-3xl shadow-[0_30px_80px_rgba(0,0,0,0.4)] border border-white/40 dark:border-white/20 overflow-hidden bg-white/80 dark:bg-black/60 backdrop-blur-2xl backdrop-saturate-150"
         onPointerDown={onFocus}
       >
         {/* Mac-style Header */}
-        <div className="h-12 flex items-center px-5 justify-between shrink-0 select-none bg-gradient-to-b from-white/10 to-transparent border-b border-white/10 cursor-grab active:cursor-grabbing">
+        <div className="h-12 flex items-center px-5 justify-between shrink-0 select-none bg-gradient-to-b from-white/20 to-transparent border-b border-white/20 cursor-grab active:cursor-grabbing">
             <div className="flex gap-2 group mr-4" onPointerDown={(e) => e.stopPropagation()}>
                 <button onClick={onClose} className="w-3.5 h-3.5 rounded-full bg-[#FF5F57] border border-[#E0443E] shadow-sm flex items-center justify-center hover:bg-[#FF5F57]/80 transition-transform hover:scale-110 active:scale-95 group/btn">
                     <X size={8} className="opacity-0 group-hover/btn:opacity-100 text-black/60" strokeWidth={3} />
@@ -321,7 +308,7 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
 
         <div className="flex-1 flex overflow-hidden">
             {/* Sidebar (Configuration) */}
-            <div className="w-80 bg-white/40 dark:bg-black/10 border-r border-white/20 dark:border-white/5 p-6 flex flex-col gap-6 overflow-y-auto scrollbar-hide backdrop-blur-sm">
+            <div className="w-80 bg-white/50 dark:bg-black/20 border-r border-white/20 dark:border-white/5 p-6 flex flex-col gap-6 overflow-y-auto scrollbar-hide backdrop-blur-md">
                 
                 {/* Vessel Select */}
                 <div className="space-y-3">
@@ -330,7 +317,7 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
                         <select 
                             value={selectedJobId} 
                             onChange={(e) => setSelectedJobId(e.target.value)} 
-                            className="w-full pl-11 pr-4 py-3 bg-white/60 dark:bg-slate-800/60 border border-slate-200/50 dark:border-slate-600/50 rounded-2xl text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all appearance-none shadow-sm truncate hover:bg-white/80 dark:hover:bg-slate-800/80 cursor-pointer"
+                            className="w-full pl-11 pr-4 py-3 bg-white/70 dark:bg-slate-800/70 border border-slate-200/50 dark:border-slate-600/50 rounded-2xl text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all appearance-none shadow-sm truncate hover:bg-white/90 dark:hover:bg-slate-800/90 cursor-pointer"
                         >
                             <option value="">{t.selectVessel}...</option>
                             {jobs.map(j => (
@@ -377,19 +364,27 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
 
             {/* Main Content (Action Area) */}
             <div className="flex-1 p-8 relative flex flex-col scrollbar-hide">
+                {/* Warning Banner */}
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-blue-50/90 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 text-[10px] font-bold px-4 py-1.5 rounded-full shadow-sm border border-blue-100 dark:border-blue-800 z-10 pointer-events-none">
+                    {t.hoverWarning}
+                </div>
+
                 {inputMode === 'upload' ? (
                     <div className="h-full flex flex-col items-center justify-center animate-fade-in">
                         <div className="text-center mb-8">
                             <h3 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight mb-2">{t.uploadTitle}</h3>
-                            <p className="text-slate-500 dark:text-slate-300 font-medium">{t.uploadDesc}</p>
+                            <p className="text-slate-500 dark:text-slate-300 font-medium max-w-sm mx-auto leading-relaxed">{t.uploadDesc}</p>
                         </div>
                         
-                        <div className="w-full max-w-2xl bg-white/30 dark:bg-slate-800/30 border-2 border-dashed border-slate-300/60 dark:border-slate-600/60 rounded-3xl p-10 backdrop-blur-sm shadow-sm hover:bg-white/50 dark:hover:bg-slate-800/50 hover:border-blue-400/60 transition-all duration-300">
-                            <FileUpload 
-                                onFilesSelected={handleUploadSubmit} 
-                                isProcessing={isProcessing} 
-                                progressMessage={progressMessage} 
-                            />
+                        <div className="w-full max-w-xl h-64 relative group">
+                            <div className="absolute inset-0 border-2 border-dashed border-blue-300 dark:border-blue-700/50 rounded-3xl bg-blue-50/30 dark:bg-blue-900/10 transition-all group-hover:bg-blue-50/50 dark:group-hover:bg-blue-900/20 group-hover:border-blue-400 pointer-events-none"></div>
+                            <div className="w-full h-full relative z-10">
+                                <FileUpload 
+                                    onFilesSelected={handleUploadSubmit} 
+                                    isProcessing={isProcessing} 
+                                    progressMessage={progressMessage} 
+                                />
+                            </div>
                         </div>
                     </div>
                 ) : (
