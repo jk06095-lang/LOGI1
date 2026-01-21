@@ -87,8 +87,13 @@ export const VesselDetail: React.FC<VesselDetailProps> = ({
              </div>
           </div>
           <button 
-            onClick={() => {
-                if (onOpenRegister) onOpenRegister();
+            onClick={(e) => {
+                e.stopPropagation();
+                if (onOpenRegister) {
+                    onOpenRegister();
+                } else {
+                    console.warn("Register handler not connected");
+                }
             }} 
             className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-blue-600/30 active:scale-95"
           >

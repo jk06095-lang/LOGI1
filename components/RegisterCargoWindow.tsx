@@ -119,15 +119,35 @@ const translations = {
 
 type CargoMode = 'TRANSIT' | 'IMPORT' | 'FISCO' | 'THIRD_PARTY';
 
+// Define ModeButton outside to prevent re-renders losing focus/state or causing flickers
+const ModeButton = ({ mode, icon: Icon, label, activeMode, setActiveMode }: { mode: string, icon: any, label: string, activeMode: string, setActiveMode: (m: CargoMode) => void }) => {
+    const isActive = activeMode === mode;
+    return (
+        <button 
+          onClick={() => setActiveMode(mode as CargoMode)}
+          className={`flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-all duration-200 group relative overflow-hidden w-full ${
+              isActive 
+              ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' 
+              : 'bg-white/50 dark:bg-slate-800/50 hover:bg-white/80 dark:hover:bg-slate-700/80 text-slate-600 dark:text-slate-300 border border-transparent hover:border-slate-200 dark:hover:border-slate-600'
+          }`}
+        >
+            <div className={`p-1.5 rounded-lg transition-colors ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:text-blue-500'}`}>
+                <Icon size={18} />
+            </div>
+            <span className="text-xs font-bold flex-1">{label}</span>
+            {isActive && <Check size={16} className="text-white animate-fade-in" strokeWidth={3} />}
+        </button>
+    );
+};
+
 export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
   isOpen, isMinimized, onClose, onMinimize, zIndex, onFocus, targetJobId, jobs, onUploadBLs, onCreateManualBL, isProcessing, progressMessage, language
 }) => {
   const t = translations[language];
   const [windowState, setWindowState] = useState<WindowState>('default');
   
-  // UI State for Selection (Fixing the bug by making this the source of truth)
+  // UI State
   const [activeMode, setActiveMode] = useState<CargoMode>('TRANSIT');
-  
   const [inputMode, setInputMode] = useState<'upload' | 'manual'>('upload');
   const [selectedJobId, setSelectedJobId] = useState<string>(targetJobId || '');
 
@@ -165,7 +185,6 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
   const handleUploadSubmit = (files: File[]) => {
       const { sourceType, cargoClass } = getCargoDataFromMode(activeMode);
       onUploadBLs(files, sourceType, cargoClass, selectedJobId);
-      // Window close logic is handled by parent or effect usually, but let's explicit close
       onClose();
   };
 
@@ -216,36 +235,29 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
     setManualForm({ ...manualForm, items: updatedItems });
   };
 
+  // Safe window dimension calculation to prevent off-screen rendering
   const getWindowDimensions = () => {
-      switch (windowState) {
-          case 'maximized': 
-              // Adjusted to be large but not full screen (Better aesthetics)
-              return { width: 1100, height: 750, x: (window.innerWidth - 1100) / 2, y: (window.innerHeight - 750) / 2 };
-          default: 
-              return { width: 900, height: 580, x: (window.innerWidth - 900) / 2, y: (window.innerHeight - 580) / 2 };
+      if (typeof window === 'undefined') return { width: 900, height: 580, x: 50, y: 50 };
+      
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      
+      if (windowState === 'maximized') {
+          return { width: w - 40, height: h - 40, x: 20, y: 20 };
       }
+      
+      // Responsive width: max 900, but fit on smaller screens
+      const targetW = Math.min(900, w - 20); 
+      const targetH = Math.min(580, h - 20);
+      
+      return { 
+          width: targetW, 
+          height: targetH, 
+          x: Math.max(0, (w - targetW) / 2), 
+          y: Math.max(0, (h - targetH) / 2) 
+      };
   };
   const dims = getWindowDimensions();
-
-  const ModeButton = ({ mode, icon: Icon, label }: { mode: string, icon: any, label: string }) => {
-      const isActive = activeMode === mode;
-      return (
-          <button 
-            onClick={() => setActiveMode(mode as CargoMode)}
-            className={`flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-all duration-200 group relative overflow-hidden ${
-                isActive 
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' 
-                : 'bg-white/50 dark:bg-slate-800/50 hover:bg-white/80 dark:hover:bg-slate-700/80 text-slate-600 dark:text-slate-300 border border-transparent hover:border-slate-200 dark:hover:border-slate-600'
-            }`}
-          >
-              <div className={`p-1.5 rounded-lg transition-colors ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 group-hover:text-blue-500'}`}>
-                  <Icon size={18} />
-              </div>
-              <span className="text-xs font-bold flex-1">{label}</span>
-              {isActive && <Check size={16} className="text-white animate-fade-in" strokeWidth={3} />}
-          </button>
-      );
-  };
 
   return createPortal(
     <AnimatePresence>
@@ -271,7 +283,6 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
             position: 'fixed',
             zIndex: zIndex 
         }}
-        // Liquid Glass Styling
         className="flex flex-col rounded-3xl shadow-2xl border border-white/40 dark:border-white/10 overflow-hidden bg-white/75 dark:bg-slate-900/80 backdrop-blur-xl backdrop-saturate-150"
         onPointerDown={onFocus}
       >
@@ -324,10 +335,10 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
                 <div className="space-y-2">
                     <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider pl-1">{t.selectType}</label>
                     <div className="space-y-2">
-                        <ModeButton mode="TRANSIT" icon={Container} label={t.typeTransit} />
-                        <ModeButton mode="IMPORT" icon={ArrowDownCircle} label={t.typeImport} />
-                        <ModeButton mode="FISCO" icon={Anchor} label={t.typeFisco} />
-                        <ModeButton mode="THIRD_PARTY" icon={Box} label={t.typeThird} />
+                        <ModeButton mode="TRANSIT" icon={Container} label={t.typeTransit} activeMode={activeMode} setActiveMode={setActiveMode} />
+                        <ModeButton mode="IMPORT" icon={ArrowDownCircle} label={t.typeImport} activeMode={activeMode} setActiveMode={setActiveMode} />
+                        <ModeButton mode="FISCO" icon={Anchor} label={t.typeFisco} activeMode={activeMode} setActiveMode={setActiveMode} />
+                        <ModeButton mode="THIRD_PARTY" icon={Box} label={t.typeThird} activeMode={activeMode} setActiveMode={setActiveMode} />
                     </div>
                 </div>
 
