@@ -321,7 +321,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
                  {(activeTab === 'global' || selectedUser) && (
                      <MessageList 
                         messages={messages} 
-                        user={user} 
+                        user={user}
+                        allUsers={users}
                         typingUsers={typingUsers} 
                         messageRefs={messageRefs} 
                         onReaction={handleReaction} 

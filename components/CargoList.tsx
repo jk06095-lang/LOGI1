@@ -32,9 +32,6 @@ const translations = {
     cbm: 'CBM',
     action: '관리',
     status: '문서현황',
-    transit: '환적',
-    fisco: '피스코',
-    thirdParty: '타사',
     viewDetail: '상세보기',
     andOthers: '외 {count}건',
     catGen: '기타',
@@ -45,7 +42,7 @@ const translations = {
     download: 'Download Excel',
     noData: 'No cargo registered.',
     firstItem: 'Register Cargo',
-    type: 'Source',
+    type: 'Class',
     class: 'Class',
     category: 'Category',
     vessel: 'Vessel',
@@ -59,9 +56,6 @@ const translations = {
     cbm: 'CBM',
     action: 'Action',
     status: 'Docs Status',
-    transit: 'TRANSIT',
-    fisco: 'FISCO',
-    thirdParty: '3RD',
     viewDetail: 'Detail',
     andOthers: '& {count} others',
     catGen: 'GEN',
@@ -72,7 +66,7 @@ const translations = {
     download: '导出 Excel',
     noData: '暂无货物登记。',
     firstItem: '登记首批货物',
-    type: '来源',
+    type: '分类',
     class: '分类',
     category: '货物类型',
     vessel: '船舶',
@@ -86,9 +80,6 @@ const translations = {
     cbm: '体积 (CBM)',
     action: '操作',
     status: '文档状态',
-    transit: '中转',
-    fisco: 'FISCO',
-    thirdParty: '第三方',
     viewDetail: '查看详情',
     andOthers: '等 {count} 项',
     catGen: '一般',
@@ -137,16 +128,14 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], checklists = {}
       return bl.cargoItems.reduce((acc, item) => acc + (Number(item.grossWeight) || 0), 0);
   };
 
-  // Document Status Logic
   const getDocStatus = (bl: BLData) => {
-    // Count uploaded docs for sorting
     let count = 0;
-    if (bl.fileUrl) count++; // BL
-    if (bl.arrivalNotice?.fileUrl) count++; // AN
-    if (bl.commercialInvoice?.fileUrl) count++; // CI
-    if (bl.packingList?.fileUrl) count++; // PL
-    if (bl.manifest?.fileUrl) count++; // MF
-    if (bl.exportDeclaration?.fileUrl) count++; // ED
+    if (bl.fileUrl) count++;
+    if (bl.arrivalNotice?.fileUrl) count++;
+    if (bl.commercialInvoice?.fileUrl) count++;
+    if (bl.packingList?.fileUrl) count++;
+    if (bl.manifest?.fileUrl) count++;
+    if (bl.exportDeclaration?.fileUrl) count++;
     return count;
   };
 
@@ -185,18 +174,38 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], checklists = {}
     else alert('파일이 없습니다.');
   };
 
-  const getSourceBadge = (source?: string) => {
-      switch(source) {
-          case 'TRANSIT': return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-600 border border-slate-300">{t.transit}</span>;
-          case 'FISCO': return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200">{t.fisco}</span>;
-          case 'THIRD_PARTY': return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200">{t.thirdParty}</span>;
-          default: return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-400 border border-slate-200">-</span>;
+  // Improved Logic for Detailed Classification Display
+  const getSourceBadge = (bl: BLData) => {
+      const { sourceType, cargoClass, importSubClass } = bl;
+
+      // Logic: TRANSIT -> Check Class. FISCO/3RD -> Check SubClass (Store vs Cargo)
+      if (sourceType === 'TRANSIT') {
+          if (cargoClass === 'TRANSHIPMENT') {
+              return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700 border border-slate-300">T/S</span>;
+          } else if (cargoClass === 'IMPORT') {
+              if (importSubClass === 'SHIPS_STORES') return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-cyan-100 text-cyan-800 border border-cyan-200">외-선용품</span>;
+              if (importSubClass === 'RETURN_EXPORT') return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-red-100 text-red-800 border border-red-200">반송수출</span>;
+              return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-green-100 text-green-800 border border-green-200">일반수입</span>;
+          }
+          // Default Fallback
+          return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-600 border border-slate-300">TRANSIT</span>;
+      } 
+      else if (sourceType === 'FISCO') {
+          if (importSubClass === 'SHIPS_STORES') return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800 border border-blue-200">직-선용품</span>;
+          // Default for FISCO is Cargo (General)
+          return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">직-적하</span>;
+      } 
+      else if (sourceType === 'THIRD_PARTY') {
+          if (importSubClass === 'SHIPS_STORES') return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-orange-100 text-orange-800 border border-orange-200">타-선용품</span>;
+          // Default for 3RD is Cargo
+          return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-orange-50 text-orange-700 border border-orange-200">타-적하</span>;
       }
+
+      return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-400 border border-slate-200">-</span>;
   };
 
   const getCategoryBadge = (cat?: string) => {
       if (!cat) return <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-50 text-slate-400 border border-slate-100">{t.catGen}</span>;
-      
       return <span className="bg-white text-slate-600 dark:bg-transparent dark:text-slate-300 px-2 py-0.5 rounded text-[10px] font-bold border border-slate-200 dark:border-slate-700 uppercase">{cat}</span>;
   };
 
@@ -224,11 +233,9 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], checklists = {}
   };
 
   const exportCSV = () => {
-    // Helper to escape CSV fields properly
     const escape = (val: any) => {
       if (val === null || val === undefined) return '';
       const str = String(val);
-      // If the field contains comma, newline or double quote, enclose in double quotes
       if (str.includes(',') || str.includes('"') || str.includes('\n')) {
         return `"${str.replace(/"/g, '""')}"`;
       }
@@ -254,8 +261,13 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], checklists = {}
         const totalCbm = getCbm(bl);
         const displayDesc = bl.cargoItems.length > 0 ? bl.cargoItems[0].description : '-';
         
+        // Export logic should reflect the display logic if possible, or raw data
+        let typeStr = bl.sourceType;
+        if(bl.cargoClass === 'TRANSHIPMENT') typeStr += '(T/S)';
+        else if(bl.cargoClass === 'IMPORT') typeStr += '(IMP)';
+        
         return [
-            bl.sourceType,
+            typeStr,
             bl.cargoCategory || '',
             bl.vesselName,
             bl.blNumber,
@@ -310,14 +322,12 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], checklists = {}
           <table className="w-full text-sm text-left whitespace-nowrap">
             <thead className="bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-600 font-bold uppercase tracking-widest text-[11px]">
               <tr>
-                {/* Adjusted widths: Status reduced, Type/Category reduced */}
                 <th onClick={() => handleSort('status')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors w-16 text-center"><div className="flex items-center justify-center gap-1">{t.status} {renderSortIcon('status')}</div></th>
-                <th onClick={() => handleSort('sourceType')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors w-20 text-center"><div className="flex items-center justify-center gap-1">{t.type} {renderSortIcon('sourceType')}</div></th>
+                <th onClick={() => handleSort('sourceType')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors w-24 text-center"><div className="flex items-center justify-center gap-1">{t.type} {renderSortIcon('sourceType')}</div></th>
                 <th onClick={() => handleSort('cargoCategory')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors w-24 text-center"><div className="flex items-center justify-center gap-1">{t.category} {renderSortIcon('cargoCategory')}</div></th>
                 <th onClick={() => handleSort('blNumber')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.blNo} {renderSortIcon('blNumber')}</div></th>
                 <th onClick={() => handleSort('shipper')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.shipper} {renderSortIcon('shipper')}</div></th>
                 <th onClick={() => handleSort('consignee')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.consignee} {renderSortIcon('consignee')}</div></th>
-                {/* Description column given more priority */}
                 <th onClick={() => handleSort('description')} className="px-2 py-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center gap-1">{t.desc} {renderSortIcon('description')}</div></th>
                 <th onClick={() => handleSort('quantity')} className="px-2 py-3 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center justify-end gap-1">{t.qty} {renderSortIcon('quantity')}</div></th>
                 <th onClick={() => handleSort('grossWeight')} className="px-2 py-3 text-right cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"><div className="flex items-center justify-end gap-1">{t.weight} {renderSortIcon('grossWeight')}</div></th>
@@ -334,15 +344,13 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], checklists = {}
                 
                 return (
                   <tr key={bl.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                    
-                    {/* Status Column (Document Dots - Grid) */}
                     <td className="px-2 py-2 whitespace-nowrap text-center">
                         {renderDocDots(bl)}
                     </td>
                     
-                    {/* Source Type Column */}
-                    <td className="px-2 py-2 text-center">
-                        {getSourceBadge(bl.sourceType)}
+                    {/* Updated Source Type Column with Detailed Badge */}
+                    <td className="px-2 py-2 text-center whitespace-nowrap">
+                        {getSourceBadge(bl)}
                     </td>
 
                     <td className="px-2 py-2 text-center">
@@ -356,8 +364,6 @@ export const CargoList: React.FC<CargoListProps> = ({ data = [], checklists = {}
                     </td>
                     <td className="px-2 py-2 text-slate-600 dark:text-slate-400 font-medium truncate max-w-[120px]" title={bl.shipper}>{bl.shipper}</td>
                     <td className="px-2 py-2 text-slate-600 dark:text-slate-400 truncate max-w-[120px]" title={bl.consignee}>{bl.consignee}</td>
-                    
-                    {/* Increased Width for Description */}
                     <td className="px-2 py-2 text-slate-600 dark:text-slate-400 truncate max-w-[300px] text-xs font-medium" title={displayDesc}>{displayDesc}</td>
                     
                     <td className="px-2 py-2 text-right text-slate-700 dark:text-slate-300 tabular-nums font-bold">{totalQty.toLocaleString()}</td>

@@ -1,11 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { BLData, Language, DocumentScanType, BLChecklist, CargoItem, BackgroundTask, ImportSubClass, VesselJob, Attachment } from '../types';
-import { Save, Upload, FileText, ExternalLink, X, Trash2, Plus, BrainCircuit, Box, DollarSign, Loader2, Copy, Ship, Truck, CheckCircle2, CircleDashed, ArrowRight, MessageSquare, ChevronDown, Pencil, Check, FolderPlus } from 'lucide-react';
+import { BLData, Language, DocumentScanType, BLChecklist, CargoItem, BackgroundTask, ImportSubClass, VesselJob, Attachment, CargoSourceType, CargoClass } from '../types';
+import { Save, Upload, FileText, ExternalLink, X, Trash2, Plus, BrainCircuit, Box, DollarSign, Loader2, Copy, Ship, Truck, CheckCircle2, CircleDashed, ArrowRight, MessageSquare, ChevronDown, Pencil, Check, FolderPlus, Anchor, Layers, Package } from 'lucide-react';
 import { parseDocument } from '../services/geminiService';
 import { uploadFileToStorage, deleteFileFromStorage } from '../services/storageService';
 import { dataService } from '../services/dataService';
-// Removed: CloudFileManager import and logic
 import { useWindow } from '../contexts/WindowContext';
 
 interface ShipmentDetailProps {
@@ -19,12 +18,12 @@ interface ShipmentDetailProps {
   onDelete?: (blId: string) => void;
   onAddTask: (task: BackgroundTask) => void;
   onUpdateTask: (id: string, updates: Partial<BackgroundTask>) => void;
-  onOpenCloudManager: () => void; // New Prop to request opening the window in App
+  onOpenCloudManager: () => void;
 }
 
 const translations = {
-  // ... (Existing translations kept same)
   ko: {
+    // ... existing ...
     title: '화물 상세 정보',
     save: '저장하기',
     saved: '저장되었습니다.',
@@ -106,6 +105,15 @@ const translations = {
     changeVessel: '선박 변경',
     directInput: '직접 입력',
     cargoTypeLabel: '화물 타입',
+    ribbon: {
+        transit: '환적',
+        import: '수입',
+        fisco: '직납',
+        third: '3RD',
+        subStore: '선용품',
+        subCargo: '일반화물',
+        subReturn: '반송수출'
+    },
     placeholders: {
       company: '회사명 입력',
       vessel: '선박명 입력',
@@ -116,6 +124,7 @@ const translations = {
     }
   },
   en: {
+    // ... existing ...
     title: 'Shipment Detail',
     save: 'Save Changes',
     saved: 'Saved successfully.',
@@ -197,6 +206,15 @@ const translations = {
     changeVessel: 'Change Vessel',
     directInput: 'Direct Input',
     cargoTypeLabel: 'Cargo Type',
+    ribbon: {
+        transit: 'TRANSIT',
+        import: 'IMPORT',
+        fisco: 'FISCO',
+        third: '3RD PARTY',
+        subStore: 'Ship Stores',
+        subCargo: 'General',
+        subReturn: 'Re-Export'
+    },
     placeholders: {
       company: 'Company Name',
       vessel: 'Vessel Name',
@@ -207,6 +225,7 @@ const translations = {
     }
   },
   cn: {
+    // ... existing ...
     title: '货物详情',
     save: '保存',
     saved: '已保存',
@@ -288,6 +307,15 @@ const translations = {
     changeVessel: '变更船舶',
     directInput: '直接输入',
     cargoTypeLabel: '货物类型',
+    ribbon: {
+        transit: '中转',
+        import: '进口',
+        fisco: '直供',
+        third: '第三方',
+        subStore: '船用品',
+        subCargo: '一般货物',
+        subReturn: '退运'
+    },
     placeholders: {
       company: '公司名称',
       vessel: '船名',
@@ -307,7 +335,6 @@ const HS_CODE_DEFAULTS: Record<string, string> = {
     'GENERAL': ''
 };
 
-// ... DetailInput and DocSlot components (same as before) ...
 const DetailInput = ({ label, value, onChange, className = "", placeholder = "", asTextarea = false, enableCopy = false }: any) => {
     const [copied, setCopied] = useState(false);
 
@@ -356,23 +383,7 @@ const DetailInput = ({ label, value, onChange, className = "", placeholder = "",
     );
 };
 
-const DocSlot = ({ 
-    title, 
-    type, 
-    fileUrl, 
-    isUploading, 
-    onRunOCR, 
-    onRemove, 
-    onUpload 
-}: { 
-    title: string, 
-    type: DocumentScanType, 
-    fileUrl?: string, 
-    isUploading: boolean,
-    onRunOCR: (type: DocumentScanType, url: string) => void,
-    onRemove: (type: DocumentScanType) => void,
-    onUpload: (type: DocumentScanType, file: File) => void
-}) => (
+const DocSlot = ({ title, type, fileUrl, isUploading, onRunOCR, onRemove, onUpload }: any) => (
   <div className="flex items-center justify-between p-2 bg-white dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded hover:border-blue-400 transition-colors h-10">
      <div className="flex items-center gap-2 overflow-hidden">
         <FileText size={14} className={fileUrl ? "text-emerald-500" : "text-slate-300"} />
@@ -401,22 +412,14 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
   const [uploadingDoc, setUploadingDoc] = useState<DocumentScanType | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
   const [isManualCategory, setIsManualCategory] = useState(false);
-  const [headerCopied, setHeaderCopied] = useState(false);
   
-  // Removed local Cloud Manager state
-
-  // Category Dropdown State
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [newCategoryName, setNewCategoryName] = useState("");
 
   const t = translations[language] || translations.ko;
-
-  // Resolve Assigned Job Name
   const assignedJob = jobs?.find(j => j.id === formData.vesselJobId);
-
-  // Calculate attached file count for badge
   const attachmentCount = formData.attachments?.length || 0;
 
   useEffect(() => { setFormData(bl); }, [bl]);
@@ -426,7 +429,6 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
      return () => unsub();
   }, []);
 
-  // Click outside handler for dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
         if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target as Node)) {
@@ -449,12 +451,51 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
     });
   };
 
+  // High-Level Classification Handler (Ribbon Menu Logic)
+  const handleClassificationChange = (mode: 'TRANSIT' | 'IMPORT' | 'FISCO' | 'THIRD_PARTY') => {
+      const updates: Partial<BLData> = {};
+      
+      if (mode === 'TRANSIT') {
+          updates.sourceType = 'TRANSIT';
+          updates.cargoClass = 'TRANSHIPMENT';
+      } else if (mode === 'IMPORT') {
+          updates.sourceType = 'TRANSIT';
+          updates.cargoClass = 'IMPORT';
+          if (!formData.importSubClass) updates.importSubClass = 'GENERAL';
+      } else if (mode === 'FISCO') {
+          updates.sourceType = 'FISCO';
+          // Default to General unless specifically set
+          if (!formData.importSubClass) updates.importSubClass = 'GENERAL';
+          // Ensure cargoClass is logical (usually IMPORT logic for local supply)
+          updates.cargoClass = 'IMPORT'; 
+      } else if (mode === 'THIRD_PARTY') {
+          updates.sourceType = 'THIRD_PARTY';
+          if (!formData.importSubClass) updates.importSubClass = 'GENERAL';
+          updates.cargoClass = 'IMPORT';
+      }
+      
+      setFormData(prev => ({ ...prev, ...updates }));
+  };
+
+  const handleSubClassChange = (sub: ImportSubClass) => {
+      setFormData(prev => ({ ...prev, importSubClass: sub }));
+  };
+
+  // Derived current mode for UI
+  const currentMode = React.useMemo(() => {
+      if (formData.sourceType === 'FISCO') return 'FISCO';
+      if (formData.sourceType === 'THIRD_PARTY') return 'THIRD_PARTY';
+      if (formData.sourceType === 'TRANSIT') {
+          if (formData.cargoClass === 'IMPORT') return 'IMPORT';
+          return 'TRANSIT';
+      }
+      return 'TRANSIT';
+  }, [formData.sourceType, formData.cargoClass]);
+
   const handleCategorySelect = (category: string) => {
       handleInputChange('cargoCategory', category);
-      
       const currentHS = formData.exportDeclaration?.hsCode;
       const suggestedHS = HS_CODE_DEFAULTS[category];
-      
       if (suggestedHS && (!currentHS || Object.values(HS_CODE_DEFAULTS).includes(currentHS))) {
           handleNestedChange('exportDeclaration', 'hsCode', suggestedHS);
       }
@@ -482,13 +523,9 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
   const saveChanges = async () => {
     setIsSaving(true);
     try {
-        // Auto-save new category if valid and not in list
-        if (formData.cargoCategory && 
-            formData.cargoCategory.trim() !== '' && 
-            !categories.includes(formData.cargoCategory)) {
+        if (formData.cargoCategory && formData.cargoCategory.trim() !== '' && !categories.includes(formData.cargoCategory)) {
              await dataService.addCategory(formData.cargoCategory);
         }
-
         await onUpdateBL(bl.id, formData);
         alert(t.saved);
     } catch(e) {
@@ -505,13 +542,12 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
     }
   };
 
-  const handleFileUpload = async (type: DocumentScanType, file: File) => {
+  const handleFileUploadImpl = async (type: DocumentScanType, file: File) => {
     setUploadingDoc(type);
     const taskId = `upload-${Date.now()}`;
     onAddTask({ id: taskId, title: `Upload: ${file.name}`, status: 'processing', progress: 0, message: 'Uploading...' });
 
     try {
-        // 1. Identify old URL (to be deleted AFTER successful upload)
         let oldUrl = '';
         if (type === 'BL') oldUrl = formData.fileUrl || '';
         else if (type === 'CI') oldUrl = formData.commercialInvoice?.fileUrl || '';
@@ -520,21 +556,11 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
         else if (type === 'MANIFEST') oldUrl = formData.manifest?.fileUrl || '';
         else if (type === 'AN') oldUrl = formData.arrivalNotice?.fileUrl || '';
 
-        // 2. Upload NEW file first (Safe Overwrite)
         const url = await uploadFileToStorage(file);
         onUpdateTask(taskId, { progress: 80 });
 
-        // 3. Delete OLD file (Safe Clean-up)
-        // Only delete if the new upload succeeded. If delete fails, warn but proceed.
-        if (oldUrl) {
-            try {
-                await deleteFileFromStorage(oldUrl);
-            } catch (cleanupError) {
-                console.warn(`Failed to cleanup old file (${oldUrl}), but new file uploaded successfully.`, cleanupError);
-            }
-        }
+        if (oldUrl) { try { await deleteFileFromStorage(oldUrl); } catch (cleanupError) { console.warn(cleanupError); } }
 
-        // 4. Update State & DB
         const updates: Partial<BLData> = {};
         const newFormData = { ...formData }; 
 
@@ -555,7 +581,7 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
     }
   };
 
-  const handleRunOCR = async (type: DocumentScanType, url: string) => {
+  const handleRunOCRImpl = async (type: DocumentScanType, url: string) => {
       const taskId = `ocr-${Date.now()}`;
       onAddTask({ id: taskId, title: `Analyzing ${type}...`, status: 'processing', progress: 10, message: 'Starting AI...' });
 
@@ -601,10 +627,8 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
       }
   };
 
-  const handleFileRemove = async (type: DocumentScanType) => {
+  const handleFileRemoveImpl = async (type: DocumentScanType) => {
     if (!window.confirm(t.deleteFile + '?')) return;
-    
-    // CLEANUP: Delete from storage first
     let urlToDelete = '';
     if (type === 'BL') urlToDelete = formData.fileUrl || '';
     else if (type === 'CI') urlToDelete = formData.commercialInvoice?.fileUrl || '';
@@ -613,9 +637,7 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
     else if (type === 'EXPORT_DEC') urlToDelete = formData.exportDeclaration?.fileUrl || '';
     else if (type === 'MANIFEST') urlToDelete = formData.manifest?.fileUrl || '';
 
-    if (urlToDelete) {
-        await deleteFileFromStorage(urlToDelete);
-    }
+    if (urlToDelete) await deleteFileFromStorage(urlToDelete);
 
     const updates: Partial<BLData> = {};
     const newFormData = { ...formData };
@@ -632,35 +654,13 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
   };
 
   const copyContainerSpec = (item: CargoItem) => {
-      const parts = [
-          item.containerNo || '',
-          item.containerType || '',
-          item.description || '',
-          item.quantity || '',
-          item.packageType || '',
-          item.grossWeight || '',
-          item.measurement || ''
-      ];
-      const text = parts.join('\t');
-      navigator.clipboard.writeText(text);
+      const parts = [ item.containerNo, item.containerType, item.description, item.quantity, item.packageType, item.grossWeight, item.measurement ];
+      navigator.clipboard.writeText(parts.join('\t'));
   };
 
-  const handleImportSubChange = (val: ImportSubClass) => {
-      handleInputChange('importSubClass', val);
-  };
-
-  const handleHeaderCopy = () => {
-    if (formData.blNumber) {
-        navigator.clipboard.writeText(formData.blNumber);
-        setHeaderCopied(true);
-        setTimeout(() => setHeaderCopied(false), 2000);
-    }
-  };
-  
-  // Custom Dropdown Handlers
   const deleteCategory = async (e: React.MouseEvent, cat: string) => {
       e.stopPropagation();
-      if(window.confirm(`Delete category '${cat}'?`)) {
+      if(window.confirm(`Delete '${cat}'?`)) {
           await dataService.deleteCategory(cat);
           if (formData.cargoCategory === cat) handleInputChange('cargoCategory', '');
       }
@@ -683,43 +683,30 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
 
   const getCategoryLabel = (cat: string) => {
       switch(cat) {
-          case 'BAIT': return t.catBait || 'BAIT'; 
-          case 'FISHING_GEAR': return t.catGear || 'GEAR';
-          case 'NETS': return t.catNets || 'NETS';
-          case 'PORT_EQUIPMENT': return t.catPort || 'EQUIP';
-          case 'GENERAL': return t.catGen || 'GENERAL';
-          default: return cat;
+          case 'BAIT': return t.catBait; case 'FISHING_GEAR': return t.catGear;
+          case 'NETS': return t.catNets; case 'PORT_EQUIPMENT': return t.catPort;
+          case 'GENERAL': return t.catGen; default: return cat;
       }
   };
 
-  // Progress Calculation
   const progressStats = React.useMemo(() => {
     if (!checklist) return { total: 0, checked: 0, percent: 0, sectionStats: [] };
-    
     const sections = ['sectionA', 'sectionB', 'sectionC', 'sectionD', 'sectionE'] as const;
     const sectionStats = sections.map(key => {
         const items = checklist[key] || [];
         const labelKey = key.replace('section', '') as 'A' | 'B' | 'C' | 'D' | 'E';
-        return {
-            label: t.progressStages[labelKey],
-            total: items.length,
-            checked: items.filter(i => i.checked).length
-        };
+        return { label: t.progressStages[labelKey], total: items.length, checked: items.filter(i => i.checked).length };
     });
-
     const total = sectionStats.reduce((acc, curr) => acc + curr.total, 0);
     const checked = sectionStats.reduce((acc, curr) => acc + curr.checked, 0);
     const percent = total === 0 ? 0 : Math.round((checked / total) * 100);
-
     return { total, checked, percent, sectionStats };
   }, [checklist, language]);
 
   return (
     <div className="h-full flex flex-col bg-slate-100 dark:bg-slate-900 overflow-hidden relative">
        
-       {/* Removed: <CloudFileManager ... /> */}
-
-       {/* Top Bar with B/L No and Classification */}
+       {/* Top Bar */}
        <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-4 flex justify-between items-center shadow-sm z-10 flex-shrink-0">
           <div className="flex items-center gap-6">
               <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-500/30"><Box size={24} /></div>
@@ -730,7 +717,6 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
                          {formData.blNumber || 'New Entry'}
                       </h2>
                       
-                      {/* Vessel Indicator Box (Assigned Job Name) */}
                       <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 px-3 py-1 rounded-lg ml-2">
                         <Ship size={14} className="text-blue-500" />
                         <div className="flex flex-col text-left">
@@ -755,30 +741,28 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
                          </button>
                       </div>
 
-                      {/* Source Type Selector */}
-                       <div className="ml-2">
-                         <select
-                            value={formData.sourceType || 'TRANSIT'}
-                            onChange={(e) => handleInputChange('sourceType', e.target.value)}
-                            className="bg-slate-100 dark:bg-slate-700 border-none text-[11px] font-bold rounded-md py-1 pl-2 pr-6 text-slate-700 dark:text-slate-300 focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                         >
-                           <option value="TRANSIT">환적 (Transit)</option>
-                           <option value="FISCO">피스코마린 (FISCO MARINE)</option>
-                           <option value="THIRD_PARTY">타사 (3rd Party)</option>
-                         </select>
-                       </div>
-                       
-                       {/* UNIPASS Button */}
-                       <a
-                          href="https://unipass.customs.go.kr/csp/index.do"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="ml-2 flex items-center gap-1.5 px-3 py-1 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-lg text-[11px] font-bold transition-colors border border-indigo-200 dark:border-indigo-800"
-                          title="관세청 유니패스 (Korea Customs Service)"
-                       >
-                          <ExternalLink size={12} />
-                          UNIPASS
-                       </a>
+                      {/* --- NEW CARGO TYPE RIBBON MENU --- */}
+                      <div className="ml-4 flex items-center bg-slate-100 dark:bg-slate-700 rounded-lg p-0.5">
+                          <button onClick={() => handleClassificationChange('TRANSIT')} className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all ${currentMode === 'TRANSIT' ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`}>{t.ribbon.transit}</button>
+                          <button onClick={() => handleClassificationChange('IMPORT')} className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all ${currentMode === 'IMPORT' ? 'bg-white dark:bg-slate-600 shadow-sm text-emerald-600 dark:text-emerald-400 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`}>{t.ribbon.import}</button>
+                          <button onClick={() => handleClassificationChange('FISCO')} className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all ${currentMode === 'FISCO' ? 'bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-400 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`}>{t.ribbon.fisco}</button>
+                          <button onClick={() => handleClassificationChange('THIRD_PARTY')} className={`px-3 py-1 text-[11px] font-bold rounded-md transition-all ${currentMode === 'THIRD_PARTY' ? 'bg-white dark:bg-slate-600 shadow-sm text-amber-600 dark:text-amber-400 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`}>{t.ribbon.third}</button>
+                      </div>
+
+                      {/* --- SUB-OPTIONS FOR FISCO/3RD/IMPORT --- */}
+                      {(currentMode === 'FISCO' || currentMode === 'THIRD_PARTY' || currentMode === 'IMPORT') && (
+                          <div className="ml-2 flex items-center bg-slate-100 dark:bg-slate-700 rounded-lg p-0.5 animate-fade-in">
+                              <button onClick={() => handleSubClassChange('GENERAL')} className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${!formData.importSubClass || formData.importSubClass === 'GENERAL' ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-800 dark:text-slate-200' : 'text-slate-400'}`}>{t.ribbon.subCargo}</button>
+                              <button onClick={() => handleSubClassChange('SHIPS_STORES')} className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${formData.importSubClass === 'SHIPS_STORES' ? 'bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-blue-400' : 'text-slate-400'}`}>{t.ribbon.subStore}</button>
+                              {currentMode === 'IMPORT' && (
+                                  <button onClick={() => handleSubClassChange('RETURN_EXPORT')} className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${formData.importSubClass === 'RETURN_EXPORT' ? 'bg-white dark:bg-slate-600 shadow-sm text-amber-600 dark:text-amber-400' : 'text-slate-400'}`}>{t.ribbon.subReturn}</button>
+                              )}
+                          </div>
+                      )}
+                      
+                      <a href="https://unipass.customs.go.kr/csp/index.do" target="_blank" rel="noopener noreferrer" className="ml-4 flex items-center gap-1.5 px-3 py-1 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-lg text-[11px] font-bold transition-colors border border-indigo-200 dark:border-indigo-800" title="UNIPASS">
+                          <ExternalLink size={12} /> UNIPASS
+                      </a>
                   </div>
               </div>
           </div>
@@ -794,14 +778,9 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
        <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
           <div className="max-w-[1600px] mx-auto grid grid-cols-12 gap-6">
               
-              {/* LEFT COLUMN: Main Form - Span 9 */}
               <div className="col-span-12 lg:col-span-9 flex flex-col gap-6">
-                   
-                   {/* B/L Document Form Card */}
                    <div className="bg-white dark:bg-slate-800 rounded-sm shadow-sm border border-slate-300 dark:border-slate-600">
                         <div className="grid grid-cols-12 divide-x divide-y divide-slate-300 dark:divide-slate-600">
-                            
-                            {/* Top Left: Shipper, Consignee, Notify (Stacked) */}
                             <div className="col-span-12 md:col-span-6 flex flex-col">
                                 <div className="p-4 border-b border-slate-300 dark:border-slate-600 h-36">
                                     <DetailInput label={t.shipper} value={formData.shipper} onChange={(e: any) => handleInputChange('shipper', e.target.value)} asTextarea />
@@ -814,7 +793,6 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
                                 </div>
                             </div>
 
-                            {/* Top Right: Carrier, Voyage, Ports */}
                             <div className="col-span-12 md:col-span-6 flex flex-col">
                                 <div className="grid grid-cols-2 divide-x divide-slate-300 dark:divide-slate-600 border-b border-slate-300 dark:border-slate-600">
                                      <div className="p-4">
@@ -856,81 +834,26 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
                                             </div>
                                         </div>
                                         <div className="flex flex-col gap-3">
-                                            <div>
-                                                <label className="text-xs font-bold text-slate-400 uppercase mb-1 tracking-wide block">{t.class}</label>
-                                                <select className="w-full bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-sm rounded-sm px-3 py-2 text-slate-800 dark:text-slate-100 outline-none focus:border-blue-500" value={formData.cargoClass} onChange={(e) => handleInputChange('cargoClass', e.target.value)}>
-                                                    <option value="IMPORT">IMPORT</option>
-                                                    <option value="TRANSHIPMENT">TRANSIT</option>
-                                                </select>
-                                                {formData.cargoClass === 'IMPORT' && (
-                                                    <div className="flex gap-2 mt-2 flex-wrap">
-                                                        <button 
-                                                            onClick={() => handleImportSubChange('SHIPS_STORES')}
-                                                            className={`px-2 py-1 text-[10px] font-bold rounded border ${formData.importSubClass === 'SHIPS_STORES' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-white text-slate-500 border-slate-200'}`}
-                                                        >
-                                                            {t.importSub.shipStore}
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => handleImportSubChange('RETURN_EXPORT')}
-                                                            className={`px-2 py-1 text-[10px] font-bold rounded border ${formData.importSubClass === 'RETURN_EXPORT' ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-white text-slate-500 border-slate-200'}`}
-                                                        >
-                                                            {t.importSub.return}
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => handleImportSubChange('GENERAL')}
-                                                            className={`px-2 py-1 text-[10px] font-bold rounded border ${formData.importSubClass === 'GENERAL' ? 'bg-slate-200 text-slate-700 border-slate-300' : 'bg-white text-slate-500 border-slate-200'}`}
-                                                        >
-                                                            {t.importSub.general}
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
                                             <div className="relative">
                                                 <label className="text-xs font-bold text-slate-400 uppercase mb-1 tracking-wide block text-blue-600 dark:text-blue-400">{t.category}</label>
                                                 {isManualCategory ? (
                                                     <div className="flex gap-1">
-                                                        <input
-                                                            type="text"
-                                                            className="w-full bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-sm px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 dark:text-slate-100 font-bold"
-                                                            value={formData.cargoCategory || ''}
-                                                            onChange={(e) => handleInputChange('cargoCategory', e.target.value)}
-                                                            placeholder="Type new category..."
-                                                            autoFocus
-                                                        />
-                                                        <button 
-                                                            onClick={() => { setIsManualCategory(false); handleInputChange('cargoCategory', ''); }} 
-                                                            className="p-1.5 bg-slate-100 dark:bg-slate-600 text-slate-500 hover:text-red-500 rounded"
-                                                            title="Cancel"
-                                                        >
-                                                            <X size={16}/>
-                                                        </button>
+                                                        <input type="text" className="w-full bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-sm px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 dark:text-slate-100 font-bold" value={formData.cargoCategory || ''} onChange={(e) => handleInputChange('cargoCategory', e.target.value)} placeholder="Type new category..." autoFocus />
+                                                        <button onClick={() => { setIsManualCategory(false); handleInputChange('cargoCategory', ''); }} className="p-1.5 bg-slate-100 dark:bg-slate-600 text-slate-500 hover:text-red-500 rounded"><X size={16}/></button>
                                                     </div>
                                                 ) : (
                                                     <div ref={categoryDropdownRef} className="relative w-full">
-                                                        <button 
-                                                            type="button"
-                                                            onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}
-                                                            className="w-full bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-sm rounded-sm px-3 py-2 text-slate-800 dark:text-slate-100 outline-none focus:border-blue-500 font-bold flex justify-between items-center text-left"
-                                                        >
-                                                            <span className={!formData.cargoCategory ? "text-slate-400 font-normal" : ""}>
-                                                                {formData.cargoCategory ? getCategoryLabel(formData.cargoCategory) : t.selectCategory}
-                                                            </span>
+                                                        <button type="button" onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)} className="w-full bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-sm rounded-sm px-3 py-2 text-slate-800 dark:text-slate-100 outline-none focus:border-blue-500 font-bold flex justify-between items-center text-left">
+                                                            <span className={!formData.cargoCategory ? "text-slate-400 font-normal" : ""}>{formData.cargoCategory ? getCategoryLabel(formData.cargoCategory) : t.selectCategory}</span>
                                                             <ChevronDown size={14} className="opacity-50" />
                                                         </button>
-
                                                         {isCategoryDropdownOpen && (
                                                             <div className="absolute top-full left-0 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-md shadow-xl z-50 max-h-60 overflow-y-auto custom-scrollbar">
                                                                 {categories.map(cat => (
                                                                     <div key={cat} className="group flex items-center justify-between px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer border-b border-slate-100 dark:border-slate-700/50 last:border-0" onClick={() => handleCategorySelect(cat)}>
                                                                         {editingCategory === cat ? (
                                                                             <div className="flex-1 flex items-center gap-2" onClick={e => e.stopPropagation()}>
-                                                                                <input 
-                                                                                    autoFocus
-                                                                                    type="text" 
-                                                                                    value={newCategoryName}
-                                                                                    onChange={(e) => setNewCategoryName(e.target.value)}
-                                                                                    className="flex-1 border-b border-blue-500 bg-transparent text-sm focus:outline-none"
-                                                                                />
+                                                                                <input autoFocus type="text" value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} className="flex-1 border-b border-blue-500 bg-transparent text-sm focus:outline-none" />
                                                                                 <button onClick={saveEditCategory} className="text-emerald-500 hover:text-emerald-600 p-1"><Check size={14}/></button>
                                                                                 <button onClick={(e) => { e.stopPropagation(); setEditingCategory(null); }} className="text-red-500 hover:text-red-600 p-1"><X size={14}/></button>
                                                                             </div>
@@ -938,33 +861,14 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
                                                                             <>
                                                                                 <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{getCategoryLabel(cat)}</span>
                                                                                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                                    <button 
-                                                                                        onClick={(e) => startEditCategory(e, cat)}
-                                                                                        className="p-1 hover:bg-slate-200 dark:hover:bg-slate-600 rounded text-slate-400 hover:text-blue-500"
-                                                                                    >
-                                                                                        <Pencil size={12} />
-                                                                                    </button>
-                                                                                    <button 
-                                                                                        onClick={(e) => deleteCategory(e, cat)}
-                                                                                        className="p-1 hover:bg-slate-200 dark:hover:bg-slate-600 rounded text-slate-400 hover:text-red-500"
-                                                                                    >
-                                                                                        <Trash2 size={12} />
-                                                                                    </button>
+                                                                                    <button onClick={(e) => startEditCategory(e, cat)} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-600 rounded text-slate-400 hover:text-blue-500"><Pencil size={12} /></button>
+                                                                                    <button onClick={(e) => deleteCategory(e, cat)} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-600 rounded text-slate-400 hover:text-red-500"><Trash2 size={12} /></button>
                                                                                 </div>
                                                                             </>
                                                                         )}
                                                                     </div>
                                                                 ))}
-                                                                <div 
-                                                                    className="px-3 py-2 hover:bg-blue-50 dark:hover:bg-slate-700 cursor-pointer text-blue-600 dark:text-blue-400 font-bold text-sm border-t border-slate-100 dark:border-slate-700 flex items-center gap-2"
-                                                                    onClick={() => {
-                                                                        setIsManualCategory(true);
-                                                                        handleInputChange('cargoCategory', '');
-                                                                        setIsCategoryDropdownOpen(false);
-                                                                    }}
-                                                                >
-                                                                    <Plus size={14} /> {t.directInput}
-                                                                </div>
+                                                                <div className="px-3 py-2 hover:bg-blue-50 dark:hover:bg-slate-700 cursor-pointer text-blue-600 dark:text-blue-400 font-bold text-sm border-t border-slate-100 dark:border-slate-700 flex items-center gap-2" onClick={() => { setIsManualCategory(true); handleInputChange('cargoCategory', ''); setIsCategoryDropdownOpen(false); }}><Plus size={14} /> {t.directInput}</div>
                                                             </div>
                                                         )}
                                                     </div>
@@ -977,11 +881,8 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
                         </div>
                    </div>
 
-                   {/* Logistics Info Card */}
                    <div className="bg-white dark:bg-slate-800 rounded-sm shadow-sm border border-slate-300 dark:border-slate-600 p-6 relative">
-                       <h3 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest mb-4 flex items-center gap-2">
-                          <Truck size={16} /> {t.logistics}
-                       </h3>
+                       <h3 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest mb-4 flex items-center gap-2"><Truck size={16} /> {t.logistics}</h3>
                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
                            <DetailInput label={t.koreanForwarder} value={formData.koreanForwarder} onChange={(e: any) => handleInputChange('koreanForwarder', e.target.value)} />
                            <DetailInput label={t.transporter} value={formData.transporterName} onChange={(e: any) => handleInputChange('transporterName', e.target.value)} />
@@ -1005,7 +906,6 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
                        </div>
                    </div>
 
-                   {/* Cargo Items Table */}
                    <div className="bg-white dark:bg-slate-800 rounded-sm shadow-sm border border-slate-300 dark:border-slate-600 p-6 overflow-hidden min-h-[300px]">
                       <div className="flex justify-between items-center mb-6">
                           <h3 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest flex items-center gap-2"><Box size={16} /> {t.items}</h3>
@@ -1050,101 +950,59 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
                   </div>
               </div>
 
-              {/* RIGHT COLUMN: Documents, Progress & Financials - Span 3 */}
               <div className="col-span-12 lg:col-span-3 flex flex-col gap-6">
                   
-                  {/* Documents Grid */}
                   <div className="bg-slate-50 dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-5">
                       <div className="flex justify-between items-center mb-4">
                           <h3 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest flex items-center gap-2">
                              <FileText size={16} /> {t.documents}
                           </h3>
-                          {/* Updated Button to request Open */}
-                          <button 
-                            onClick={onOpenCloudManager}
-                            className="p-1.5 hover:bg-blue-100 dark:hover:bg-slate-600 text-blue-600 dark:text-blue-400 rounded-lg transition-colors relative group"
-                            title="Cloud File Manager"
-                          >
+                          <button onClick={onOpenCloudManager} className="p-1.5 hover:bg-blue-100 dark:hover:bg-slate-600 text-blue-600 dark:text-blue-400 rounded-lg transition-colors relative group" title="Cloud File Manager">
                               <FolderPlus size={18} />
-                              {attachmentCount > 0 && (
-                                <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[9px] font-bold text-white shadow-sm ring-2 ring-white dark:ring-slate-800 animate-fade-in">
-                                    {attachmentCount}
-                                </span>
-                              )}
+                              {attachmentCount > 0 && <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-blue-600 text-[9px] font-bold text-white shadow-sm ring-2 ring-white dark:ring-slate-800 animate-fade-in">{attachmentCount}</span>}
                           </button>
                       </div>
                       <div className="flex flex-col gap-3">
-                          <DocSlot title="Bill of Lading" type="BL" fileUrl={formData.fileUrl} isUploading={uploadingDoc === 'BL'} onRunOCR={handleRunOCR} onRemove={handleFileRemove} onUpload={handleFileUpload} />
-                          <DocSlot title={t.arrivalNotice} type="AN" fileUrl={formData.arrivalNotice?.fileUrl} isUploading={uploadingDoc === 'AN'} onRunOCR={handleRunOCR} onRemove={handleFileRemove} onUpload={handleFileUpload} />
-                          <DocSlot title="Commercial Invoice" type="CI" fileUrl={formData.commercialInvoice?.fileUrl} isUploading={uploadingDoc === 'CI'} onRunOCR={handleRunOCR} onRemove={handleFileRemove} onUpload={handleFileUpload} />
-                          <DocSlot title="Packing List" type="PL" fileUrl={formData.packingList?.fileUrl} isUploading={uploadingDoc === 'PL'} onRunOCR={handleRunOCR} onRemove={handleFileRemove} onUpload={handleFileUpload} />
-                          <DocSlot title={t.manifest} type="MANIFEST" fileUrl={formData.manifest?.fileUrl} isUploading={uploadingDoc === 'MANIFEST'} onRunOCR={handleRunOCR} onRemove={handleFileRemove} onUpload={handleFileUpload} />
-                          <DocSlot title={t.exportDec} type="EXPORT_DEC" fileUrl={formData.exportDeclaration?.fileUrl} isUploading={uploadingDoc === 'EXPORT_DEC'} onRunOCR={handleRunOCR} onRemove={handleFileRemove} onUpload={handleFileUpload} />
+                          <DocSlot title="Bill of Lading" type="BL" fileUrl={formData.fileUrl} isUploading={uploadingDoc === 'BL'} onRunOCR={handleRunOCRImpl} onRemove={handleFileRemoveImpl} onUpload={handleFileUploadImpl} />
+                          <DocSlot title={t.arrivalNotice} type="AN" fileUrl={formData.arrivalNotice?.fileUrl} isUploading={uploadingDoc === 'AN'} onRunOCR={handleRunOCRImpl} onRemove={handleFileRemoveImpl} onUpload={handleFileUploadImpl} />
+                          <DocSlot title="Commercial Invoice" type="CI" fileUrl={formData.commercialInvoice?.fileUrl} isUploading={uploadingDoc === 'CI'} onRunOCR={handleRunOCRImpl} onRemove={handleFileRemoveImpl} onUpload={handleFileUploadImpl} />
+                          <DocSlot title="Packing List" type="PL" fileUrl={formData.packingList?.fileUrl} isUploading={uploadingDoc === 'PL'} onRunOCR={handleRunOCRImpl} onRemove={handleFileRemoveImpl} onUpload={handleFileUploadImpl} />
+                          <DocSlot title={t.manifest} type="MANIFEST" fileUrl={formData.manifest?.fileUrl} isUploading={uploadingDoc === 'MANIFEST'} onRunOCR={handleRunOCRImpl} onRemove={handleFileRemoveImpl} onUpload={handleFileUploadImpl} />
+                          <DocSlot title={t.exportDec} type="EXPORT_DEC" fileUrl={formData.exportDeclaration?.fileUrl} isUploading={uploadingDoc === 'EXPORT_DEC'} onRunOCR={handleRunOCRImpl} onRemove={handleFileRemoveImpl} onUpload={handleFileUploadImpl} />
                       </div>
                   </div>
 
-                  {/* Progress / Checklist Widget - Bar Style */}
                    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 flex flex-col border-dashed">
                       <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest">
-                            {t.progressTitle}
-                        </h3>
+                        <h3 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest">{t.progressTitle}</h3>
                         <span className={`text-lg font-black ${progressStats.percent === 100 ? 'text-emerald-500' : 'text-blue-600'}`}>{progressStats.percent}%</span>
                       </div>
-                      
                       <div className="w-full h-4 bg-slate-100 dark:bg-slate-700 rounded-full mb-6 overflow-hidden border border-slate-200 dark:border-slate-600">
-                           <div 
-                              className={`h-full rounded-full transition-all duration-500 ${progressStats.percent === 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 'bg-gradient-to-r from-blue-400 to-blue-600'}`} 
-                              style={{ width: `${progressStats.percent}%` }}
-                           ></div>
+                           <div className={`h-full rounded-full transition-all duration-500 ${progressStats.percent === 100 ? 'bg-gradient-to-r from-emerald-400 to-emerald-600' : 'bg-gradient-to-r from-blue-400 to-blue-600'}`} style={{ width: `${progressStats.percent}%` }}></div>
                       </div>
-
                       <div className="w-full space-y-3 mb-6">
                           {progressStats.sectionStats.map((stat, idx) => (
                               <div key={idx} className="flex justify-between items-center text-xs">
                                   <span className="font-bold text-slate-600 dark:text-slate-400">{stat.label}</span>
                                   <div className="flex items-center gap-2">
                                      <div className="w-16 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                         <div 
-                                            className={`h-full rounded-full ${stat.checked === stat.total && stat.total > 0 ? 'bg-emerald-500' : 'bg-blue-500'}`} 
-                                            style={{ width: `${stat.total > 0 ? (stat.checked / stat.total) * 100 : 0}%`}}
-                                         ></div>
+                                         <div className={`h-full rounded-full ${stat.checked === stat.total && stat.total > 0 ? 'bg-emerald-500' : 'bg-blue-500'}`} style={{ width: `${stat.total > 0 ? (stat.checked / stat.total) * 100 : 0}%`}}></div>
                                      </div>
                                      <span className="font-mono text-slate-400 tabular-nums text-[10px] w-8 text-right">{stat.checked}/{stat.total}</span>
                                   </div>
                               </div>
                           ))}
                       </div>
-
-                      <button 
-                        onClick={() => {
-                            if (formData.vesselJobId) {
-                                onNavigateToChecklist();
-                            } else {
-                                alert(t.assignVessel);
-                            }
-                        }}
-                        className="w-full py-2.5 rounded-lg border border-blue-100 dark:border-blue-900 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-bold text-xs hover:bg-blue-100 dark:hover:bg-blue-900/40 flex items-center justify-center gap-2 transition-colors"
-                      >
+                      <button onClick={() => { if (formData.vesselJobId) { onNavigateToChecklist(); } else { alert(t.assignVessel); } }} className="w-full py-2.5 rounded-lg border border-blue-100 dark:border-blue-900 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-bold text-xs hover:bg-blue-100 dark:hover:bg-blue-900/40 flex items-center justify-center gap-2 transition-colors">
                          {t.checklistView} <ArrowRight size={14} />
                       </button>
                    </div>
 
-                  {/* Remarks Field (Restored) */}
                   <div className="bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 p-5">
-                      <h3 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest mb-4 flex items-center gap-2">
-                         <MessageSquare size={16} /> {t.remarks}
-                      </h3>
-                      <textarea 
-                        className="w-full h-32 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg p-3 text-sm focus:border-blue-500 outline-none resize-none text-slate-800 dark:text-slate-200 placeholder-slate-400"
-                        value={formData.remarks || ''}
-                        onChange={(e) => handleInputChange('remarks', e.target.value)}
-                        placeholder="..."
-                      />
+                      <h3 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest mb-4 flex items-center gap-2"><MessageSquare size={16} /> {t.remarks}</h3>
+                      <textarea className="w-full h-32 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg p-3 text-sm focus:border-blue-500 outline-none resize-none text-slate-800 dark:text-slate-200 placeholder-slate-400" value={formData.remarks || ''} onChange={(e) => handleInputChange('remarks', e.target.value)} placeholder="..." />
                   </div>
-
               </div>
-
           </div>
        </div>
     </div>

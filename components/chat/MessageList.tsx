@@ -1,5 +1,6 @@
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { ChatMessage, ChatUser } from '../../types';
 import { User } from 'firebase/auth';
 import { User as UserIcon, Check, CheckCheck, Reply, Loader2 } from 'lucide-react';
@@ -7,6 +8,7 @@ import { User as UserIcon, Check, CheckCheck, Reply, Loader2 } from 'lucide-reac
 interface MessageListProps {
   messages: ChatMessage[];
   user: User | null;
+  allUsers: ChatUser[];
   typingUsers: string[];
   messageRefs: React.MutableRefObject<Map<string, HTMLDivElement>>;
   onReaction: (emoji: string, messageId: string) => void;
@@ -18,8 +20,23 @@ const formatTime = (ts: number) => new Date(ts).toLocaleTimeString([], { hour: '
 const getDateString = (ts: number) => new Date(ts).toLocaleDateString();
 
 export const MessageList: React.FC<MessageListProps> = ({ 
-  messages, user, typingUsers, messageRefs, onReaction, onReply, loadMoreMessages 
+  messages, user, allUsers, typingUsers, messageRefs, onReaction, onReply, loadMoreMessages 
 }) => {
+  const [activeReaction, setActiveReaction] = React.useState<{id: string, emoji: string, x: number, y: number} | null>(null);
+
+  React.useEffect(() => {
+      const handleClickOutside = () => setActiveReaction(null);
+      // Listen on capture phase to ensure we close before other clicks are processed if needed
+      window.addEventListener('click', handleClickOutside, true);
+      // Close on scroll too to prevent detached popups
+      window.addEventListener('scroll', handleClickOutside, true);
+      
+      return () => {
+          window.removeEventListener('click', handleClickOutside, true);
+          window.removeEventListener('scroll', handleClickOutside, true);
+      };
+  }, []);
+
   return (
     <div className="space-y-6 pb-8">
         <div className="flex justify-center">
@@ -84,20 +101,33 @@ export const MessageList: React.FC<MessageListProps> = ({
                                 {/* Reactions */}
                                 {msg.reactions && msg.reactions.length > 0 && (
                                     <div className="flex flex-wrap gap-1 mt-1">
-                                        {msg.reactions.map((r, i) => (
-                                            <button 
-                                               key={i}
-                                               onClick={(e) => { e.stopPropagation(); onReaction(r.emoji, msg.id); }}
-                                               className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] border shadow-sm transition-all hover:scale-105 active:scale-95 ${
-                                                   r.userIds.includes(user?.uid || '') 
-                                                       ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300' 
-                                                       : 'bg-white border-slate-200 text-slate-600 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300'
-                                               }`}
-                                            >
-                                                <span>{r.emoji}</span>
-                                                <span className="font-bold">{r.userIds.length}</span>
-                                            </button>
-                                        ))}
+                                        {msg.reactions.map((r, i) => {
+                                            const isActiveDetail = activeReaction?.id === msg.id && activeReaction?.emoji === r.emoji;
+                                            return (
+                                                <div key={i} className="relative group/reaction">
+                                                    <button 
+                                                       onClick={(e) => { 
+                                                           e.stopPropagation(); 
+                                                           const rect = e.currentTarget.getBoundingClientRect();
+                                                           setActiveReaction(isActiveDetail ? null : { 
+                                                               id: msg.id, 
+                                                               emoji: r.emoji,
+                                                               x: rect.left + (rect.width / 2),
+                                                               y: rect.top
+                                                           });
+                                                       }}
+                                                       className={`flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] border shadow-sm transition-all hover:scale-105 active:scale-95 ${
+                                                           r.userIds.includes(user?.uid || '') 
+                                                               ? 'bg-blue-50 border-blue-200 text-blue-600 dark:bg-blue-900/30 dark:border-blue-800 dark:text-blue-300' 
+                                                               : 'bg-white border-slate-200 text-slate-600 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300'
+                                                       }`}
+                                                    >
+                                                        <span>{r.emoji}</span>
+                                                        <span className="font-bold">{r.userIds.length}</span>
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 )}
 
@@ -149,6 +179,50 @@ export const MessageList: React.FC<MessageListProps> = ({
                     </React.Fragment>
                 );
             })
+        )}
+
+        {/* Reaction Tooltip Portal */}
+        {activeReaction && createPortal(
+            <div 
+                className="fixed z-[9999] min-w-[120px] pointer-events-auto"
+                style={{ 
+                    top: activeReaction.y - 8, // Just above the button
+                    left: activeReaction.x, 
+                    transform: 'translate(-50%, -100%)' // Center horizontally, shift up
+                }}
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="bg-slate-800 text-white text-[10px] rounded-lg shadow-xl p-2 animate-fade-in border border-slate-700">
+                    {/* Arrow at bottom */}
+                    <div className="absolute top-full left-1/2 -ml-1.5 -mt-[1px] border-4 border-transparent border-t-slate-800 pointer-events-none"></div>
+                    
+                    <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
+                        {(() => {
+                            const msg = messages.find(m => m.id === activeReaction.id);
+                            if (!msg || !msg.reactions) return null;
+                            const reaction = msg.reactions.find(r => r.emoji === activeReaction.emoji);
+                            if (!reaction) return null;
+
+                            return reaction.userIds.map(uid => {
+                                const u = allUsers.find(usr => usr.uid === uid);
+                                return (
+                                    <div key={uid} className="flex items-center gap-2 whitespace-nowrap px-1 py-0.5 hover:bg-white/10 rounded">
+                                        {u?.photoURL ? (
+                                            <img src={u.photoURL} alt="" className="w-4 h-4 rounded-full object-cover bg-white shrink-0" />
+                                        ) : (
+                                            <div className="w-4 h-4 rounded-full bg-slate-500 flex items-center justify-center text-[7px] font-bold text-white shrink-0">
+                                                {u?.displayName?.[0] || '?'}
+                                            </div>
+                                        )}
+                                        <span className="truncate max-w-[120px] font-bold">{u?.displayName || 'Unknown User'}</span>
+                                    </div>
+                                );
+                            });
+                        })()}
+                    </div>
+                </div>
+            </div>,
+            document.body
         )}
 
         {/* Typing Indicator */}

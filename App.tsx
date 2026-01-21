@@ -13,7 +13,8 @@ import { MobileLayout } from './components/MobileLayout';
 import { AccessGate } from './components/AccessGate';
 import { GlobalCloudManager } from './components/GlobalCloudManager';
 import { CloudFileManager } from './components/CloudFileManager';
-import { VesselJob, BLData, BLChecklist, AppSettings, CargoSourceType, BackgroundTask, NotificationLog, ViewState } from './types';
+import { RegisterCargoWindow } from './components/RegisterCargoWindow';
+import { VesselJob, BLData, BLChecklist, AppSettings, CargoSourceType, BackgroundTask, NotificationLog, ViewState, CargoClass } from './types';
 import { parseBLImage } from './services/geminiService';
 import { dataService } from './services/dataService';
 import { chatService } from './services/chatService';
@@ -48,12 +49,16 @@ const App: React.FC = () => {
   
   const [isCloudOpen, setIsCloudOpen] = useState(false);
   const [isCloudMinimized, setIsCloudMinimized] = useState(false);
+
+  const [isRegisterOpen, setIsRegisterOpen] = useState(false);
+  const [isRegisterMinimized, setIsRegisterMinimized] = useState(false);
+  const [registerTargetJobId, setRegisterTargetJobId] = useState<string | undefined>(undefined);
   
   // BL-specific Cloud Managers (Hoisted)
   const [activeBLClouds, setActiveBLClouds] = useState<{ id: string; minimized: boolean }[]>([]);
   
   // Window Z-Index Stack
-  const [windowStack, setWindowStack] = useState<string[]>(['chat', 'cloud']);
+  const [windowStack, setWindowStack] = useState<string[]>(['chat', 'cloud', 'register']);
 
   const focusWindow = (windowId: string) => {
     setWindowStack(prev => {
@@ -97,6 +102,13 @@ const App: React.FC = () => {
           setIsCloudMinimized(false);
           focusWindow('cloud');
       }
+  };
+
+  const handleOpenRegister = (targetJobId?: string) => {
+      setRegisterTargetJobId(targetJobId);
+      setIsRegisterOpen(true);
+      setIsRegisterMinimized(false);
+      focusWindow('register');
   };
 
   // BL Cloud Window Handlers
@@ -415,9 +427,10 @@ const App: React.FC = () => {
     }
   };
 
-  const handleBLUpload = async (files: File[], sourceType: CargoSourceType = 'TRANSIT') => {
+  const handleBLUpload = async (files: File[], sourceType: CargoSourceType = 'TRANSIT', cargoClass: CargoClass = 'TRANSHIPMENT', targetJobId?: string) => {
     setIsProcessing(true);
-    let contextJobId = activeTabId.startsWith('vessel-') ? tabs.find(t=>t.id===activeTabId)?.data?.vesselId : undefined;
+    let contextJobId = targetJobId || (activeTabId.startsWith('vessel-') ? tabs.find(t=>t.id===activeTabId)?.data?.vesselId : undefined);
+    
     let contextJobName = '';
     if (contextJobId) {
         const j = vesselJobs.find(x => x.id === contextJobId);
@@ -442,7 +455,7 @@ const App: React.FC = () => {
           consignee: rawData.consignee || '', notifyParty: rawData.notifyParty || '', 
           vesselName: contextJobName || rawData.vesselName || '', voyageNo: rawData.voyageNo || '', 
           portOfLoading: rawData.portOfLoading || '', portOfDischarge: rawData.portOfDischarge || '',
-          date: rawData.date || '', sourceType: sourceType, cargoItems: rawData.cargoItems || []
+          date: rawData.date || '', sourceType: sourceType, cargoClass: cargoClass, cargoItems: rawData.cargoItems || []
         });
       } catch (error: any) { 
           addToHistory('Upload Error', `${file.name}: ${error.message}`, 'error');
@@ -494,7 +507,7 @@ const App: React.FC = () => {
   const renderTabContent = (tab: Tab) => {
     switch (tab.type) {
       case 'dashboard':
-        return <Dashboard jobs={vesselJobs} bls={blData} onSelectJob={openVesselTab} language={settings.language} onUpdateBL={dataService.updateBL} onOpenBriefing={openBriefingTab} onUploadBLs={handleBLUpload} onUpdateJob={dataService.updateJob} />;
+        return <Dashboard jobs={vesselJobs} bls={blData} onSelectJob={openVesselTab} language={settings.language} onUpdateBL={dataService.updateBL} onOpenBriefing={openBriefingTab} onUploadBLs={(f) => handleBLUpload(f)} onUpdateJob={dataService.updateJob} />;
       case 'briefing':
          return <BriefingReport jobs={vesselJobs} bls={blData} initialDate={tab.data?.date || new Date()} language={settings.language} logoUrl={settings.logoUrl} reportLogoUrl={reportLogoUrl} onUpdateBL={dataService.updateBL} onUpdateLogo={handleUpdateLogo} onUpdateReportLogo={handleUpdateReportLogo} onResetReportLogo={handleResetReportLogo} />;
       case 'vessel-list':
@@ -522,7 +535,7 @@ const App: React.FC = () => {
       case 'vessel-detail':
         const currentJob = vesselJobs.find(j => j.id === tab.data.vesselId);
         if (!currentJob) return <div className="p-10 text-slate-400">Vessel not found</div>;
-        return <VesselDetail key={tab.id} job={currentJob} bls={blData.filter(bl => bl.vesselJobId === currentJob.id)} checklists={checklists} onClose={() => closeTab(tab.id)} onUploadBLs={handleBLUpload} onCreateManualBL={dataService.addBL} onUpdateChecklist={dataService.updateChecklist} onUpdateBL={dataService.updateBL} isProcessing={isProcessing} progressMessage={progressMessage} language={settings.language} initialTab={tab.data?.initialTab} initialBLId={tab.data?.initialBLId} lastUpdate={tab.data?.timestamp} onOpenBLDetail={(id) => openShipmentDetailTab(id)} />;
+        return <VesselDetail key={tab.id} job={currentJob} bls={blData.filter(bl => bl.vesselJobId === currentJob.id)} checklists={checklists} onClose={() => closeTab(tab.id)} onUploadBLs={(f, type) => handleBLUpload(f, type, undefined, currentJob.id)} onCreateManualBL={dataService.addBL} onUpdateChecklist={dataService.updateChecklist} onUpdateBL={dataService.updateBL} isProcessing={isProcessing} progressMessage={progressMessage} language={settings.language} initialTab={tab.data?.initialTab} initialBLId={tab.data?.initialBLId} lastUpdate={tab.data?.timestamp} onOpenBLDetail={(id) => openShipmentDetailTab(id)} onOpenRegister={() => handleOpenRegister(currentJob.id)} />;
       default: return null;
     }
   };
@@ -554,7 +567,24 @@ const App: React.FC = () => {
           onToggleCloud={handleToggleCloud}
         />
         
-        {/* Floating Apps Layer */}
+        {/* Global Windows Layer */}
+        
+        <RegisterCargoWindow
+            isOpen={isRegisterOpen}
+            isMinimized={isRegisterMinimized}
+            onClose={() => setIsRegisterOpen(false)}
+            onMinimize={() => setIsRegisterMinimized(true)}
+            zIndex={getZIndex('register')}
+            onFocus={() => focusWindow('register')}
+            targetJobId={registerTargetJobId}
+            jobs={vesselJobs}
+            onUploadBLs={handleBLUpload}
+            onCreateManualBL={dataService.addBL}
+            isProcessing={isProcessing}
+            progressMessage={progressMessage}
+            language={settings.language}
+        />
+
         <GlobalCloudManager 
             isOpen={isCloudOpen}
             isMinimized={isCloudMinimized}
