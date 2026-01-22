@@ -432,6 +432,12 @@ const DocSlot = ({ title, type, fileUrl, isUploading, onRunOCR, onRemove, onUplo
   </div>
 );
 
+// Helper to safely format number or return string if comma already exists or typed
+const formatNumberValue = (val: any) => {
+    if (typeof val === 'number') return val.toLocaleString();
+    return val;
+};
+
 export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, language, onUpdateBL, onClose, onNavigateToChecklist, checklist, onDelete, onAddTask, onUpdateTask, onOpenCloudManager }) => {
   const [formData, setFormData] = useState<BLData>(bl);
   const [isSaving, setIsSaving] = useState(false);
@@ -552,7 +558,18 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
         if (formData.cargoCategory && formData.cargoCategory.trim() !== '' && !categories.includes(formData.cargoCategory)) {
              await dataService.addCategory(formData.cargoCategory);
         }
-        await onUpdateBL(bl.id, formData);
+        
+        // Sanitize totalAmount: convert string with commas back to number for storage integrity
+        const preparedData = { ...formData };
+        if (preparedData.commercialInvoice && preparedData.commercialInvoice.totalAmount) {
+            const raw = preparedData.commercialInvoice.totalAmount;
+            if (typeof raw === 'string') {
+                const parsed = parseFloat(raw.replace(/,/g, ''));
+                if (!isNaN(parsed)) preparedData.commercialInvoice.totalAmount = parsed;
+            }
+        }
+
+        await onUpdateBL(bl.id, preparedData);
         alert(t.saved);
     } catch(e) {
         alert(t.error);
@@ -570,9 +587,18 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
 
   const handleConvertCurrency = async () => {
       const currency = formData.commercialInvoice?.currency || 'KRW';
-      const amount = formData.commercialInvoice?.totalAmount || 0;
+      let rawAmount = formData.commercialInvoice?.totalAmount;
       
-      if (!amount) return;
+      // Robustly handle number or string with commas
+      let amount = 0;
+      if (typeof rawAmount === 'number') {
+          amount = rawAmount;
+      } else if (typeof rawAmount === 'string') {
+          // Remove commas and parse
+          amount = parseFloat(rawAmount.replace(/,/g, ''));
+      }
+      
+      if (!amount || isNaN(amount)) return;
 
       try {
           const res = await fetch(`https://api.exchangerate-api.com/v4/latest/${currency}`);
@@ -951,7 +977,11 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
                            <div className="grid grid-cols-2 gap-4">
                                 <DetailInput label={t.storagePeriod} value={formData.storagePeriod} onChange={(e: any) => handleInputChange('storagePeriod', e.target.value)} placeholder={t.placeholders.date + " ~ " + t.placeholders.date} />
                                 <div className="grid grid-cols-2 gap-2">
-                                    <DetailInput label={t.invAmount} value={formData.commercialInvoice?.totalAmount} onChange={(e: any) => handleNestedChange('commercialInvoice', 'totalAmount', e.target.value)} />
+                                    <DetailInput 
+                                        label={t.invAmount} 
+                                        value={formatNumberValue(formData.commercialInvoice?.totalAmount)} 
+                                        onChange={(e: any) => handleNestedChange('commercialInvoice', 'totalAmount', e.target.value)} 
+                                    />
                                     <DetailInput 
                                         label={t.currency} 
                                         value={formData.commercialInvoice?.currency} 
