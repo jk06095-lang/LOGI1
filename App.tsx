@@ -155,7 +155,6 @@ const App: React.FC = () => {
     setActiveBLClouds(prev => prev.map(w => w.id === blId ? { ...w, minimized: true } : w));
   };
 
-  // ... (Keep existing BL Cloud File Operations: handleBLCloudUpload, handleBLCloudDelete, handleBLCloudRename) ...
   // BL Cloud File Operations
   const handleBLCloudUpload = async (blId: string, files: File[]) => {
       const taskId = `cloud-upload-${Date.now()}`;
@@ -674,7 +673,7 @@ const App: React.FC = () => {
             );
         })}
 
-        <main className="flex-1 flex flex-col overflow-hidden relative print:overflow-visible print:h-auto">
+        <main className="flex-1 flex flex-col overflow-hidden relative print:overflow-visible print:h-auto print:block">
           {/* ... (Main Content remains similar, kept concise for brevity) ... */}
           <div className="flex justify-between items-end bg-slate-100 dark:bg-slate-900 pr-4 print:hidden">
               <TabNavigation tabs={tabs} activeTabId={activeTabId} onTabClick={activateTab} onTabClose={closeTab} />
@@ -731,14 +730,15 @@ const App: React.FC = () => {
             </div>
           )}
 
-          <div className="flex-1 relative bg-slate-50 dark:bg-slate-900 print:overflow-visible print:h-auto overflow-hidden">
+          <div className="flex-1 relative bg-slate-50 dark:bg-slate-900 print:overflow-visible print:h-auto print:block overflow-hidden">
               {tabs.map(tab => (
                 <div 
                   key={tab.id}
-                  className="absolute inset-0 w-full h-full bg-slate-50 dark:bg-slate-900 overflow-hidden"
+                  className="absolute inset-0 w-full h-full bg-slate-50 dark:bg-slate-900 overflow-hidden print:relative print:overflow-visible print:h-auto print:block"
                   style={{
                     zIndex: activeTabId === tab.id ? 10 : 0,
-                    visibility: activeTabId === tab.id ? 'visible' : 'hidden'
+                    visibility: activeTabId === tab.id ? 'visible' : 'hidden',
+                    display: activeTabId === tab.id ? 'block' : 'none' // Add display logic for print safety
                   }}
                 >
                    {renderTabContent(tab)}
