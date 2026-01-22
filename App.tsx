@@ -673,7 +673,7 @@ const App: React.FC = () => {
             );
         })}
 
-        <main className="flex-1 flex flex-col overflow-hidden relative print:overflow-visible print:h-auto print:block">
+        <main className="flex-1 flex flex-col overflow-hidden relative print:overflow-visible print:h-auto">
           {/* ... (Main Content remains similar, kept concise for brevity) ... */}
           <div className="flex justify-between items-end bg-slate-100 dark:bg-slate-900 pr-4 print:hidden">
               <TabNavigation tabs={tabs} activeTabId={activeTabId} onTabClick={activateTab} onTabClose={closeTab} />
@@ -730,15 +730,14 @@ const App: React.FC = () => {
             </div>
           )}
 
-          <div className="flex-1 relative bg-slate-50 dark:bg-slate-900 print:overflow-visible print:h-auto print:block overflow-hidden">
+          <div className="flex-1 relative bg-slate-50 dark:bg-slate-900 print:overflow-visible print:h-auto overflow-hidden">
               {tabs.map(tab => (
                 <div 
                   key={tab.id}
-                  className="absolute inset-0 w-full h-full bg-slate-50 dark:bg-slate-900 overflow-hidden print:relative print:overflow-visible print:h-auto print:block"
+                  className={`absolute inset-0 w-full h-full bg-slate-50 dark:bg-slate-900 overflow-hidden ${activeTabId === tab.id ? 'print:static print:h-auto print:overflow-visible' : 'print:hidden'}`}
                   style={{
                     zIndex: activeTabId === tab.id ? 10 : 0,
-                    visibility: activeTabId === tab.id ? 'visible' : 'hidden',
-                    display: activeTabId === tab.id ? 'block' : 'none' // Add display logic for print safety
+                    visibility: activeTabId === tab.id ? 'visible' : 'hidden'
                   }}
                 >
                    {renderTabContent(tab)}

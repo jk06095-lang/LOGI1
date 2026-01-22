@@ -36,8 +36,8 @@ interface BriefingReportProps {
   onResetReportLogo?: () => Promise<void>;
 }
 
-// ... (Translations omitted for brevity, assuming they are unchanged)
 const translations = {
+  // ... (Keep existing translations)
   ko: {
     title: '대시보드',
     subtitle: '전체 선박 업무 현황 및 화물 일정을 관리합니다.',
@@ -273,10 +273,10 @@ const AutoResizeTextarea = ({ value, onChange, className, placeholder, readOnly 
 
 // ... (Dashboard Component Logic remains largely same, just referencing it)
 export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, language, onOpenBriefing, onUpdateJob, onUpdateLogo }) => {
-  // ... (Keep existing implementation details for Dashboard as they are, focus is on BriefingReport print styles)
-  // Re-pasting the Dashboard component logic fully is safer to ensure no lost code
+  // ... (dashboard implementation same as previous)
   const t = translations[language];
   const [currentDate, setCurrentDate] = useState(new Date());
+  // ... (rest of dashboard logic)
   const [selectedDateForModal, setSelectedDateForModal] = useState<string | null>(null);
   const [weatherData, setWeatherData] = useState<Record<string, WeatherData>>({});
   const [isEditing, setIsEditing] = useState(false); 
@@ -743,6 +743,7 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
   
   const logoInputRef = useRef<HTMLInputElement>(null);
 
+  // ... (rest of effects same as before) ...
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (vesselDropdownRef.current && !vesselDropdownRef.current.contains(event.target as Node)) {
@@ -1085,4 +1086,480 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
      
      briefingJobs.forEach(job => {
          const jobItems = summaryItems.filter(item => item.jobId === job.id);
+         if (jobItems.length === 0) return;
          
+         // Sort based on Custom Order if exists, else rely on summaryItems default (which uses reportSortOrder)
+         if (customOrder[job.id]) {
+             const order = customOrder[job.id];
+             jobItems.sort((a, b) => {
+                 const idxA = order.indexOf(a.blId);
+                 const idxB = order.indexOf(b.blId);
+                 if (idxA === -1 && idxB === -1) return 0;
+                 if (idxA === -1) return 1;
+                 if (idxB === -1) return -1;
+                 return idxA - idxB;
+             });
+         }
+         
+         flatRows.push({ type: 'header', job });
+         
+         jobItems.forEach((item, idx) => {
+             flatRows.push({ type: 'item', data: item, seqNo: idx + 1 });
+         });
+     });
+
+     const _pages: RenderRow[][] = [];
+     let currentRow = 0;
+     const ROWS_PER_PAGE = 7; 
+     
+     // Pagination Logic to prevent Orphan Headers
+     let currentPage: RenderRow[] = [];
+     
+     for (let i = 0; i < flatRows.length; i++) {
+         const row = flatRows[i];
+         
+         // Check if we need to start a new page
+         if (currentPage.length >= ROWS_PER_PAGE) {
+             _pages.push(currentPage);
+             currentPage = [];
+         }
+
+         // Orphan Prevention:
+         // If current row is a Header, check if it's the LAST slot on the page.
+         // If it is, force a page break so header starts on next page with its items.
+         if (row.type === 'header') {
+             if (currentPage.length === ROWS_PER_PAGE - 1) {
+                 // Push current page (leaving last slot empty to avoid orphan)
+                 _pages.push(currentPage);
+                 currentPage = [];
+             }
+         }
+
+         currentPage.push(row);
+     }
+     
+     if (currentPage.length > 0) {
+         _pages.push(currentPage);
+     }
+     
+     return _pages;
+  }, [briefingJobs, summaryItems, customOrder]);
+
+  const dateLocale = language === 'cn' ? 'zh-CN' : language === 'ko' ? 'ko-KR' : 'en-US';
+
+  // Determine which logo to show: Custom Report Logo > Global Settings Logo > Default Text
+  const displayLogoUrl = reportLogoUrl || logoUrl;
+
+  return (
+    <div className="flex flex-col h-full bg-slate-100 dark:bg-slate-900 print-container overflow-hidden">
+      
+      {isReadOnly && (
+         <div className="bg-amber-100 border-b border-amber-200 px-4 py-2 flex justify-between items-center text-amber-900 text-sm font-bold z-30 animate-fade-in no-print">
+            <div className="flex items-center gap-2">
+                <Lock size={16} />
+                <span>
+                    {t.lockedTitle}: {t.lockedDesc} 
+                    {lockData && <span className="ml-2 opacity-80 font-normal">({t.lockedBy} {lockData.userEmail})</span>}
+                </span>
+            </div>
+            <button onClick={handleForceEdit} className="text-xs bg-amber-200 hover:bg-amber-300 px-3 py-1 rounded text-amber-900 border border-amber-300 transition-colors">
+                {t.forceEdit}
+            </button>
+         </div>
+      )}
+
+      {/* Toolbar - Same as before */}
+      <div className="flex-shrink-0 p-4 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center shadow-sm z-20 no-print">
+          {/* ... (Existing toolbar code) ... */}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-lg">
+                <button onClick={handlePrev} className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500 dark:text-slate-400"><ChevronLeft size={16}/></button>
+                <div className="px-3 text-sm font-bold text-slate-800 dark:text-slate-200 tabular-nums w-32 text-center">
+                   {briefingPeriod === 'month' ? currentDate.toLocaleDateString(dateLocale, { year: 'numeric', month: 'long' }) : currentDate.toLocaleDateString(dateLocale)}
+                </div>
+                <button onClick={handleNext} className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500 dark:text-slate-400"><ChevronRight size={16}/></button>
+            </div>
+            <div className="h-6 w-px bg-slate-200 dark:bg-slate-700 mx-2"></div>
+            <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-lg">
+              <button onClick={() => setBriefingPeriod('week')} className={`px-3 py-1 text-sm font-medium rounded-md transition-all ${briefingPeriod === 'week' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-300 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}>{t.weekly}</button>
+              <button onClick={() => setBriefingPeriod('month')} className={`px-3 py-1 text-sm font-medium rounded-md transition-all ${briefingPeriod === 'month' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-300 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}>{t.monthly}</button>
+            </div>
+            
+            {/* Vessel Filter */}
+            <div className="ml-4 relative" ref={vesselDropdownRef}>
+                <button 
+                    onClick={() => setIsVesselDropdownOpen(!isVesselDropdownOpen)}
+                    className="flex items-center gap-2 bg-slate-100 dark:bg-slate-900 border-none text-sm font-medium rounded-lg px-3 py-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors text-slate-700 dark:text-slate-300 min-w-[140px] justify-between"
+                >
+                    <div className="flex items-center gap-2 truncate">
+                        <Filter size={16} className="text-slate-400 flex-shrink-0"/>
+                        <span className="truncate">
+                            {selectedVesselIds.length === 0 
+                                ? t.allVessels 
+                                : t.selectedVessels.replace('{count}', selectedVesselIds.length.toString())}
+                        </span>
+                    </div>
+                    <ChevronDown size={14} className="text-slate-400 flex-shrink-0"/>
+                </button>
+
+                {isVesselDropdownOpen && (
+                    <div className="absolute top-full left-0 mt-1 w-64 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 z-50 overflow-hidden animate-fade-in-up">
+                        <div className="p-2 border-b border-slate-100 dark:border-slate-700">
+                            <div 
+                                onClick={toggleAllVessels}
+                                className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-md cursor-pointer transition-colors"
+                            >
+                                <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedVesselIds.length === 0 ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 dark:border-slate-500'}`}>
+                                    {selectedVesselIds.length === 0 && <Check size={12} strokeWidth={3} />}
+                                </div>
+                                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{t.allVessels}</span>
+                            </div>
+                        </div>
+                        <div className="max-h-60 overflow-y-auto custom-scrollbar p-2 space-y-1">
+                            {jobs.map(job => (
+                                <div 
+                                    key={job.id}
+                                    onClick={() => toggleVesselSelection(job.id)}
+                                    className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-md cursor-pointer transition-colors"
+                                >
+                                    <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedVesselIds.includes(job.id) ? 'bg-blue-600 border-blue-600 text-white' : 'border-slate-300 dark:border-slate-500'}`}>
+                                        {selectedVesselIds.includes(job.id) && <Check size={12} strokeWidth={3} />}
+                                    </div>
+                                    <span className="text-sm text-slate-700 dark:text-slate-300 truncate">{job.vesselName}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            <div className="flex items-center gap-2 ml-4">
+              <button onClick={() => setZoomLevel(Math.max(0.5, zoomLevel - 0.1))} className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400"><ZoomOut size={16} /></button>
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-mono w-12 text-center">{Math.round(zoomLevel * 100)}%</span>
+              <button onClick={() => setZoomLevel(Math.min(2.0, zoomLevel + 0.1))} className="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400"><ZoomIn size={16} /></button>
+            </div>
+          </div>
+          <div className="flex gap-2">
+              <button onClick={handleSave} disabled={isSaving || isReadOnly} className={`px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition-all active:scale-95 text-sm font-bold ${isReadOnly ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}>
+                <Save size={18} /> {isSaving ? '...' : t.saveChanges}
+              </button>
+              <button onClick={() => window.print()} className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 shadow-sm transition-all active:scale-95 text-sm font-bold">
+                <Printer size={18} /> {t.print}
+              </button>
+          </div>
+      </div>
+
+      {/* Preview Area */}
+      <div className="flex-1 overflow-auto custom-scrollbar p-8 bg-slate-100 dark:bg-slate-900 flex flex-col items-center gap-8 print:block print:p-0 print:m-0 print:bg-white print:overflow-visible">
+          {pages.length === 0 ? (
+              <div className="text-center py-20 text-slate-400 italic">{t.noItems}</div>
+          ) : (
+              pages.map((pageRows, pageIndex) => (
+                  <div 
+                    key={pageIndex} 
+                    className="break-after-page bg-white shadow-xl relative text-black mx-auto transition-transform origin-top print:shadow-none print:m-0 print:transform-none print:border-none font-sans"
+                    style={{ 
+                        width: '297mm', 
+                        height: '208mm',
+                        padding: '10mm',
+                        transform: `scale(${zoomLevel})`,
+                        marginBottom: pageIndex === pages.length - 1 ? '0' : '20px' 
+                    }}
+                  >
+                      {/* Page Header */}
+                      {pageIndex === 0 ? (
+                          <div className="flex justify-between items-end border-b-[3px] border-black pb-2 mb-4">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 border-2 border-black rounded-lg flex items-center justify-center bg-white">
+                                    <Ship size={28} className="text-black" strokeWidth={2}/>
+                                </div>
+                                <div>
+                                  <h1 className="text-3xl font-black uppercase tracking-tight leading-none text-black">{t.briefingTitle}</h1>
+                                  <p className="text-sm font-bold text-slate-600 mt-1">
+                                      {t.period}: {briefingPeriod === 'month' 
+                                      ? currentDate.toLocaleDateString(dateLocale, { year: 'numeric', month: 'long' }) 
+                                      : `Week of ${currentDate.toLocaleDateString(dateLocale)}`}
+                                  </p>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <div 
+                                    className="flex items-center justify-end gap-2 mb-1 cursor-pointer group relative" 
+                                    onClick={() => !isReadOnly && logoInputRef.current?.click()}
+                                    title={!isReadOnly ? "Click to change report logo" : ""}
+                                >
+                                    {!isReadOnly && <input type="file" className="hidden" ref={logoInputRef} onChange={handleLogoChange} accept="image/*" />}
+                                    
+                                    {/* Hover controls for logo */}
+                                    {!isReadOnly && (
+                                        <div className="absolute inset-0 -left-2 -right-2 bg-slate-100/80 opacity-0 group-hover:opacity-100 transition-opacity rounded flex items-center justify-center gap-2 pointer-events-none no-print z-10 backdrop-blur-sm">
+                                            <div className="flex gap-2 pointer-events-auto">
+                                                <button className="p-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200" title="Change Logo">
+                                                    <Edit2 size={14} />
+                                                </button>
+                                                {reportLogoUrl && (
+                                                    <button 
+                                                        onClick={handleResetLogo}
+                                                        className="p-1 bg-red-100 text-red-600 rounded hover:bg-red-200" 
+                                                        title="Reset to Default"
+                                                    >
+                                                        <RefreshCw size={14} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {displayLogoUrl ? (
+                                        <img src={displayLogoUrl} alt="Logo" className="h-8 w-auto object-contain max-w-[150px]" /> 
+                                    ) : (
+                                        <p className="font-black text-xl uppercase tracking-widest text-slate-900 leading-none">LOGI<span className="text-blue-600">1</span></p>
+                                    )}
+                                </div>
+                                <p className="text-[10px] text-black mt-1 font-mono font-bold text-right">{new Date().toLocaleDateString(dateLocale)}</p>
+                            </div>
+                          </div>
+                      ) : (
+                          <div className="flex justify-between items-end border-b-2 border-slate-300 pb-1 mb-2 print:border-slate-300">
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">{t.briefingTitle} {t.continuation}</span>
+                            <span className="text-[10px] text-slate-400">{new Date().toLocaleDateString(dateLocale)}</span>
+                          </div>
+                      )}
+
+                      <div className="space-y-0">
+                          {/* Table Structure */}
+                          <table className="w-full border-collapse border border-black table-fixed text-[10px]">
+                              <colgroup>
+                                  <col className="w-[3%]" /> {/* No */}
+                                  <col className="w-[7%]" /> {/* ETA */}
+                                  <col className="w-[18%]" /> {/* Shipper */}
+                                  <col className="w-[9%]" /> {/* Qty/Wt */}
+                                  <col className="w-[5%]" /> {/* Vol */}
+                                  <col className="w-[13%]" /> {/* BL */}
+                                  <col className="w-[4%]" /> {/* Docs */}
+                                  <col className="w-[10%]" /> {/* Vessel */}
+                                  <col className="w-[4%]" /> {/* Type */}
+                                  <col className="w-[10%]" /> {/* Transporter */}
+                                  <col className="w-[7%]" /> {/* Warehouse */}
+                                  <col className="w-[10%]" /> {/* Remark */}
+                              </colgroup>
+                              <thead>
+                                  <tr className="bg-gray-100 print:bg-gray-100">
+                                      <th rowSpan={2} className="border border-black p-1 text-center align-middle font-bold">{t.reportHeaderNo}</th>
+                                      <th rowSpan={2} className="border border-black p-1 text-center align-middle font-bold whitespace-pre-wrap">{t.reportHeaderEta}</th>
+                                      <th rowSpan={2} className="border border-black p-1 text-center align-middle font-bold whitespace-pre-wrap">{t.reportHeaderShipperDesc}</th>
+                                      
+                                      {/* Updated QTY Header Layout */}
+                                      <th colSpan={2} className="border border-black p-1 text-center align-middle font-bold">{t.reportHeaderQty}</th>
+                                      
+                                      <th rowSpan={2} className="border border-black p-1 text-center align-middle font-bold whitespace-pre-wrap">{t.reportHeaderBlCont}</th>
+                                      <th rowSpan={2} className="border border-black p-1 text-center align-middle font-bold whitespace-pre-wrap">{t.reportHeaderDocs}</th>
+                                      <th rowSpan={2} className="border border-black p-1 text-center align-middle font-bold">{t.reportHeaderVessel}</th>
+                                      <th rowSpan={2} className="border border-black p-1 text-center align-middle font-bold">{t.reportHeaderType}</th>
+                                      <th rowSpan={2} className="border border-black p-1 text-center align-middle font-bold">{t.reportHeaderTransporter}</th>
+                                      <th rowSpan={2} className="border border-black p-1 text-center align-middle font-bold">{t.reportHeaderWarehouse}</th>
+                                      <th rowSpan={2} className="border border-black p-1 text-center align-middle font-bold">{t.reportHeaderRemark}</th>
+                                  </tr>
+                                  <tr className="bg-gray-100 print:bg-gray-100">
+                                      {/* Subheaders for QTY Section */}
+                                      <th className="border border-black p-1 text-center align-middle font-bold">重量 (Weight)</th>
+                                      <th className="border border-black p-1 text-center align-middle font-bold">体积 (Vol)</th>
+                                  </tr>
+                              </thead>
+                              <tbody>
+                                {pageRows.map((row, idx) => {
+                                    if (row.type === 'header') {
+                                        return (
+                                            <tr key={`header-${row.job.id}`} className="bg-slate-200 print:bg-slate-200">
+                                                <td colSpan={13} className="border border-black px-2 py-1 align-middle">
+                                                    <div className="flex justify-between items-center font-bold text-xs uppercase tracking-wide">
+                                                        <span>{row.job.vesselName}</span>
+                                                        <div className="flex gap-4 font-mono">
+                                                            <span>VOY: {row.job.voyageNo}</span>
+                                                            <span>ETA: {row.job.eta}</span>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    } else {
+                                        const item = row.data;
+                                        return (
+                                            <tr key={item.blId} className="align-top group/row">
+                                                <td className="border border-black p-1 text-center align-middle font-bold relative group">
+                                                    {row.seqNo}
+                                                    <div className="absolute left-0 top-0 bottom-0 w-3 flex flex-col justify-center opacity-0 group-hover:opacity-100 transition-opacity print:hidden gap-0.5">
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); handleMoveRow(item.jobId, item.blId, 'up'); }}
+                                                            className="h-3 flex items-center justify-center bg-slate-100 hover:bg-blue-100 text-slate-500 hover:text-blue-600 rounded-r"
+                                                        >
+                                                            <ChevronUp size={8} />
+                                                        </button>
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); handleMoveRow(item.jobId, item.blId, 'down'); }}
+                                                            className="h-3 flex items-center justify-center bg-slate-100 hover:bg-blue-100 text-slate-500 hover:text-blue-600 rounded-r"
+                                                        >
+                                                            <ChevronDown size={8} />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                                
+                                                <td className="border border-black p-1 text-center align-middle whitespace-pre-wrap break-words font-medium leading-tight text-[9px]">
+                                                    {item.eta}
+                                                </td>
+
+                                                <td className="border border-black p-0 relative align-middle">
+                                                    <div className="flex flex-col h-full">
+                                                        <AutoResizeTextarea 
+                                                            value={item.shipper}
+                                                            onChange={(e) => handleCellEdit(item.blId, 'shipper', e.target.value)}
+                                                            readOnly={isReadOnly}
+                                                            className="w-full bg-transparent border-b border-dashed border-gray-300 p-1 font-bold text-[10px] focus:bg-yellow-50 outline-none min-h-[30px]"
+                                                            placeholder="Shipper"
+                                                        />
+                                                        {/* Description Field: Now maps to 'reportDescription' internally, handled by handleCellEdit('reportDescription') */}
+                                                        <AutoResizeTextarea 
+                                                            value={item.description}
+                                                            onChange={(e) => handleCellEdit(item.blId, 'reportDescription', e.target.value)}
+                                                            readOnly={isReadOnly}
+                                                            className="w-full bg-transparent p-1 font-medium text-[9px] focus:bg-yellow-50 outline-none flex-1 min-h-[40px]"
+                                                            placeholder="Description"
+                                                        />
+                                                    </div>
+                                                </td>
+
+                                                {/* Split QTY Cell 1: Qty / Weight */}
+                                                <td className="border border-black p-0 align-middle">
+                                                    <div className="flex flex-col h-full">
+                                                        <div className="flex-1 p-1 border-b border-dashed border-gray-300 flex justify-center items-center">
+                                                            <input 
+                                                                className="w-full bg-transparent text-center font-bold outline-none focus:bg-yellow-50 text-[10px]"
+                                                                value={item.quantity}
+                                                                onChange={(e) => handleCellEdit(item.blId, 'quantity', Number(e.target.value))}
+                                                                readOnly={isReadOnly}
+                                                            />
+                                                        </div>
+                                                        <div className="flex-1 p-1 flex justify-center items-center">
+                                                            <input 
+                                                                className="w-full bg-transparent text-center outline-none focus:bg-yellow-50 text-[9px]"
+                                                                value={item.grossWeight}
+                                                                onChange={(e) => handleCellEdit(item.blId, 'grossWeight', Number(e.target.value))}
+                                                                readOnly={isReadOnly}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </td>
+
+                                                {/* Split QTY Cell 2: Unit / Volume */}
+                                                <td className="border border-black p-0 align-middle">
+                                                    <div className="flex flex-col h-full">
+                                                        <div className="flex-1 p-1 border-b border-dashed border-gray-300 flex justify-center items-center">
+                                                            <input 
+                                                                className="w-full bg-transparent text-center outline-none focus:bg-yellow-50 text-[9px]"
+                                                                value={item.packageType}
+                                                                onChange={(e) => handleCellEdit(item.blId, 'packageType', e.target.value)}
+                                                                readOnly={isReadOnly}
+                                                            />
+                                                        </div>
+                                                        <div className="flex-1 p-1 flex justify-center items-center">
+                                                            <input 
+                                                                className="w-full bg-transparent text-center outline-none focus:bg-yellow-50 text-[9px]"
+                                                                value={item.volume}
+                                                                onChange={(e) => handleCellEdit(item.blId, 'volume', Number(e.target.value))}
+                                                                readOnly={isReadOnly}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </td>
+
+                                                <td className="border border-black p-1 text-center align-middle whitespace-pre-wrap break-all text-[8px] leading-tight font-mono">
+                                                    <span className="font-bold block mb-1">{item.blNumber}</span>
+                                                    <span className="text-slate-600 block">{item.containerStr}</span>
+                                                </td>
+
+                                                <td className="border border-black p-1 text-center align-middle">
+                                                    <div className="flex flex-col gap-1 text-[8px] font-bold">
+                                                        <span className={item.hasBL ? "text-black" : "text-gray-300"}>BL</span>
+                                                        <span className={item.hasINV ? "text-black" : "text-gray-300"}>INV</span>
+                                                        <span className={item.hasPL ? "text-black" : "text-gray-300"}>PL</span>
+                                                    </div>
+                                                </td>
+
+                                                {/* Vessel Name: Allowed to Wrap */}
+                                                <td className="border border-black p-0 align-middle">
+                                                    <AutoResizeTextarea 
+                                                        value={item.itemVesselName}
+                                                        onChange={(e) => handleCellEdit(item.blId, 'note', e.target.value)}
+                                                        readOnly={isReadOnly}
+                                                        className="w-full h-full bg-transparent p-1 text-center focus:bg-yellow-50 outline-none text-[9px] break-words whitespace-normal"
+                                                    />
+                                                </td>
+
+                                                <td className="border border-black p-0 align-middle font-bold text-[9px]">
+                                                    <input 
+                                                        className="w-full h-full bg-transparent text-center outline-none border-b border-dashed border-transparent focus:border-blue-500 focus:bg-yellow-50"
+                                                        value={item.typeAlias}
+                                                        readOnly={true} 
+                                                    />
+                                                </td>
+
+                                                <td className="border border-black p-0 align-middle text-[9px]">
+                                                    <div className="flex flex-col p-1 gap-1">
+                                                        <div className="flex items-center gap-1">
+                                                            <span className="text-[8px] font-bold text-gray-500">FWD:</span>
+                                                            <input 
+                                                                className="flex-1 bg-transparent border-b border-gray-200 outline-none focus:bg-yellow-50 min-w-0"
+                                                                value={item.koreanForwarder}
+                                                                onChange={(e) => handleCellEdit(item.blId, 'koreanForwarder', e.target.value)}
+                                                                readOnly={isReadOnly}
+                                                            />
+                                                        </div>
+                                                        <div className="flex items-center gap-1">
+                                                            <span className="text-[8px] font-bold text-gray-500">TRK:</span>
+                                                            <input 
+                                                                className="flex-1 bg-transparent outline-none focus:bg-yellow-50 min-w-0"
+                                                                value={item.transporter}
+                                                                onChange={(e) => handleCellEdit(item.blId, 'reportTransporter', e.target.value)}
+                                                                readOnly={isReadOnly}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                </td>
+
+                                                <td className="border border-black p-0 align-middle">
+                                                    <AutoResizeTextarea 
+                                                        value={item.location}
+                                                        onChange={(e) => handleCellEdit(item.blId, 'reportStorageLocation', e.target.value)}
+                                                        readOnly={isReadOnly}
+                                                        className="w-full h-full bg-transparent p-1 text-center focus:bg-yellow-50 outline-none text-[9px] break-words"
+                                                    />
+                                                </td>
+
+                                                {/* Remark Column: Maps to 'reportRemarks' field in BLData (Override) or fallback to 'remarks' */}
+                                                <td className="border border-black p-0 align-middle">
+                                                    <AutoResizeTextarea 
+                                                        value={item.reportRemark}
+                                                        onChange={(e) => handleCellEdit(item.blId, 'reportRemarks', e.target.value)}
+                                                        readOnly={isReadOnly}
+                                                        className="w-full h-full bg-transparent p-1 text-center focus:bg-yellow-50 outline-none text-[9px] break-words"
+                                                    />
+                                                </td>
+                                            </tr>
+                                        );
+                                    }
+                                })}
+                              </tbody>
+                          </table>
+                      </div>
+
+                      <div className="absolute bottom-6 left-10 right-10 flex justify-between text-[8px] text-gray-500 uppercase tracking-wider font-mono">
+                          <p>{t.systemGenerated}: {new Date().toISOString()}</p>
+                          <p>{t.page} {pageIndex + 1} / {pages.length}</p>
+                      </div>
+                  </div>
+              ))
+          )}
+      </div>
+    </div>
+  );
+};
