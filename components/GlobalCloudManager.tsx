@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { BLData, VesselJob, Attachment } from '../types';
-import { FileText, FileImage, FileSpreadsheet, Download, Search, X, FolderOpen, Ship, Box, Minus, Maximize2, Trash2 } from 'lucide-react';
+import { FileText, FileImage, FileSpreadsheet, Download, Search, X, FolderOpen, Ship, Box, Minus, Maximize2, Trash2, Edit2 } from 'lucide-react';
 import { dataService } from '../services/dataService'; 
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -55,11 +55,18 @@ export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [windowState, setWindowState] = useState<WindowState>('default');
   
+  // Rename State
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editNameBase, setEditNameBase] = useState("");
+  const [editExtension, setEditExtension] = useState("");
+
   // Context Menu State
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; file: (Attachment & { blId: string }) | null } | null>(null);
 
   useEffect(() => {
-    const handleClick = () => setContextMenu(null);
+    const handleClick = () => {
+        setContextMenu(null);
+    };
     window.addEventListener('click', handleClick);
     return () => window.removeEventListener('click', handleClick);
   }, []);
@@ -147,6 +154,41 @@ export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({
       setContextMenu({ x: e.clientX, y: e.clientY, file });
   };
 
+  const handleStartRename = () => {
+      if (contextMenu?.file) {
+          const file = contextMenu.file;
+          setEditingId(file.id);
+          const lastDotIndex = file.name.lastIndexOf('.');
+          if (lastDotIndex !== -1 && lastDotIndex > 0) {
+              setEditNameBase(file.name.substring(0, lastDotIndex));
+              setEditExtension(file.name.substring(lastDotIndex));
+          } else {
+              setEditNameBase(file.name);
+              setEditExtension("");
+          }
+      }
+      setContextMenu(null);
+  };
+
+  const handleSubmitRename = async (e?: React.FormEvent) => {
+      e?.preventDefault();
+      if (editingId && editNameBase.trim()) {
+          const file = displayedFiles.find(f => f.id === editingId);
+          if (file) {
+              const finalName = editNameBase.trim() + editExtension;
+              try {
+                  await dataService.updateAttachmentsTransaction(file.blId, 'rename', { id: file.id, newName: finalName });
+              } catch (error) {
+                  console.error("Rename failed", error);
+                  alert("Could not rename file.");
+              }
+          }
+      }
+      setEditingId(null);
+      setEditNameBase("");
+      setEditExtension("");
+  };
+
   const handleDeleteFile = async (file: Attachment & { blId: string }) => {
       if (!window.confirm(`Delete ${file.name}?`)) return;
       try {
@@ -161,6 +203,10 @@ export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({
   const handleDownloadFile = (url: string) => {
       window.open(url, '_blank');
       setContextMenu(null);
+  };
+
+  const handleContainerClick = () => {
+      if (editingId) handleSubmitRename();
   };
 
   // If closed completely, don't render. If minimized, render but hidden (controlled by App.tsx wrapper usually, but we can handle opacity here)
@@ -287,7 +333,11 @@ export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({
                   </div>
 
                   {/* File Grid */}
-                  <div className="flex-1 overflow-y-auto p-5 custom-scrollbar" onContextMenu={(e) => e.stopPropagation()}>
+                  <div 
+                      className="flex-1 overflow-y-auto p-5 custom-scrollbar" 
+                      onContextMenu={(e) => e.stopPropagation()}
+                      onClick={handleContainerClick}
+                  >
                       {displayedFiles.length === 0 ? (
                           <div className="h-full flex flex-col items-center justify-center text-slate-400/60">
                               <FolderOpen size={64} className="opacity-20 mb-3" />
@@ -304,19 +354,42 @@ export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({
                                       transition={{ duration: 0.2, delay: idx * 0.02 }}
                                       onContextMenu={(e) => handleContextMenu(e, file)}
                                       onDoubleClick={() => handleDownloadFile(file.url)}
-                                      className="group flex flex-col items-center gap-2 p-3 rounded-2xl hover:bg-blue-500/10 dark:hover:bg-blue-400/10 cursor-pointer transition-all border border-transparent hover:border-blue-500/20 active:scale-95"
+                                      onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (editingId && editingId !== file.id) handleSubmitRename();
+                                      }}
+                                      className={`group flex flex-col items-center gap-2 p-3 rounded-2xl hover:bg-blue-500/10 dark:hover:bg-blue-400/10 cursor-pointer transition-all border border-transparent hover:border-blue-500/20 active:scale-95 min-h-[120px] ${editingId === file.id ? 'bg-blue-500/10 dark:bg-blue-400/10 border-blue-500/30' : ''}`}
                                       title={file.name}
                                   >
-                                      <div className="w-16 h-16 flex items-center justify-center bg-white/40 dark:bg-slate-800/40 rounded-2xl shadow-sm group-hover:scale-105 transition-transform duration-200 pointer-events-none border border-white/20 dark:border-white/5 backdrop-blur-sm">
+                                      <div className="w-16 h-16 flex-shrink-0 flex items-center justify-center bg-white/40 dark:bg-slate-800/40 rounded-2xl shadow-sm group-hover:scale-105 transition-transform duration-200 pointer-events-none border border-white/20 dark:border-white/5 backdrop-blur-sm">
                                           {getFileIcon(file)}
                                       </div>
-                                      <div className="text-center w-full">
-                                          <p className="text-[11px] font-medium text-slate-700 dark:text-slate-200 truncate w-full px-1">
-                                              {file.name}
-                                          </p>
-                                          <p className="text-[9px] text-slate-400 mt-0.5">
-                                              {formatSize(file.size)}
-                                          </p>
+                                      <div className="text-center w-full px-1">
+                                          {editingId === file.id ? (
+                                              <form onSubmit={handleSubmitRename} onClick={(e) => e.stopPropagation()}>
+                                                  <input 
+                                                      autoFocus
+                                                      value={editNameBase}
+                                                      onChange={(e) => setEditNameBase(e.target.value)}
+                                                      onBlur={() => handleSubmitRename()}
+                                                      className="w-full text-center text-[11px] bg-white/90 dark:bg-black/80 border border-blue-500 rounded px-1 py-0.5 outline-none shadow-sm text-slate-900 dark:text-white"
+                                                  />
+                                                  {editExtension && (
+                                                      <span className="text-[9px] text-slate-500 font-mono mt-0.5 bg-white/50 dark:bg-black/50 px-1 rounded block">
+                                                          {editExtension}
+                                                      </span>
+                                                  )}
+                                              </form>
+                                          ) : (
+                                              <>
+                                                  <p className="text-[11px] font-medium text-slate-700 dark:text-slate-200 break-words line-clamp-3 leading-tight" title={file.name}>
+                                                      {file.name}
+                                                  </p>
+                                                  <p className="text-[9px] text-slate-400 mt-1">
+                                                      {formatSize(file.size)}
+                                                  </p>
+                                              </>
+                                          )}
                                       </div>
                                   </motion.div>
                               ))}
@@ -344,6 +417,14 @@ export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({
                   >
                       <Download size={14} /> Download
                   </button>
+
+                  <button 
+                      onClick={handleStartRename} 
+                      className="w-full text-left px-3 py-2 hover:bg-blue-500 hover:text-white dark:text-slate-200 flex items-center gap-2 transition-colors"
+                  >
+                      <Edit2 size={14} /> Rename
+                  </button>
+
                   <div className="h-px bg-slate-200/50 dark:bg-slate-700/50 my-1 mx-2"></div>
                   
                   <button 
