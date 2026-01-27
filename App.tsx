@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard, BriefingReport } from './components/Dashboard';
 import { VesselList } from './components/VesselList';
@@ -14,22 +14,22 @@ import { AccessGate } from './components/AccessGate';
 import { GlobalCloudManager } from './components/GlobalCloudManager';
 import { CloudFileManager } from './components/CloudFileManager';
 import { RegisterCargoWindow } from './components/RegisterCargoWindow';
-import { VesselJob, BLData, BLChecklist, AppSettings, CargoSourceType, BackgroundTask, NotificationLog, ViewState, CargoClass } from './types';
+import { AppSettings, CargoSourceType, ViewState, CargoClass } from './types';
 import { parseBLImage } from './services/geminiService';
 import { dataService } from './services/dataService';
-import { chatService } from './services/chatService';
 import { uploadFileToStorage, deleteFileFromStorage } from './services/storageService';
 import { auth } from './lib/firebase';
-import { onAuthStateChanged, User, signOut } from 'firebase/auth';
+import { signOut } from 'firebase/auth';
 import { Login } from './components/Login';
-import { AlertCircle, Loader2, X, Ship as ShipIcon, Clock, Archive, CheckCircle, BrainCircuit, Bell, Inbox, Trash2 } from 'lucide-react';
+import { AlertCircle, Loader2, X, Bell, Inbox, Trash2, CheckCircle } from 'lucide-react';
 import { WindowContext } from './contexts/WindowContext';
 
+// Import Custom Hooks
+import { useWindowSystem } from './hooks/useWindowSystem';
+import { useGlobalData } from './hooks/useGlobalData';
+import { useFloatingWindows } from './hooks/useFloatingWindows';
+
 const App: React.FC = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null); 
-  
   const [settings, setSettings] = useState<AppSettings>(() => {
     const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
     return {
@@ -41,212 +41,42 @@ const App: React.FC = () => {
     };
   });
 
+  // Custom Hooks usage
+  const { focusWindow, openWindow, closeWindow, getZIndex } = useWindowSystem();
+  
+  const { 
+    user, authLoading, isAuthorized, setIsAuthorized,
+    vesselJobs, blData, checklists, reportLogoUrl,
+    tasks, notificationHistory, expirationAlert,
+    latestUnreadTs, lastReadTs,
+    addTask, updateTask, removeTask,
+    addToHistory, clearHistory, updateLastRead
+  } = useGlobalData(settings);
+
+  const {
+    isChatOpen, setIsChatOpen, isChatMinimized, setIsChatMinimized, handleToggleChat,
+    isCloudOpen, setIsCloudOpen, isCloudMinimized, setIsCloudMinimized, handleToggleCloud,
+    isRegisterOpen, setIsRegisterOpen, isRegisterMinimized, setIsRegisterMinimized, handleOpenRegister, registerTargetJobId,
+    activeBLClouds, openBLCloud, closeBLCloud, minimizeBLCloud
+  } = useFloatingWindows(openWindow, closeWindow, focusWindow);
+
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [tabs, setTabs] = useState<Tab[]>([{ id: 'dashboard', type: 'dashboard', title: 'Dashboard' }]);
+  const [activeTabId, setActiveTabId] = useState('dashboard');
+  const [showNotifications, setShowNotifications] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
   
-  // --- Window Management System ---
-  // Stack of window IDs. The last element has the highest Z-Index.
-  const [windowStack, setWindowStack] = useState<string[]>([]);
-
-  const focusWindow = (windowId: string) => {
-    setWindowStack(prev => {
-      // If already at the top, do nothing to prevent unnecessary re-renders
-      if (prev.length > 0 && prev[prev.length - 1] === windowId) return prev;
-      
-      const filtered = prev.filter(id => id !== windowId);
-      return [...filtered, windowId];
-    });
-  };
-
-  const getZIndex = (windowId: string) => {
-    const baseZ = 1000;
-    const index = windowStack.indexOf(windowId);
-    // If window is not in stack (just opened), put it on top tentatively
-    return index === -1 ? baseZ + windowStack.length * 10 : baseZ + (index * 10);
-  };
-
-  const openWindow = (windowId: string) => {
-      setWindowStack(prev => {
-          if (prev.includes(windowId)) {
-              // Move to top
-              return [...prev.filter(id => id !== windowId), windowId];
-          }
-          return [...prev, windowId];
-      });
-  };
-
-  const closeWindow = (windowId: string) => {
-      setWindowStack(prev => prev.filter(id => id !== windowId));
-  };
-  // --------------------------------
-
-  // Floating Windows State (Apps)
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [isChatMinimized, setIsChatMinimized] = useState(false);
-  
-  const [isCloudOpen, setIsCloudOpen] = useState(false);
-  const [isCloudMinimized, setIsCloudMinimized] = useState(false);
-
-  const [isRegisterOpen, setIsRegisterOpen] = useState(false);
-  const [isRegisterMinimized, setIsRegisterMinimized] = useState(false);
-  const [registerTargetJobId, setRegisterTargetJobId] = useState<string | undefined>(undefined);
-  
-  // BL-specific Cloud Managers (Hoisted)
-  const [activeBLClouds, setActiveBLClouds] = useState<{ id: string; minimized: boolean }[]>([]);
-  
-  const handleToggleChat = () => {
-      if (isChatOpen) {
-          if (isChatMinimized) {
-              setIsChatMinimized(false);
-              focusWindow('chat');
-          } else {
-              setIsChatOpen(false);
-              closeWindow('chat');
-          }
-      } else {
-          setIsChatOpen(true);
-          setIsChatMinimized(false);
-          openWindow('chat');
-          updateLastRead();
-      }
-  };
-
-  const handleToggleCloud = () => {
-      if (isCloudOpen) {
-          if (isCloudMinimized) {
-              setIsCloudMinimized(false);
-              focusWindow('cloud');
-          } else {
-              setIsCloudOpen(false);
-              closeWindow('cloud');
-          }
-      } else {
-          setIsCloudOpen(true);
-          setIsCloudMinimized(false);
-          openWindow('cloud');
-      }
-  };
-
-  const handleOpenRegister = (targetJobId?: string) => {
-      setRegisterTargetJobId(targetJobId);
-      setIsRegisterOpen(true);
-      setIsRegisterMinimized(false);
-      openWindow('register');
-  };
-
-  // BL Cloud Window Handlers
-  const openBLCloud = (blId: string) => {
-    const winId = `bl-cloud-${blId}`;
-    setActiveBLClouds(prev => {
-        const exists = prev.find(w => w.id === blId);
-        if (exists) {
-            return prev.map(w => w.id === blId ? { ...w, minimized: false } : w);
-        }
-        return [...prev, { id: blId, minimized: false }];
-    });
-    openWindow(winId);
-  };
-
-  const closeBLCloud = (blId: string) => {
-    setActiveBLClouds(prev => prev.filter(w => w.id !== blId));
-    closeWindow(`bl-cloud-${blId}`);
-  };
-
-  const minimizeBLCloud = (blId: string) => {
-    setActiveBLClouds(prev => prev.map(w => w.id === blId ? { ...w, minimized: true } : w));
-  };
-
-  // BL Cloud File Operations
-  const handleBLCloudUpload = async (blId: string, files: File[]) => {
-      const taskId = `cloud-upload-${Date.now()}`;
-      addTask({ id: taskId, title: `Uploading ${files.length} files...`, status: 'processing', progress: 0, message: 'Starting...' });
-      
-      const bl = blData.find(b => b.id === blId);
-      if (!bl) return;
-
-      const newAttachments = [...(bl.attachments || [])];
-      let successCount = 0;
-
-      for (let i = 0; i < files.length; i++) {
-          const file = files[i];
-          try {
-              const url = await uploadFileToStorage(file);
-              newAttachments.push({
-                  id: Date.now().toString() + i,
-                  name: file.name,
-                  url: url,
-                  type: file.type,
-                  size: file.size,
-                  uploadDate: new Date().toISOString()
-              });
-              successCount++;
-              updateTask(taskId, { progress: Math.round(((i + 1) / files.length) * 100) });
-          } catch (e) {
-              console.error(e);
-          }
-      }
-
-      if (successCount > 0) {
-          await dataService.updateBL(blId, { attachments: newAttachments });
-          updateTask(taskId, { status: 'success', message: 'Files uploaded' });
-      } else {
-          updateTask(taskId, { status: 'error', message: 'Upload failed' });
-      }
-  };
-
-  const handleBLCloudDelete = async (blId: string, attachmentId: string) => {
-      const bl = blData.find(b => b.id === blId);
-      if (!bl) return;
-      
-      const attachment = (bl.attachments || []).find(a => a.id === attachmentId);
-      if (attachment && attachment.url) {
-          try { await deleteFileFromStorage(attachment.url); } catch(e) { console.warn(e); }
-      }
-      
-      const newAttachments = (bl.attachments || []).filter(a => a.id !== attachmentId);
-      await dataService.updateBL(blId, { attachments: newAttachments });
-  };
-  
-  const handleBLCloudRename = async (blId: string, attachmentId: string, newName: string) => {
-      const bl = blData.find(b => b.id === blId);
-      if (!bl) return;
-      
-      const newAttachments = (bl.attachments || []).map(a => 
-          a.id === attachmentId ? { ...a, name: newName } : a
-      );
-      await dataService.updateBL(blId, { attachments: newAttachments });
-  };
-  
-  const [latestUnreadTs, setLatestUnreadTs] = useState<number>(0);
-  const [lastReadTs, setLastReadTs] = useState<number>(() => {
-      const stored = localStorage.getItem('LOGI1_lastReadTs');
-      return stored ? parseInt(stored, 10) : 0;
-  });
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [progressMessage, setProgressMessage] = useState('');
 
   const hasUnreadMessages = latestUnreadTs > lastReadTs;
 
-  const [tabs, setTabs] = useState<Tab[]>([{ id: 'dashboard', type: 'dashboard', title: 'Dashboard' }]);
-  const [activeTabId, setActiveTabId] = useState('dashboard');
-  const [vesselJobs, setVesselJobs] = useState<VesselJob[]>([]);
-  const [blData, setBLData] = useState<BLData[]>([]);
-  const [checklists, setChecklists] = useState<Record<string, BLChecklist>>({});
-  const [reportLogoUrl, setReportLogoUrl] = useState<string | null>(null);
-
-  const [tasks, setTasks] = useState<BackgroundTask[]>([]);
-  const [notificationHistory, setNotificationHistory] = useState<NotificationLog[]>([]);
-  const [showNotifications, setShowNotifications] = useState(false);
-  const notifRef = useRef<HTMLDivElement>(null);
-
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [progressMessage, setProgressMessage] = useState('');
-  const [expirationAlert, setExpirationAlert] = useState<{count: number} | null>(null);
-
+  // Effects for styling and events
   useEffect(() => {
     if (settings.theme === 'dark') document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
-    
     const fontClass = settings.fontStyle === 'serif' ? 'font-serif' : settings.fontStyle === 'mono' ? 'font-mono' : 'font-sans';
     document.body.className = `${fontClass} text-slate-900 dark:text-slate-100 transition-colors duration-200 antialiased`;
-
     const root = document.documentElement;
     switch(settings.fontSize) {
       case 'small': root.style.fontSize = '14px'; break;
@@ -255,49 +85,6 @@ const App: React.FC = () => {
       default: root.style.fontSize = '16px'; 
     }
   }, [settings.theme, settings.fontStyle, settings.fontSize]);
-
-  // ... (Keep Auth Effects) ...
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      if (currentUser) {
-          dataService.updateUserPresence(currentUser);
-          dataService.setupNotifications(currentUser); 
-          const authorized = await dataService.checkUserAuthorization(currentUser.uid);
-          if (authorized) {
-              setIsAuthorized(true);
-          } else {
-              const tempCode = sessionStorage.getItem('temp_access_code');
-              if (tempCode) {
-                  const isValid = await dataService.verifyAccessCode(tempCode);
-                  if (isValid) {
-                      await dataService.grantAuthorization(currentUser.uid);
-                      setIsAuthorized(true);
-                      sessionStorage.removeItem('temp_access_code');
-                  } else {
-                      setIsAuthorized(false);
-                  }
-              } else {
-                  setIsAuthorized(false);
-              }
-          }
-      } else {
-          setIsAuthorized(null);
-      }
-      setAuthLoading(false);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  useEffect(() => {
-      if (!user) return;
-      const handleVisibilityChange = () => {
-          const status = document.hidden ? 'away' : 'online';
-          dataService.updateUserStatus(user.uid, status);
-      };
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-      return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [user]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -309,71 +96,7 @@ const App: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    if (!user || !isAuthorized) return;
-    const unsubJobs = dataService.subscribeJobs(setVesselJobs);
-    const unsubBLs = dataService.subscribeBLs((data) => {
-        setBLData(data);
-        checkExpiration(data);
-    });
-    const unsubChecklists = dataService.subscribeChecklists(setChecklists);
-    const unsubReportLogo = dataService.subscribeReportLogo(setReportLogoUrl);
-    const unsubUnread = chatService.subscribeUnreadStatus(user.uid, setLatestUnreadTs);
-    return () => { unsubJobs(); unsubBLs(); unsubChecklists(); unsubUnread(); unsubReportLogo(); };
-  }, [user, isAuthorized]);
-
-  const checkExpiration = (data: BLData[]) => {
-    const threeMonthsAgo = new Date();
-    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-    const expiredCount = data.filter(bl => new Date(bl.uploadDate) < threeMonthsAgo).length;
-    if (expiredCount > 0) setExpirationAlert({ count: expiredCount });
-    else setExpirationAlert(null);
-  };
-
-  const updateLastRead = () => {
-      const now = Date.now();
-      setLastReadTs(now);
-      localStorage.setItem('LOGI1_lastReadTs', now.toString());
-  };
-
-  const handleMobileChatCheck = () => {
-      updateLastRead();
-  };
-
-  const addTask = (task: BackgroundTask) => {
-    setTasks(prev => [task, ...prev]);
-    if (task.status === 'success') {
-      setTimeout(() => removeTask(task.id), 5000);
-      addToHistory(task.title, task.message || 'Completed successfully', 'success');
-    } else if (task.status === 'error') {
-      addToHistory(task.title, task.message || 'Operation failed', 'error');
-    }
-  };
-
-  const updateTask = (id: string, updates: Partial<BackgroundTask>) => {
-    setTasks(prev => prev.map(t => {
-        if (t.id === id) {
-           const updated = { ...t, ...updates };
-           if (updates.status === 'success' && t.status !== 'success') {
-               setTimeout(() => removeTask(id), 5000);
-               addToHistory(updated.title, updated.message || 'Done', 'success');
-           } else if (updates.status === 'error' && t.status !== 'error') {
-               addToHistory(updated.title, updated.message || 'Failed', 'error');
-           }
-           return updated;
-        }
-        return t;
-    }));
-  };
-
-  const removeTask = (id: string) => setTasks(prev => prev.filter(t => t.id !== id));
-
-  const addToHistory = (title: string, message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') => {
-      setNotificationHistory(prev => [{ id: Date.now().toString() + Math.random(), title, message, type, timestamp: new Date().toISOString() }, ...prev].slice(0, 50));
-  };
-
-  const clearHistory = () => setNotificationHistory([]);
-
+  // Handlers
   const activateTab = (id: string) => setActiveTabId(id);
   
   const closeTab = (id: string) => {
@@ -451,6 +174,7 @@ const App: React.FC = () => {
     }
   };
 
+  // Upload Logic
   const handleBLUpload = async (files: File[], sourceType: CargoSourceType = 'TRANSIT', cargoClass: CargoClass = 'TRANSHIPMENT', targetJobId?: string) => {
     setIsProcessing(true);
     let contextJobId = targetJobId || (activeTabId.startsWith('vessel-') ? tabs.find(t=>t.id===activeTabId)?.data?.vesselId : undefined);
@@ -501,6 +225,63 @@ const App: React.FC = () => {
       return isValid;
   };
 
+  // Cloud Logic Handlers
+  const handleBLCloudUpload = async (blId: string, files: File[]) => {
+      const taskId = `cloud-upload-${Date.now()}`;
+      addTask({ id: taskId, title: `Uploading ${files.length} files...`, status: 'processing', progress: 0, message: 'Starting...' });
+      
+      const bl = blData.find(b => b.id === blId);
+      if (!bl) return;
+
+      const newAttachments = [...(bl.attachments || [])];
+      let successCount = 0;
+
+      for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          try {
+              const url = await uploadFileToStorage(file);
+              newAttachments.push({
+                  id: Date.now().toString() + i,
+                  name: file.name,
+                  url: url,
+                  type: file.type,
+                  size: file.size,
+                  uploadDate: new Date().toISOString()
+              });
+              successCount++;
+              updateTask(taskId, { progress: Math.round(((i + 1) / files.length) * 100) });
+          } catch (e) { console.error(e); }
+      }
+
+      if (successCount > 0) {
+          await dataService.updateBL(blId, { attachments: newAttachments });
+          updateTask(taskId, { status: 'success', message: 'Files uploaded' });
+      } else {
+          updateTask(taskId, { status: 'error', message: 'Upload failed' });
+      }
+  };
+
+  const handleBLCloudDelete = async (blId: string, attachmentId: string) => {
+      const bl = blData.find(b => b.id === blId);
+      if (!bl) return;
+      const attachment = (bl.attachments || []).find(a => a.id === attachmentId);
+      if (attachment && attachment.url) {
+          try { await deleteFileFromStorage(attachment.url); } catch(e) { console.warn(e); }
+      }
+      const newAttachments = (bl.attachments || []).filter(a => a.id !== attachmentId);
+      await dataService.updateBL(blId, { attachments: newAttachments });
+  };
+  
+  const handleBLCloudRename = async (blId: string, attachmentId: string, newName: string) => {
+      const bl = blData.find(b => b.id === blId);
+      if (!bl) return;
+      const newAttachments = (bl.attachments || []).map(a => 
+          a.id === attachmentId ? { ...a, name: newName } : a
+      );
+      await dataService.updateBL(blId, { attachments: newAttachments });
+  };
+
+  // Logo handlers
   const handleUpdateLogo = async (file: File) => {
       try {
           const url = await uploadFileToStorage(file);
@@ -528,6 +309,7 @@ const App: React.FC = () => {
       } catch (e: any) { console.error(e); }
   };
 
+  // Render logic
   const renderTabContent = (tab: Tab) => {
     switch (tab.type) {
       case 'dashboard':
@@ -588,7 +370,7 @@ const App: React.FC = () => {
   if (isAuthorized === null) return <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-blue-500 mb-4" size={40} /><p className="text-slate-500 font-bold">Verifying Access Rights...</p></div>;
 
   if (settings.viewMode === 'mobile') {
-      return <MobileLayout user={user} settings={settings} onUpdateSettings={setSettings} onLogout={() => { if (user) signOut(auth); }} bls={blData} jobs={vesselJobs} checklists={checklists} onUpdateBL={dataService.updateBL} onDeleteBL={dataService.deleteBL} onAddTask={addTask} onUpdateTask={updateTask} hasUnreadMessages={hasUnreadMessages} onCheckMessages={handleMobileChatCheck} />;
+      return <MobileLayout user={user} settings={settings} onUpdateSettings={setSettings} onLogout={() => { if (user) signOut(auth); }} bls={blData} jobs={vesselJobs} checklists={checklists} onUpdateBL={dataService.updateBL} onDeleteBL={dataService.deleteBL} onAddTask={addTask} onUpdateTask={updateTask} hasUnreadMessages={hasUnreadMessages} onCheckMessages={() => updateLastRead()} />;
   }
 
   return (
@@ -602,7 +384,7 @@ const App: React.FC = () => {
           language={settings.language} 
           user={user} 
           isChatOpen={isChatOpen}
-          onToggleChat={handleToggleChat}
+          onToggleChat={() => handleToggleChat(updateLastRead)}
           logoUrl={settings.logoUrl}
           hasUnreadMessages={hasUnreadMessages}
           isCloudOpen={isCloudOpen}
@@ -674,7 +456,6 @@ const App: React.FC = () => {
         })}
 
         <main className="flex-1 flex flex-col overflow-hidden relative print:overflow-visible print:h-auto">
-          {/* ... (Main Content remains similar, kept concise for brevity) ... */}
           <div className="flex justify-between items-end bg-slate-100 dark:bg-slate-900 pr-4 print:hidden">
               <TabNavigation tabs={tabs} activeTabId={activeTabId} onTabClick={activateTab} onTabClose={closeTab} />
               
@@ -725,7 +506,7 @@ const App: React.FC = () => {
 
           {expirationAlert && (
             <div className="bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-200 px-4 py-2 text-sm font-medium flex items-center justify-between border-b border-red-100 dark:border-red-900 animate-fade-in-up print:hidden">
-               <div className="flex items-center gap-2"><Clock size={16} /><span>{settings.language === 'ko' ? `보관 기한(3개월)이 지난 파일이 ${expirationAlert.count}건 있습니다. 환경설정에서 백업 후 삭제해주세요.` : `${expirationAlert.count} files have expired (older than 3 months). Please backup and clean them in Settings.`}</span></div>
+               <div className="flex items-center gap-2"><div className="w-4 h-4"><svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></div><span>{settings.language === 'ko' ? `보관 기한(3개월)이 지난 파일이 ${expirationAlert.count}건 있습니다. 환경설정에서 백업 후 삭제해주세요.` : `${expirationAlert.count} files have expired (older than 3 months). Please backup and clean them in Settings.`}</span></div>
                <button onClick={() => handleSidebarNavigation('settings')} className="underline hover:text-red-800 dark:hover:text-red-100">{settings.language === 'ko' ? '설정으로 이동' : 'Go to Settings'}</button>
             </div>
           )}

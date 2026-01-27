@@ -1,9 +1,8 @@
 
 import { db } from "../lib/firebase";
-import { collection, addDoc, doc, query, where, orderBy, limit, onSnapshot, writeBatch, runTransaction, getDocs, arrayUnion, arrayRemove, setDoc, deleteDoc, updateDoc } from "firebase/firestore";
+import { collection, addDoc, doc, query, where, orderBy, limit, limitToLast, onSnapshot, writeBatch, runTransaction, getDocs, arrayUnion, arrayRemove, setDoc, deleteDoc, updateDoc } from "firebase/firestore";
 import { ChatMessage, ChatUser } from "../types";
 
-// Helper for consistent Channel ID generation
 export const generateChannelId = (uid1: string, uid2: string) => {
   return [uid1, uid2].sort().join('_');
 };
@@ -11,31 +10,19 @@ export const generateChannelId = (uid1: string, uid2: string) => {
 export const chatService = {
   subscribeChatMessages: (channelId: string, limitCount: number, callback: (messages: ChatMessage[]) => void) => {
     try {
+        // OPTIMIZATION: Use limitToLast(n) + orderBy('timestamp', 'asc')
+        // This fetches the *latest* n messages in correct chronological order directly from Firestore.
+        // It avoids fetching old messages or sorting/reversing large arrays on the client.
         const q = query(
             collection(db, "messages"),
             where("channelId", "==", channelId),
-            orderBy("timestamp", "asc"), // We need ascending for chat flow
-            // Note: Limit applies to the end of the collection if we don't reverse.
-            // Efficient pagination usually requires desc sort then reversing client side, 
-            // but for simplicity in this context we'll assume manageable volume or standard limit.
-            // Actually, usually for chat: orderBy desc, limit, then reverse in UI.
-            // Let's stick to simple asc for now as per existing logic structure usually found.
-            // If we want the *latest* 150, we should order by desc, limit 150, then reverse results.
-        );
-        
-        // However, standard Firebase chat implies listening to the end. 
-        // Let's implement a 'limit to last' approach effectively.
-        const qLatest = query(
-            collection(db, "messages"),
-            where("channelId", "==", channelId),
-            orderBy("timestamp", "desc"),
-            limit(limitCount)
+            orderBy("timestamp", "asc"),
+            limitToLast(limitCount)
         );
 
-        return onSnapshot(qLatest, (snapshot) => {
+        return onSnapshot(q, (snapshot) => {
             const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage));
-            // Reverse back to chronological order for display
-            callback(msgs.reverse());
+            callback(msgs);
         });
     } catch (e) {
         console.error("Chat Subscribe Error", e);
@@ -44,11 +31,7 @@ export const chatService = {
   },
 
   sendChatMessage: async (message: ChatMessage) => {
-      // 1. Destructure to remove client-side only fields (id, pending)
       const { id, pending, ...rest } = message;
-      
-      // 2. Sanitize payload: Firestore rejects 'undefined' values.
-      // We reconstruct the object including only defined values.
       const messageData = Object.keys(rest).reduce((acc, key) => {
           const value = (rest as any)[key];
           if (value !== undefined) {
@@ -75,17 +58,14 @@ export const chatService = {
           if (existingIdx !== -1) {
               const reaction = reactions[existingIdx];
               if (reaction.userIds.includes(userId)) {
-                  // Remove user
                   reaction.userIds = reaction.userIds.filter(uid => uid !== userId);
                   if (reaction.userIds.length === 0) {
                       reactions.splice(existingIdx, 1);
                   }
               } else {
-                  // Add user
                   reaction.userIds.push(userId);
               }
           } else {
-              // New reaction
               reactions.push({ emoji, userIds: [userId] });
           }
           
@@ -94,26 +74,16 @@ export const chatService = {
   },
 
   markChannelRead: async (channelId: string, userId: string) => {
-      // This is expensive to do on every open. Usually we update the 'lastRead' timestamp on a user-channel map.
-      // But based on the schema provided (readBy array on message), we must update unread messages.
-      // Optimization: Update only the latest 20 unread messages to save writes.
-      const q = query(
-          collection(db, "messages"), 
-          where("channelId", "==", channelId),
-          where("readBy", "not-in", [[userId]]), // This query has limitations in Firestore (cant combine with other filters easily)
-          // Simplified: Just query recent messages and check client side or use a simpler index
-          orderBy("timestamp", "desc"),
-          limit(20)
-      );
-      
-      // Actually 'not-in' is tricky with arrays. 'array-contains' is for checking if present.
-      // We can't query "array-does-not-contain".
-      // So we fetch recent messages and update if needed.
+      // OPTIMIZATION: 
+      // Firestore does NOT support filtering by "array-does-not-contain".
+      // We must query recent messages and check `readBy` on the client side.
+      // To minimize Write Costs, we limit this check to the latest 50 messages.
+      // We only execute a Write Batch if we actually find messages that need updating.
       const qRecent = query(
           collection(db, "messages"),
           where("channelId", "==", channelId),
           orderBy("timestamp", "desc"),
-          limit(30)
+          limit(50) 
       );
 
       const snapshot = await getDocs(qRecent);
@@ -123,6 +93,7 @@ export const chatService = {
       snapshot.docs.forEach(doc => {
           const data = doc.data();
           const readBy = data.readBy || [];
+          // Only update if user is NOT in the readBy array
           if (!readBy.includes(userId)) {
               batch.update(doc.ref, { readBy: arrayUnion(userId) });
               count++;
@@ -133,15 +104,10 @@ export const chatService = {
   },
 
   subscribeUnreadStatus: (userId: string, callback: (lastUnreadTs: number) => void) => {
-      // Return the timestamp of the latest message NOT read by user.
-      // Since we can't query "not read by", we listen to all relevant channels? Too expensive.
-      // Alternative: We listen to a specific "notifications" collection or just global/dms.
-      // For this app scale, we'll listen to global and calculate.
-      
-      // Simplified: Listen to latest global message.
+      // Simplified unread tracking: listens to the absolute latest message in any channel.
+      // A more robust system would require a dedicated 'user_notifications' collection.
       const q = query(
           collection(db, "messages"),
-          // where("channelId", "==", "global"), // Actually we want any channel relevant to user
           orderBy("timestamp", "desc"),
           limit(1)
       );
@@ -155,7 +121,7 @@ export const chatService = {
   },
 
   subscribeChatUsers: (callback: (users: ChatUser[]) => void) => {
-      const q = query(collection(db, "users")); // Get all users for simplicity
+      const q = query(collection(db, "users")); 
       return onSnapshot(q, (snapshot) => {
           const users = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as ChatUser));
           callback(users);
@@ -184,7 +150,6 @@ export const chatService = {
       });
   },
 
-  // Typing Indicators (Realtime DB is better, but using Firestore for uniformity)
   sendTypingStatus: async (channelId: string, user: { uid: string, displayName: string }) => {
       const docRef = doc(db, "typing", `${channelId}_${user.uid}`);
       await setDoc(docRef, { ...user, channelId, timestamp: Date.now() });
@@ -200,29 +165,19 @@ export const chatService = {
           const now = Date.now();
           const users = snapshot.docs
               .map(doc => doc.data())
-              .filter(data => now - data.timestamp < 5000); // Filter stale
+              .filter(data => now - data.timestamp < 5000); 
           callback(users);
       });
   },
 
   subscribeUnreadMap: (userId: string, callback: (map: Set<string>) => void) => {
-      // Listen to messages where I am NOT in readBy.
-      // As noted, Firestore can't do "not-in-array".
-      // Workaround: We listen to recent messages in ALL channels (Global + DMs)
-      // This is a heavy query for a real app, but ok for prototype.
-      
-      // Better Workaround:
-      // We can't query "All DMs I'm part of" easily without an index on participants.
-      // Let's assume we just check "Global" and rely on client side filtering for DMs if we loaded them.
-      
-      // For now, let's implement a listener on "messages" generally, limited to recent.
+      // Listen to recent messages to detect unread status dynamically
       const q = query(collection(db, "messages"), orderBy("timestamp", "desc"), limit(50));
       
       return onSnapshot(q, (snapshot) => {
           const map = new Set<string>();
           snapshot.docs.forEach(doc => {
               const data = doc.data();
-              // Check if it's global or a DM involving me
               const isRelevant = data.channelId === 'global' || data.channelId.includes(userId);
               if (isRelevant && (!data.readBy || !data.readBy.includes(userId))) {
                   map.add(data.channelId);
@@ -247,7 +202,7 @@ export const chatService = {
       const q = query(
           collection(db, "messages"),
           where("timestamp", "<", cutoffTimestamp),
-          limit(400) // Batch limit
+          limit(400) 
       );
       const snapshot = await getDocs(q);
       const batch = writeBatch(db);
