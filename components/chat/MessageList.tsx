@@ -82,8 +82,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                         
                         <div 
                            ref={(el) => { if (el && msg.id) messageRefs.current.set(msg.id, el); }}
-                           className={`flex gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-start group/msg relative mb-2`}
-                           onClick={(e) => handleMessageClick(e, msg.id)}
+                           className={`flex gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-start relative mb-2`}
                         >
                             {!isMe && (
                                 <div className="w-8 h-8 rounded-full bg-white/80 dark:bg-slate-700 flex-shrink-0 overflow-hidden shadow-sm mt-1 ring-1 ring-slate-200 dark:ring-slate-600">
@@ -91,7 +90,10 @@ export const MessageList: React.FC<MessageListProps> = ({
                                 </div>
                             )}
                             
-                            <div className={`max-w-[75%] flex flex-col ${isMe ? 'items-end' : 'items-start'} relative min-w-[140px]`}>
+                            <div 
+                                className={`max-w-[75%] flex flex-col ${isMe ? 'items-end' : 'items-start'} relative min-w-[140px] group/msg`}
+                                onClick={(e) => handleMessageClick(e, msg.id)}
+                            >
                                 {!isMe && <span className="text-[11px] text-slate-500 dark:text-slate-400 ml-1 mb-1 font-bold">{msg.senderName}</span>}
                                 
                                 <div className={`px-4 py-2.5 rounded-2xl text-sm shadow-sm backdrop-blur-md border border-transparent relative leading-relaxed ${
