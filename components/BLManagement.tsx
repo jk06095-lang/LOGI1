@@ -1,7 +1,7 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { BLData, VesselJob, Language, BLChecklist } from '../types';
-import { FileText, Search, ArrowRight, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, Building2, Truck, ListChecks, FolderOpen, Download } from 'lucide-react';
+import { FileText, Search, ArrowRight, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, Building2, Truck, ListChecks, FolderOpen, Download, ChevronDown, Check, X } from 'lucide-react';
 
 interface BLManagementProps {
   bls: BLData[];
@@ -48,7 +48,8 @@ const translations = {
     shipper: 'Shipper',
     consignee: 'Consignee',
     itemCount: '품목수',
-    uploadDate: '등록일'
+    uploadDate: '등록일',
+    searchVessel: '선박 검색...'
   },
   en: {
     title: 'Integrated Document List',
@@ -81,7 +82,8 @@ const translations = {
     shipper: 'Shipper',
     consignee: 'Consignee',
     itemCount: 'Item Count',
-    uploadDate: 'Date'
+    uploadDate: 'Date',
+    searchVessel: 'Search Vessel...'
   },
   cn: {
     title: '综合单证清单',
@@ -114,7 +116,8 @@ const translations = {
     shipper: '发货人',
     consignee: '收货人',
     itemCount: '项目数',
-    uploadDate: '日期'
+    uploadDate: '日期',
+    searchVessel: 'Search Vessel...'
   }
 };
 
@@ -140,6 +143,23 @@ export const BLManagement: React.FC<BLManagementProps> = ({
   const [vesselFilter, setVesselFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
+
+  // Vessel Search Dropdown State
+  const [isVesselDropdownOpen, setIsVesselDropdownOpen] = useState(false);
+  const [vesselSearchTerm, setVesselSearchTerm] = useState('');
+  const vesselDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (vesselDropdownRef.current && !vesselDropdownRef.current.contains(event.target as Node)) {
+        setIsVesselDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const getProgressInfo = (bl: BLData): ProgressInfo => {
       if (!bl.vesselJobId) {
@@ -269,6 +289,23 @@ export const BLManagement: React.FC<BLManagementProps> = ({
     return result;
   }, [bls, searchTerm, vesselFilter, typeFilter, sortConfig, checklists, language, jobs]);
 
+  // Filtered Jobs for Dropdown
+  const filteredJobsForDropdown = useMemo(() => {
+      if (!vesselSearchTerm.trim()) return jobs;
+      return jobs.filter(j => 
+          j.vesselName.toLowerCase().includes(vesselSearchTerm.toLowerCase()) || 
+          j.voyageNo.toLowerCase().includes(vesselSearchTerm.toLowerCase())
+      );
+  }, [jobs, vesselSearchTerm]);
+
+  // Get selected vessel name for display
+  const selectedVesselName = useMemo(() => {
+      if (vesselFilter === 'all') return t.allVessels;
+      if (vesselFilter === 'unassigned') return t.unassigned;
+      const job = jobs.find(j => j.id === vesselFilter);
+      return job ? `${job.vesselName} (${job.voyageNo})` : t.allVessels;
+  }, [vesselFilter, jobs, t]);
+
   const handleSort = (key: SortKey) => {
     let direction: SortDirection = 'asc';
     if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -356,10 +393,6 @@ export const BLManagement: React.FC<BLManagementProps> = ({
       "Transport Info",
       t.blNumber,
       t.shipper,
-      // Removed Consignee Header from CSV as well for consistency, or keep it if backend needs it?
-      // User asked to remove it "here" (UI context), usually CSV keeps it, but let's follow visual cue.
-      // Actually, typically CSV dumps are for data backup, so removing might be bad.
-      // BUT, let's remove it to match the visual table as requested.
       t.tableHeaders[6], // Description
       t.tableHeaders[7], // Qty
       t.tableHeaders[8], // Weight
@@ -421,7 +454,7 @@ export const BLManagement: React.FC<BLManagementProps> = ({
         </button>
       </div>
 
-      <div className="w-full grid grid-cols-1 lg:grid-cols-4 gap-4 bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+      <div className="w-full grid grid-cols-1 lg:grid-cols-4 gap-4 bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm relative z-20">
          <div className="relative lg:col-span-2">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
             <input 
@@ -432,11 +465,60 @@ export const BLManagement: React.FC<BLManagementProps> = ({
               className="w-full pl-12 pr-5 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
             />
          </div>
-         <select value={vesselFilter} onChange={(e) => setVesselFilter(e.target.value)} className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold">
-           <option value="all">{t.allVessels}</option>
-           <option value="unassigned" className="text-red-500">{t.unassigned}</option>
-           {jobs.map(j => <option key={j.id} value={j.id}>{j.vesselName}</option>)}
-         </select>
+         
+         {/* Custom Vessel Dropdown (Searchable + Voyage Info) */}
+         <div className="relative" ref={vesselDropdownRef}>
+            <button 
+                type="button" 
+                onClick={() => setIsVesselDropdownOpen(!isVesselDropdownOpen)}
+                className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold flex justify-between items-center text-slate-700 dark:text-slate-200"
+            >
+                <span className="truncate">{selectedVesselName}</span>
+                <ChevronDown size={16} className="text-slate-400 flex-shrink-0" />
+            </button>
+            {isVesselDropdownOpen && (
+                <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden max-h-80 flex flex-col animate-fade-in-up">
+                    <div className="p-2 border-b border-slate-100 dark:border-slate-700">
+                        <input 
+                            type="text" 
+                            className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700/50 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" 
+                            placeholder={t.searchVessel}
+                            value={vesselSearchTerm}
+                            onChange={(e) => setVesselSearchTerm(e.target.value)}
+                            autoFocus
+                        />
+                    </div>
+                    <div className="overflow-y-auto custom-scrollbar flex-1 p-1">
+                        <div 
+                            className={`px-4 py-2.5 hover:bg-blue-50 dark:hover:bg-slate-700/50 cursor-pointer rounded-lg text-sm flex items-center justify-between ${vesselFilter === 'all' ? 'text-blue-600 font-bold bg-blue-50 dark:bg-slate-700/50' : 'text-slate-700 dark:text-slate-200'}`}
+                            onClick={() => { setVesselFilter('all'); setIsVesselDropdownOpen(false); }}
+                        >
+                            {t.allVessels}
+                            {vesselFilter === 'all' && <Check size={14} />}
+                        </div>
+                        <div 
+                            className={`px-4 py-2.5 hover:bg-blue-50 dark:hover:bg-slate-700/50 cursor-pointer rounded-lg text-sm flex items-center justify-between ${vesselFilter === 'unassigned' ? 'text-blue-600 font-bold bg-blue-50 dark:bg-slate-700/50' : 'text-red-500'}`}
+                            onClick={() => { setVesselFilter('unassigned'); setIsVesselDropdownOpen(false); }}
+                        >
+                            {t.unassigned}
+                            {vesselFilter === 'unassigned' && <Check size={14} />}
+                        </div>
+                        <div className="border-t border-slate-100 dark:border-slate-700 my-1"></div>
+                        {filteredJobsForDropdown.map(j => (
+                            <div 
+                                key={j.id} 
+                                className={`px-4 py-2.5 hover:bg-blue-50 dark:hover:bg-slate-700/50 cursor-pointer rounded-lg text-sm flex items-center justify-between ${vesselFilter === j.id ? 'text-blue-600 font-bold bg-blue-50 dark:bg-slate-700/50' : 'text-slate-700 dark:text-slate-200'}`}
+                                onClick={() => { setVesselFilter(j.id); setIsVesselDropdownOpen(false); }}
+                            >
+                                <span>{j.vesselName} <span className="text-slate-400 font-normal ml-1">({j.voyageNo})</span></span>
+                                {vesselFilter === j.id && <Check size={14} />}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+         </div>
+
          <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold">
            <option value="all">{t.allTypes}</option>
            <option value="TRANSIT">TRANSIT</option>
@@ -473,7 +555,11 @@ export const BLManagement: React.FC<BLManagementProps> = ({
                  const totalWeight = getWeight(bl);
                  const totalCbm = getCbm(bl);
                  const displayDesc = bl.cargoItems.length > 0 ? bl.cargoItems[0].description : '-';
-                 const jobName = getJobName(bl.vesselJobId);
+                 
+                 // Job Linked Info
+                 const job = jobs.find(j => j.id === bl.vesselJobId);
+                 const displayVesselName = job ? job.vesselName : bl.vesselName;
+                 const displayVoyageNo = job ? job.voyageNo : bl.voyageNo;
 
                  return (
                    <tr key={bl.id} className="hover:bg-blue-50/30 dark:hover:bg-slate-800/50 transition-colors">
@@ -481,10 +567,13 @@ export const BLManagement: React.FC<BLManagementProps> = ({
                         {renderDocStatus(bl)}
                      </td>
                      <td className="px-4 py-4 align-middle">
-                       <div className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[220px]" title={jobName || bl.vesselName}>
-                           {jobName || bl.vesselName}
+                       <div className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[220px]" title={displayVesselName}>
+                           {displayVesselName}
                        </div>
-                       <div className="text-[10px] text-slate-400 font-medium tabular-nums mt-0.5">{bl.voyageNo}</div>
+                       {/* Explicitly display Voyage Number here per request */}
+                       <div className="text-[10px] text-slate-400 font-medium tabular-nums mt-0.5 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded inline-block">
+                           {displayVoyageNo}
+                       </div>
                      </td>
                      
                      {/* Removed Category Cell */}

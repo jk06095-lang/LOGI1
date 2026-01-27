@@ -851,6 +851,32 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
 
   const briefingJobs = getFilteredJobs();
 
+  // Create a version of jobs that are ONLY in the current period for the filter dropdown
+  const availableJobsForFilter = useMemo(() => {
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth();
+    let filtered = jobs;
+    
+    if (briefingPeriod === 'month') {
+      filtered = filtered.filter(job => {
+        const jobDate = new Date(job.eta);
+        return !isNaN(jobDate.getTime()) && jobDate.getFullYear() === currentYear && jobDate.getMonth() === currentMonth;
+      });
+    } else {
+      const start = new Date(currentDate);
+      const end = new Date(currentDate);
+      end.setDate(end.getDate() + 7);
+      filtered = filtered.filter(job => {
+        const d = new Date(job.eta);
+        return !isNaN(d.getTime()) && d >= start && d <= end;
+      });
+    }
+    
+    // Sort for dropdown
+    filtered.sort((a, b) => new Date(a.eta).getTime() - new Date(b.eta).getTime());
+    return filtered;
+  }, [jobs, currentDate, briefingPeriod]);
+
   const toggleVesselSelection = (jobId: string) => {
       setSelectedVesselIds(prev => prev.includes(jobId) ? prev.filter(id => id !== jobId) : [...prev, jobId]);
   };
@@ -1216,7 +1242,8 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
                             </div>
                         </div>
                         <div className="max-h-60 overflow-y-auto custom-scrollbar p-2 space-y-1">
-                            {jobs.map(job => (
+                            {/* CHANGED: Map over availableJobsForFilter instead of all jobs */}
+                            {availableJobsForFilter.map(job => (
                                 <div 
                                     key={job.id}
                                     onClick={() => toggleVesselSelection(job.id)}
@@ -1373,7 +1400,8 @@ export const BriefingReport: React.FC<BriefingReportProps> = ({ jobs, bls, initi
                                             <tr key={`header-${row.job.id}`} className="bg-slate-200 print:bg-slate-200">
                                                 <td colSpan={13} className="border border-black px-2 py-1 align-middle">
                                                     <div className="flex justify-between items-center font-bold text-xs uppercase tracking-wide">
-                                                        <span>{row.job.vesselName}</span>
+                                                        {/* CHANGED: Append (Voyage) to Vessel Name */}
+                                                        <span>{row.job.vesselName} ({row.job.voyageNo.slice(-3)})</span>
                                                         <div className="flex gap-4 font-mono">
                                                             <span>VOY: {row.job.voyageNo}</span>
                                                             <span>ETA: {row.job.eta}</span>
