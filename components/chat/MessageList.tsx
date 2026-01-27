@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChatMessage, ChatUser } from '../../types';
 import { User } from 'firebase/auth';
@@ -22,13 +22,17 @@ const getDateString = (ts: number) => new Date(ts).toLocaleDateString();
 export const MessageList: React.FC<MessageListProps> = ({ 
   messages, user, allUsers, typingUsers, messageRefs, onReaction, onReply, loadMoreMessages 
 }) => {
-  const [activeReaction, setActiveReaction] = React.useState<{id: string, emoji: string, x: number, y: number} | null>(null);
+  const [activeReaction, setActiveReaction] = useState<{id: string, emoji: string, x: number, y: number} | null>(null);
+  // State to track which message has its action menu open (for mobile tap)
+  const [mobileMenuMsgId, setMobileMenuMsgId] = useState<string | null>(null);
 
   React.useEffect(() => {
-      const handleClickOutside = () => setActiveReaction(null);
+      const handleClickOutside = () => {
+          setActiveReaction(null);
+          setMobileMenuMsgId(null);
+      };
       // Listen on capture phase to ensure we close before other clicks are processed if needed
       window.addEventListener('click', handleClickOutside, true);
-      // Close on scroll too to prevent detached popups
       window.addEventListener('scroll', handleClickOutside, true);
       
       return () => {
@@ -36,6 +40,12 @@ export const MessageList: React.FC<MessageListProps> = ({
           window.removeEventListener('scroll', handleClickOutside, true);
       };
   }, []);
+
+  const handleMessageClick = (e: React.MouseEvent, msgId: string) => {
+      e.stopPropagation();
+      // Toggle menu on click
+      setMobileMenuMsgId(prev => prev === msgId ? null : msgId);
+  };
 
   return (
     <div className="space-y-6 pb-8">
@@ -58,6 +68,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                 const currentDate = getDateString(msg.timestamp);
                 const prevDate = index > 0 ? getDateString(messages[index-1].timestamp) : null;
                 const showDate = currentDate !== prevDate;
+                const isMenuOpen = mobileMenuMsgId === msg.id;
 
                 return (
                     <React.Fragment key={msg.id}>
@@ -72,6 +83,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                         <div 
                            ref={(el) => { if (el && msg.id) messageRefs.current.set(msg.id, el); }}
                            className={`flex gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-start group/msg relative mb-2`}
+                           onClick={(e) => handleMessageClick(e, msg.id)}
                         >
                             {!isMe && (
                                 <div className="w-8 h-8 rounded-full bg-white/80 dark:bg-slate-700 flex-shrink-0 overflow-hidden shadow-sm mt-1 ring-1 ring-slate-200 dark:ring-slate-600">
@@ -144,8 +156,14 @@ export const MessageList: React.FC<MessageListProps> = ({
                                        )}
                                     </div>
 
-                                    {/* Action Menu (Visible on Group Hover) */}
-                                    <div className={`absolute right-0 -bottom-1.5 transition-all duration-200 z-10 translate-y-2 ${msg.pending ? 'opacity-50 pointer-events-none' : 'opacity-0 group-hover/msg:opacity-100 group-hover/msg:translate-y-0'}`}>
+                                    {/* Action Menu (Visible on Group Hover OR if manually toggled on mobile) */}
+                                    <div className={`absolute right-0 -bottom-1.5 transition-all duration-200 z-10 translate-y-2 ${
+                                        msg.pending 
+                                            ? 'opacity-50 pointer-events-none' 
+                                            : isMenuOpen 
+                                                ? 'opacity-100 translate-y-0' 
+                                                : 'opacity-0 group-hover/msg:opacity-100 group-hover/msg:translate-y-0 pointer-events-none group-hover/msg:pointer-events-auto'
+                                        }`}>
                                         <div className="flex items-center gap-0.5 bg-white dark:bg-slate-800 rounded-full shadow-md border border-slate-200 dark:border-slate-700 p-1 ring-1 ring-black/5">
                                            {msg.pending ? (
                                                <div className="px-2 py-1 flex items-center justify-center">
@@ -156,7 +174,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                                                    {['✅', '❌', '👍', '❤️'].map(emoji => (
                                                        <button 
                                                            key={emoji} 
-                                                           onClick={(e) => { e.stopPropagation(); onReaction(emoji, msg.id); }}
+                                                           onClick={(e) => { e.stopPropagation(); onReaction(emoji, msg.id); setMobileMenuMsgId(null); }}
                                                            className="w-7 h-7 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-transform hover:scale-110 text-base leading-none"
                                                        >
                                                            {emoji}
@@ -164,7 +182,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                                                    ))}
                                                    <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1"></div>
                                                    <button 
-                                                       onClick={(e) => { e.stopPropagation(); onReply(msg); }}
+                                                       onClick={(e) => { e.stopPropagation(); onReply(msg); setMobileMenuMsgId(null); }}
                                                        className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-all"
                                                    >
                                                        <Reply size={14} strokeWidth={2.5} />

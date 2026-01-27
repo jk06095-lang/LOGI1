@@ -2,15 +2,15 @@
 import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
 import { BLData, VesselJob, AppSettings, ChatMessage, ChatUser, BLChecklist, BackgroundTask, Language } from '../types';
 import { 
-    Search, FileText, MessageCircle, LogOut, X, ArrowLeft, Send, User as UserIcon, 
-    Check, CheckCheck, List as ListIcon, Box, ExternalLink, ChevronDown, Truck, ArrowUpCircle, Smile, LayoutGrid, Globe
+    Search, FileText, MessageCircle, LogOut, X, ArrowLeft, User as UserIcon, 
+    Check, List as ListIcon, Box, ExternalLink, ChevronDown, LayoutGrid, Globe, Ship, Anchor
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { chatService } from '../services/chatService';
 import { User } from 'firebase/auth';
 import { motion, AnimatePresence } from 'framer-motion';
-
-const EMOJIS = ['😀', '😂', '😍', '🥰', '😎', '😭', '😡', '👍', '👎', '🙏', '🔥', '✨', '🎉', '❤️', '💔', '👀', '✅', '❌', '🚀', '💼'];
+import { MessageList } from './chat/MessageList';
+import { MessageInput } from './chat/MessageInput';
 
 const mobileTranslations = {
   ko: {
@@ -53,6 +53,8 @@ const mobileTranslations = {
     dmChannel: '1:1 메시지',
     version: 'LOGI1 모바일 v1.0.0',
     addFriendHint: '친구 추가는 PC 버전에서 가능합니다.',
+    selectVessel: '선박 선택',
+    searchVessel: '선박 검색...',
     locale: 'ko-KR'
   },
   en: {
@@ -95,6 +97,8 @@ const mobileTranslations = {
     dmChannel: 'Direct Message',
     version: 'LOGI1 Mobile v1.0.0',
     addFriendHint: 'Add friends via PC version.',
+    selectVessel: 'Select Vessel',
+    searchVessel: 'Search Vessel...',
     locale: 'en-US'
   },
   cn: {
@@ -137,6 +141,8 @@ const mobileTranslations = {
     dmChannel: '私信',
     version: 'LOGI1 移动版 v1.0.0',
     addFriendHint: '请在PC端添加好友。',
+    selectVessel: '选择船舶',
+    searchVessel: '搜索船舶...',
     locale: 'zh-CN'
   }
 };
@@ -173,14 +179,15 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   const t = mobileTranslations[language];
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [users, setUsers] = useState<ChatUser[]>([]);
-  const [inputText, setInputText] = useState('');
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [unreadMap, setUnreadMap] = useState<Set<string>>(new Set()); 
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showScrollDown, setShowScrollDown] = useState(false);
   
+  // New States for Full Functionality
+  const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
+  
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   
   const [messageLimit, setMessageLimit] = useState(150);
   const isHistoryLoadingRef = useRef(false);
@@ -269,30 +276,14 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
       }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const val = e.target.value;
-      setInputText(val);
-      
+  const handleTyping = () => {
       if (!user || !activeChannel.id) return;
-
-      if (val.trim() === '') {
-          if (isTyping) {
-              chatService.clearTypingStatus(activeChannel.id, user.uid);
-              setIsTyping(false);
-          }
-          return;
-      }
-
       const now = Date.now();
       if (!isTyping || now - lastTypingSentRef.current > 2500) {
-          chatService.sendTypingStatus(activeChannel.id, { 
-              uid: user.uid, 
-              displayName: user.displayName || 'User' 
-          });
+          chatService.sendTypingStatus(activeChannel.id, { uid: user.uid, displayName: user.displayName || 'User' });
           lastTypingSentRef.current = now;
           setIsTyping(true);
       }
-
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = setTimeout(() => {
           chatService.clearTypingStatus(activeChannel.id, user.uid);
@@ -300,44 +291,15 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
       }, 3000);
   };
 
-  const handleEmojiClick = (emoji: string) => {
-      setInputText(prev => prev + emoji);
-      setShowEmojiPicker(false);
-      inputRef.current?.focus();
-  };
-
-  const handleInputFocus = () => {
+  const handleStopTyping = () => {
       if (!user || !activeChannel.id) return;
-      chatService.markChannelRead(activeChannel.id, user.uid);
-
-      chatService.sendTypingStatus(activeChannel.id, { 
-          uid: user.uid, 
-          displayName: user.displayName || 'User' 
-      });
-      setIsTyping(true);
-      lastTypingSentRef.current = Date.now();
-  };
-
-  const handleInputBlur = () => {
-      if (!user || !activeChannel.id) return;
-      if (isTyping) {
-          chatService.clearTypingStatus(activeChannel.id, user.uid);
-          setIsTyping(false);
-      }
-  };
-
-  const handleSend = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!inputText.trim() || !user || !activeChannel.id) return;
-      
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       chatService.clearTypingStatus(activeChannel.id, user.uid);
       setIsTyping(false);
-      setShowEmojiPicker(false);
+  };
 
-      const text = inputText.trim();
-      setInputText('');
-
+  const handleSend = async (text: string) => {
+      if (!user || !activeChannel.id) return;
+      
       const msg: ChatMessage = {
           id: 'temp-' + Date.now(),
           text,
@@ -347,21 +309,41 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
           timestamp: Date.now(),
           channelId: activeChannel.id,
           readBy: [user.uid],
-          pending: true
+          pending: true,
+          replyTo: replyingTo ? { id: replyingTo.id, senderName: replyingTo.senderName, text: replyingTo.text } : undefined
       };
       
       setMessages(prev => [...prev, msg]);
-      if (scrollRef.current) {
-          setTimeout(() => {
-              if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-          }, 50);
-      }
+      setReplyingTo(null);
+      setTimeout(scrollToBottom, 50);
       
       await chatService.sendChatMessage(msg);
+  };
 
-      if (inputRef.current) {
-          inputRef.current.focus();
-      }
+  const handleReaction = async (emoji: string, messageId: string) => {
+      if (!user) return;
+      
+      // Optimistic Update
+      setMessages(prev => prev.map(msg => {
+          if (msg.id === messageId) {
+              const reactions = (msg.reactions || []).map(r => ({ ...r, userIds: [...r.userIds] }));
+              const idx = reactions.findIndex(r => r.emoji === emoji);
+              if (idx !== -1) {
+                  if (reactions[idx].userIds.includes(user.uid)) {
+                      reactions[idx].userIds = reactions[idx].userIds.filter(id => id !== user.uid);
+                      if (reactions[idx].userIds.length === 0) reactions.splice(idx, 1);
+                  } else {
+                      reactions[idx].userIds.push(user.uid);
+                  }
+              } else {
+                  reactions.push({ emoji, userIds: [user.uid] });
+              }
+              return { ...msg, reactions };
+          }
+          return msg;
+      }));
+
+      await chatService.toggleMessageReaction(messageId, user.uid, emoji);
   };
 
   const getDmChannelId = (partnerId: string) => {
@@ -380,8 +362,6 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
       isHistoryLoadingRef.current = true;
       setMessageLimit(prev => prev + 100); 
   };
-
-  const getDateString = (ts: number) => new Date(ts).toLocaleDateString();
 
   if (view === 'list') {
       return (
@@ -466,83 +446,18 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
               </div>
           </div>
 
-          {/* Chat Content */}
-          <div className="flex-1 overflow-y-auto p-4 pt-20 pb-24 custom-scrollbar" ref={scrollRef} onScroll={handleScroll} style={{ WebkitOverflowScrolling: 'touch' }}>
-              
-              <div className="flex justify-center mb-4">
-                  <button 
-                    onClick={loadMoreHistory}
-                    className="text-xs bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 py-1.5 rounded-full flex items-center gap-1 hover:bg-slate-300 dark:hover:bg-slate-600 active:scale-95 transition-transform"
-                  >
-                      <ArrowUpCircle size={12} /> {t.loadPrev}
-                  </button>
-              </div>
-
-              <div className="space-y-3 pb-4">
-                  {messages.length === 0 ? (
-                      <div className="text-center text-slate-400 text-sm mt-10 italic">{t.noMsgYet}</div>
-                  ) : (
-                      messages.map((msg, idx) => {
-                          const isMe = msg.senderId === user?.uid;
-                          const isRead = msg.readBy && msg.readBy.length > 1;
-
-                          const currentDate = getDateString(msg.timestamp);
-                          const prevDate = idx > 0 ? getDateString(messages[idx-1].timestamp) : null;
-                          const showDate = currentDate !== prevDate;
-
-                          return (
-                              <React.Fragment key={msg.id || idx}>
-                                  {showDate && (
-                                      <div className="flex justify-center my-4">
-                                          <div className="bg-slate-200/50 dark:bg-slate-700/50 text-slate-500 dark:text-slate-300 text-[10px] font-bold px-3 py-1 rounded-full backdrop-blur-md">
-                                              {new Date(msg.timestamp).toLocaleDateString(t.locale, { year: 'numeric', month: 'long', day: 'numeric' })}
-                                          </div>
-                                      </div>
-                                  )}
-                                  <div className={`flex gap-2 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
-                                      {!isMe && (
-                                          <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex-shrink-0 overflow-hidden mt-1 shadow-sm">
-                                              {msg.senderPhoto ? <img src={msg.senderPhoto} alt="U" /> : <UserIcon className="w-full h-full p-1.5 text-slate-400"/>}
-                                          </div>
-                                      )}
-                                      <div className={`max-w-[80%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
-                                          {!isMe && <span className="text-[10px] text-slate-500 dark:text-slate-400 ml-1 mb-0.5">{msg.senderName}</span>}
-                                          <div className={`px-3 py-2 rounded-2xl text-sm shadow-sm ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-tl-none'}`}>
-                                              {msg.text}
-                                          </div>
-                                          <div className="flex items-center gap-1 mt-1 px-1">
-                                              <span className="text-[10px] text-slate-400">
-                                                  {new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}
-                                              </span>
-                                              {isMe && (
-                                                  <span className={`${isRead ? 'text-blue-500' : 'text-slate-300 dark:text-slate-600'}`}>
-                                                      {isRead ? <CheckCheck size={12} /> : <Check size={12} />}
-                                                  </span>
-                                              )}
-                                          </div>
-                                      </div>
-                                  </div>
-                              </React.Fragment>
-                          )
-                      })
-                  )}
-
-                  {/* Mobile Typing Indicator */}
-                  {typingUsers.length > 0 && (
-                     <div className="flex gap-2 animate-fade-in-up">
-                         <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
-                             <div className="flex gap-0.5">
-                                 <span className="w-1 h-1 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce"></span>
-                                 <span className="w-1 h-1 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce delay-100"></span>
-                                 <span className="w-1 h-1 bg-slate-400 dark:bg-slate-500 rounded-full animate-bounce delay-200"></span>
-                             </div>
-                         </div>
-                         <span className="text-xs text-slate-400 self-center">
-                            {typingUsers.join(', ')} {t.isTyping}
-                         </span>
-                     </div>
-                  )}
-              </div>
+          {/* Chat Content - Using shared MessageList */}
+          <div className="flex-1 overflow-y-auto p-4 pt-20 pb-20 custom-scrollbar" ref={scrollRef} onScroll={handleScroll} style={{ WebkitOverflowScrolling: 'touch' }}>
+              <MessageList 
+                  messages={messages}
+                  user={user}
+                  allUsers={users}
+                  typingUsers={typingUsers}
+                  messageRefs={messageRefs}
+                  onReaction={handleReaction}
+                  onReply={setReplyingTo}
+                  loadMoreMessages={loadMoreHistory}
+              />
           </div>
 
           <AnimatePresence>
@@ -559,69 +474,29 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                 )}
           </AnimatePresence>
 
-          {/* Chat Footer */}
-          <div className="absolute bottom-0 left-0 right-0 z-20 p-3 bg-white/75 dark:bg-black/40 backdrop-blur-xl border-t border-white/20 dark:border-white/10 shrink-0 safe-area-bottom shadow-[0_-5px_15px_rgba(0,0,0,0.05)]">
-              <AnimatePresence>
-                  {showEmojiPicker && (
-                      <motion.div
-                          initial={{ opacity: 0, scale: 0.9, y: 10 }}
-                          animate={{ opacity: 1, scale: 1, y: 0 }}
-                          exit={{ opacity: 0, scale: 0.9, y: 10 }}
-                          className="absolute bottom-[4.5rem] left-2 right-2 bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border border-slate-200 dark:border-slate-700 rounded-2xl p-3 shadow-2xl grid grid-cols-7 sm:grid-cols-10 gap-1 z-30"
-                      >
-                          {EMOJIS.map(emoji => (
-                              <button
-                                  key={emoji}
-                                  onClick={() => handleEmojiClick(emoji)}
-                                  className="w-10 h-10 flex items-center justify-center text-xl hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                              >
-                                  {emoji}
-                              </button>
-                          ))}
-                      </motion.div>
-                  )}
-              </AnimatePresence>
-
-              <form onSubmit={handleSend} className="flex gap-2 items-center">
-                  <button 
-                      type="button" 
-                      onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                      className={`p-2 rounded-full transition-colors shrink-0 ${showEmojiPicker ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
-                  >
-                      <Smile size={20} />
-                  </button>
-                  <input 
-                      ref={inputRef}
-                      type="text" 
-                      value={inputText}
-                      onChange={handleInputChange}
-                      onFocus={handleInputFocus}
-                      onBlur={handleInputBlur}
-                      placeholder={t.typeMsg}
-                      className="flex-1 bg-slate-100 dark:bg-slate-700 border-none rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-slate-800 dark:text-white placeholder-slate-500 dark:placeholder-slate-400"
-                  />
-                  <button 
-                    type="submit" 
-                    disabled={!inputText.trim()} 
-                    onMouseDown={(e) => e.preventDefault()}
-                    className="p-2 bg-blue-600 text-white rounded-full disabled:opacity-50 shrink-0 shadow-md"
-                  >
-                      <Send size={18} />
-                  </button>
-              </form>
+          {/* Chat Footer - Using shared MessageInput */}
+          <div className="absolute bottom-0 left-0 right-0 z-20 p-2 bg-white/75 dark:bg-black/40 backdrop-blur-xl border-t border-white/20 dark:border-white/10 shrink-0 safe-area-bottom shadow-[0_-5px_15px_rgba(0,0,0,0.05)]">
+              <MessageInput 
+                  onSend={handleSend}
+                  onTyping={handleTyping}
+                  onStopTyping={handleStopTyping}
+                  replyingTo={replyingTo}
+                  onCancelReply={() => setReplyingTo(null)}
+              />
           </div>
       </div>
   );
 };
 
-// Define MobileShipmentDetail component
+// Define MobileShipmentDetail component (Unchanged)
 const MobileShipmentDetail: React.FC<{
   bl: BLData;
   onClose: () => void;
   language: Language;
 }> = ({ bl, onClose, language }) => {
   const t = mobileTranslations[language];
-  
+  // ... (keeping implementation detailed in original file, just returning structure here for brevity in this update block, 
+  // but in real file assume it's the same content as before)
   return (
     <div className="absolute inset-0 bg-slate-50 dark:bg-slate-900 z-50 flex flex-col">
         <div className="px-4 py-3 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center gap-3 pt-safe-top shadow-sm">
@@ -646,9 +521,7 @@ const MobileShipmentDetail: React.FC<{
                         <p className="text-sm font-medium text-slate-800 dark:text-slate-200 mt-0.5 break-words">{bl.consignee}</p>
                     </div>
                 </div>
-                
                 <div className="border-t border-slate-100 dark:border-slate-700 my-2"></div>
-                
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t.pol}</label>
@@ -659,7 +532,6 @@ const MobileShipmentDetail: React.FC<{
                         <p className="text-sm font-medium text-slate-800 dark:text-slate-200 mt-0.5">{bl.portOfDischarge}</p>
                     </div>
                 </div>
-
                 <div className="grid grid-cols-3 gap-2 bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg">
                      <div>
                         <label className="text-[10px] font-bold text-slate-400 uppercase">{t.cargoItems}</label>
@@ -674,7 +546,6 @@ const MobileShipmentDetail: React.FC<{
                         <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{bl.cargoItems.reduce((acc, i) => acc + (i.measurement || 0), 0).toFixed(3)}</p>
                      </div>
                 </div>
-                
                 {bl.fileUrl && (
                     <button 
                         onClick={() => window.open(bl.fileUrl, '_blank')}
@@ -711,8 +582,11 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [vesselFilter, setVesselFilter] = useState('all');
   const [selectedBLId, setSelectedBLId] = useState<string | null>(null);
+  
+  // Enhanced Vessel Selector State
+  const [isVesselSelectorOpen, setIsVesselSelectorOpen] = useState(false);
+  const [vesselSearchTerm, setVesselSearchTerm] = useState('');
 
-  // Sync active channel name when language changes if it's the global chat
   useEffect(() => {
       if (activeChannel.type === 'global') {
           setActiveChannel(prev => ({ ...prev, name: t.globalChat }));
@@ -776,6 +650,22 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
     return result;
   }, [bls, searchTerm, vesselFilter]);
 
+  // Filtered Jobs for Selector
+  const filteredJobs = useMemo(() => {
+      if (!vesselSearchTerm.trim()) return jobs;
+      return jobs.filter(j => 
+          j.vesselName.toLowerCase().includes(vesselSearchTerm.toLowerCase()) || 
+          j.voyageNo.toLowerCase().includes(vesselSearchTerm.toLowerCase())
+      );
+  }, [jobs, vesselSearchTerm]);
+
+  const selectedVesselLabel = useMemo(() => {
+      if (vesselFilter === 'all') return t.allVessels;
+      if (vesselFilter === 'unassigned') return t.unassigned;
+      const j = jobs.find(j => j.id === vesselFilter);
+      return j ? `${j.vesselName} (${j.voyageNo})` : t.allVessels;
+  }, [vesselFilter, jobs, t]);
+
   const renderContent = () => {
     if (selectedBLId) {
         const selectedBL = bls.find(b => b.id === selectedBLId);
@@ -799,23 +689,16 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
               <div className="absolute top-0 left-0 right-0 z-20 p-4 bg-white/20 dark:bg-black/20 backdrop-blur-xl backdrop-saturate-150 border-b border-white/20 dark:border-white/10 pt-safe-top shadow-sm transition-all">
                   <div className="flex justify-between items-center mb-3">
                       <h2 className="font-bold text-lg text-slate-800 dark:text-white">{t.cargoList}</h2>
-                      <div className="relative">
-                          <select 
-                              value={vesselFilter}
-                              onChange={(e) => setVesselFilter(e.target.value)}
-                              className="pl-3 pr-6 py-1.5 bg-white/30 dark:bg-slate-700/30 text-xs font-bold border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none max-w-[200px] truncate backdrop-blur-sm"
-                              style={{ backgroundImage: 'none' }} 
-                          >
-                              <option value="all">{t.allVessels}</option>
-                              <option value="unassigned">{t.unassigned}</option>
-                              {jobs.map(j => (
-                                  <option key={j.id} value={j.id}>{j.vesselName}</option>
-                              ))}
-                          </select>
-                           <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
-                              <ChevronDown size={12} className="text-slate-400" />
-                           </div>
-                      </div>
+                      
+                      {/* Enhanced Vessel Selector Trigger */}
+                      <button 
+                          onClick={() => { setIsVesselSelectorOpen(true); setVesselSearchTerm(''); }}
+                          className="flex items-center gap-2 pl-3 pr-2 py-1.5 bg-white/30 dark:bg-slate-700/30 rounded-lg border border-slate-200 dark:border-slate-600 shadow-sm backdrop-blur-sm active:scale-95 transition-transform max-w-[70%]"
+                      >
+                          <Ship size={14} className="text-blue-500 shrink-0" />
+                          <span className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{selectedVesselLabel}</span>
+                          <ChevronDown size={14} className="text-slate-400 shrink-0" />
+                      </button>
                   </div>
 
                   <div className="relative">
@@ -872,6 +755,70 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                       )})
                   )}
               </div>
+
+              {/* Vessel Selector Overlay */}
+              <AnimatePresence>
+                  {isVesselSelectorOpen && (
+                      <motion.div 
+                          initial={{ opacity: 0, y: 100 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 100 }}
+                          className="fixed inset-0 z-[150] bg-white dark:bg-slate-900 flex flex-col pt-safe-top"
+                      >
+                          <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 flex items-center gap-3">
+                              <button onClick={() => setIsVesselSelectorOpen(false)} className="p-2 -ml-2 text-slate-500">
+                                  <X size={24} />
+                              </button>
+                              <h3 className="text-lg font-bold text-slate-800 dark:text-white">{t.selectVessel}</h3>
+                          </div>
+                          
+                          <div className="p-4 bg-slate-50 dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700">
+                              <div className="relative">
+                                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                                  <input 
+                                      type="text"
+                                      className="w-full pl-10 pr-4 py-3 bg-white dark:bg-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white"
+                                      placeholder={t.searchVessel}
+                                      value={vesselSearchTerm}
+                                      onChange={(e) => setVesselSearchTerm(e.target.value)}
+                                      autoFocus
+                                  />
+                              </div>
+                          </div>
+
+                          <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
+                              <div 
+                                  onClick={() => { setVesselFilter('all'); setIsVesselSelectorOpen(false); }}
+                                  className={`p-4 mb-2 rounded-xl flex items-center justify-between cursor-pointer ${vesselFilter === 'all' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                              >
+                                  <span className="font-bold text-sm">{t.allVessels}</span>
+                                  {vesselFilter === 'all' && <Check size={18} />}
+                              </div>
+                              <div 
+                                  onClick={() => { setVesselFilter('unassigned'); setIsVesselSelectorOpen(false); }}
+                                  className={`p-4 mb-2 rounded-xl flex items-center justify-between cursor-pointer ${vesselFilter === 'unassigned' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                              >
+                                  <span className="font-bold text-sm">{t.unassigned}</span>
+                                  {vesselFilter === 'unassigned' && <Check size={18} />}
+                              </div>
+                              <div className="h-px bg-slate-100 dark:bg-slate-700 my-2 mx-2"></div>
+                              {filteredJobs.map(job => (
+                                  <div 
+                                      key={job.id}
+                                      onClick={() => { setVesselFilter(job.id); setIsVesselSelectorOpen(false); }}
+                                      className={`p-4 mb-2 rounded-xl flex items-center justify-between cursor-pointer ${vesselFilter === job.id ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200'}`}
+                                  >
+                                      <div>
+                                          <p className="font-bold text-sm">{job.vesselName}</p>
+                                          <p className="text-xs opacity-70 mt-0.5">{job.voyageNo}</p>
+                                      </div>
+                                      {vesselFilter === job.id && <Check size={18} />}
+                                  </div>
+                              ))}
+                          </div>
+                      </motion.div>
+                  )}
+              </AnimatePresence>
           </div>
         );
       case 'chat':
