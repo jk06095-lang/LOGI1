@@ -19,6 +19,7 @@ interface ShipmentDetailProps {
   onAddTask: (task: BackgroundTask) => void;
   onUpdateTask: (id: string, updates: Partial<BackgroundTask>) => void;
   onOpenCloudManager: () => void;
+  onNavigateToVessel?: (jobId: string) => void;
 }
 
 const translations = {
@@ -438,7 +439,7 @@ const formatNumberValue = (val: any) => {
     return val;
 };
 
-export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, language, onUpdateBL, onClose, onNavigateToChecklist, checklist, onDelete, onAddTask, onUpdateTask, onOpenCloudManager }) => {
+export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, language, onUpdateBL, onClose, onNavigateToChecklist, checklist, onDelete, onAddTask, onUpdateTask, onOpenCloudManager, onNavigateToVessel }) => {
   const [formData, setFormData] = useState<BLData>(bl);
   const [isSaving, setIsSaving] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState<DocumentScanType | null>(null);
@@ -801,13 +802,19 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
                          {formData.blNumber || 'New Entry'}
                       </h2>
                       
-                      <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 px-3 py-1 rounded-lg ml-2">
-                        <Ship size={14} className="text-blue-500" />
-                        <div className="flex flex-col text-left">
-                            <span className="text-xs font-bold text-blue-800 dark:text-blue-200 leading-none mt-0.5 max-w-[150px] truncate">
-                                {assignedJob ? assignedJob.vesselName : (formData.vesselName || t.noVessel)}
-                            </span>
-                        </div>
+                      <div className="flex items-center bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 rounded-lg ml-2 overflow-hidden">
+                        <button 
+                            onClick={() => assignedJob && onNavigateToVessel && onNavigateToVessel(assignedJob.id)}
+                            disabled={!assignedJob}
+                            className={`flex items-center gap-2 px-3 py-1 text-left group transition-colors ${assignedJob ? 'hover:bg-blue-100 dark:hover:bg-blue-900/50 cursor-pointer' : 'cursor-default'}`}
+                        >
+                            <Ship size={14} className="text-blue-500" />
+                            <div className="flex flex-col text-left">
+                                <span className={`text-xs font-bold text-blue-800 dark:text-blue-200 leading-none mt-0.5 max-w-[150px] truncate ${assignedJob ? 'group-hover:underline' : ''}`}>
+                                    {assignedJob ? assignedJob.vesselName : (formData.vesselName || t.noVessel)}
+                                </span>
+                            </div>
+                        </button>
                       </div>
 
                       <div className="flex items-center bg-slate-100 dark:bg-slate-700 rounded-lg p-0.5 ml-2">

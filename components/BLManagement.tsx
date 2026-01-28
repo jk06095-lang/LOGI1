@@ -254,7 +254,18 @@ export const BLManagement: React.FC<BLManagementProps> = ({
         (bl.koreanForwarder && bl.koreanForwarder.toLowerCase().includes(lowerSearch));
         
       const matchesVessel = vesselFilter === 'all' || (vesselFilter === 'unassigned' && !bl.vesselJobId) || bl.vesselJobId === vesselFilter;
-      const matchesType = typeFilter === 'all' || bl.sourceType === typeFilter;
+      
+      let matchesType = true;
+      if (typeFilter !== 'all') {
+          if (typeFilter === 'TRANSIT') {
+              matchesType = bl.sourceType === 'TRANSIT' && bl.cargoClass !== 'IMPORT';
+          } else if (typeFilter === 'IMPORT') {
+              matchesType = bl.cargoClass === 'IMPORT';
+          } else {
+              matchesType = bl.sourceType === typeFilter;
+          }
+      }
+
       return matchesSearch && matchesVessel && matchesType;
     });
 
@@ -519,9 +530,10 @@ export const BLManagement: React.FC<BLManagementProps> = ({
             )}
          </div>
 
-         <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold">
+         <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="w-full px-5 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold cursor-pointer">
            <option value="all">{t.allTypes}</option>
            <option value="TRANSIT">TRANSIT</option>
+           <option value="IMPORT">IMPORT</option>
            <option value="FISCO">FISCO</option>
            <option value="THIRD_PARTY">3RD PARTY</option>
          </select>

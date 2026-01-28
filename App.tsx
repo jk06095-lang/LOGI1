@@ -16,7 +16,7 @@ import { CloudFileManager } from './components/CloudFileManager';
 import { RegisterCargoWindow } from './components/RegisterCargoWindow';
 import { AppSettings, CargoSourceType, ViewState, CargoClass } from './types';
 import { parseBLImage } from './services/geminiService';
-import { dataService } from './services/dataService';
+import { dataService } from '../services/dataService';
 import { uploadFileToStorage, deleteFileFromStorage } from './services/storageService';
 import { auth } from './lib/firebase';
 import { signOut } from 'firebase/auth';
@@ -337,6 +337,7 @@ const App: React.FC = () => {
             onUpdateTask={updateTask} 
             onNavigateToChecklist={() => { if (currentBL.vesselJobId) { openVesselTab(currentBL.vesselJobId, 'checklist', currentBL.id); } else { alert("Please assign to a vessel first to view checklist."); } }} 
             onOpenCloudManager={() => openBLCloud(currentBL.id)} 
+            onNavigateToVessel={(jobId) => openVesselTab(jobId, 'cargo')}
         />;
       case 'vessel-detail':
         const currentJob = vesselJobs.find(j => j.id === tab.data.vesselId);
