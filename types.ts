@@ -1,5 +1,4 @@
 
-
 export interface CargoItem {
   description: string;
   quantity: number;
@@ -220,46 +219,4 @@ export type FontSize = 'small' | 'medium' | 'large' | 'xl';
 export type FontStyle = 'sans' | 'serif' | 'mono';
 
 export interface AppSettings {
-  language: Language;
-  theme: Theme;
-  fontSize: FontSize;
-  fontStyle: FontStyle;
-  viewMode: 'mobile' | 'pc';
-  logoUrl?: string; // Custom Company Logo
-}
-
-// Chat Types
-export interface Reaction {
-  emoji: string;
-  userIds: string[];
-}
-
-export interface ChatMessage {
-  id: string;
-  text: string;
-  senderId: string;
-  senderName: string;
-  senderPhoto?: string;
-  timestamp: number;
-  channelId: string; // 'global' or 'uidA_uidB'
-  readBy: string[]; // List of user IDs who have read the message
-  pending?: boolean; // Optimistic UI state
-  reactions?: Reaction[];
-  replyTo?: {
-    id: string;
-    senderName: string;
-    text: string;
-  };
-}
-
-export interface ChatUser {
-  uid: string;
-  displayName: string;
-  email: string;
-  photoURL?: string;
-  lastSeen: number;
-  status: 'online' | 'offline' | 'away';
-  contacts?: string[]; // List of UIDs this user has added as friends
-  fcmTokens?: string[]; // Array of FCM tokens for notifications
-  authorized?: boolean; // New: Access Code Verification Status
-}
+  language:
