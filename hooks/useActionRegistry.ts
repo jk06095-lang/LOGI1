@@ -8,7 +8,7 @@ import { useUIStore } from '../store/uiStore';
 // Domain Action Interface
 export interface AppActions {
   cargo: {
-    uploadBL: (files: File[], sourceType?: CargoSourceType, cargoClass?: CargoClass, targetJobId?: string, availableCategories?: string[]) => Promise<void>;
+    uploadBL: (files: File[], sourceType?: CargoSourceType, cargoClass?: CargoClass, targetJobId?: string) => Promise<void>;
     uploadCloudFiles: (blId: string, files: File[]) => Promise<void>;
     deleteCloudFile: (blId: string, attachmentId: string) => Promise<void>;
     renameCloudFile: (blId: string, attachmentId: string, newName: string) => Promise<void>;
@@ -34,7 +34,7 @@ export const useActionRegistry = (
 
   // --- CARGO ACTIONS ---
   
-  const uploadBL = async (files: File[], sourceType: CargoSourceType = 'TRANSIT', cargoClass: CargoClass = 'TRANSHIPMENT', targetJobId?: string, availableCategories: string[] = []) => {
+  const uploadBL = async (files: File[], sourceType: CargoSourceType = 'TRANSIT', cargoClass: CargoClass = 'TRANSHIPMENT', targetJobId?: string) => {
     setProcessing(true, 'Initializing upload...');
     let contextJobName = '';
     if (targetJobId) {
@@ -49,9 +49,7 @@ export const useActionRegistry = (
       try {
         setProcessing(true, `${i + 1}/${files.length} Analyzing ${file.name}...`);
         const downloadUrl = await uploadFileToStorage(file);
-        
-        // Pass available categories to the parser
-        const rawData = await parseBLImage(file, sourceType, availableCategories);
+        const rawData = await parseBLImage(file, sourceType);
         
         let matchedJobId = targetJobId;
         if (!matchedJobId && rawData.vesselName) {
@@ -77,8 +75,7 @@ export const useActionRegistry = (
           date: rawData.date || '', 
           sourceType: sourceType, 
           cargoClass: cargoClass, 
-          cargoItems: rawData.cargoItems || [],
-          cargoCategory: rawData.cargoCategory // Ensure captured category is saved
+          cargoItems: rawData.cargoItems || []
         });
       } catch (error: any) { 
           addToHistory('Upload Error', `${file.name}: ${error.message}`, 'error');

@@ -5,12 +5,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Minus, Maximize2, Layers, Upload, Keyboard, Container, Anchor, Box, Ship, ArrowDownCircle, Check, FileText } from 'lucide-react';
 import { VesselJob, BLData, CargoSourceType, Language, CargoItem, CargoClass, BaseWindowProps } from '../../types';
 import { FileUpload } from '../../components/FileUpload';
-import { dataService } from '../../services/dataService';
 
 interface RegisterCargoWindowProps extends BaseWindowProps {
   targetJobId?: string;
   jobs: VesselJob[];
-  onUploadBLs: (files: File[], sourceType: CargoSourceType, cargoClass?: CargoClass, targetJobId?: string, categories?: string[]) => void;
+  onUploadBLs: (files: File[], sourceType: CargoSourceType, cargoClass?: CargoClass, targetJobId?: string) => void;
   onCreateManualBL: (blData: BLData) => Promise<void>;
   isProcessing: boolean;
   progressMessage: string;
@@ -147,7 +146,6 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
   const [activeMode, setActiveMode] = useState<CargoMode>('TRANSIT');
   const [inputMode, setInputMode] = useState<'upload' | 'manual'>('upload');
   const [selectedJobId, setSelectedJobId] = useState<string>(targetJobId || '');
-  const [categories, setCategories] = useState<string[]>([]);
 
   // Manual Form State
   const [manualForm, setManualForm] = useState({
@@ -158,12 +156,6 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
   useEffect(() => {
       if (targetJobId) setSelectedJobId(targetJobId);
   }, [targetJobId, isOpen]);
-
-  useEffect(() => {
-      // Fetch categories for AI context
-      const unsub = dataService.subscribeCategories(setCategories);
-      return () => unsub();
-  }, []);
 
   // Helper to convert UI mode to data fields
   const getCargoDataFromMode = (mode: CargoMode) => {
@@ -188,7 +180,7 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
 
   const handleUploadSubmit = (files: File[]) => {
       const { sourceType, cargoClass } = getCargoDataFromMode(activeMode);
-      onUploadBLs(files, sourceType, cargoClass, selectedJobId, categories);
+      onUploadBLs(files, sourceType, cargoClass, selectedJobId);
       onClose();
   };
 
