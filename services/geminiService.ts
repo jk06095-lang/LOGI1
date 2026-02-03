@@ -19,73 +19,98 @@ const cargoItemSchema: Schema = {
   required: ["description", "quantity"],
 };
 
-const fullDocSchema: Schema = {
-  type: Type.OBJECT,
-  properties: {
-    // Common Fields
-    blNumber: { type: Type.STRING, description: "B/L No, Invoice No, or Ref No" },
-    shipper: { type: Type.STRING, description: "Shipper or Supplier Name" },
-    consignee: { type: Type.STRING, description: "Consignee or Vessel Name" },
-    notifyParty: { type: Type.STRING, description: "Notify Party Name" },
-    vesselName: { type: Type.STRING, description: "Vessel Name" },
-    voyageNo: { type: Type.STRING, description: "Voyage Number" },
-    portOfLoading: { type: Type.STRING, description: "Port of Loading (POL)" },
-    date: { type: Type.STRING, description: "Date of issue" },
-    
-    // New Fields
-    koreanForwarder: { type: Type.STRING, description: "The 'DELIVERY AGENT' or Forwarder company name. Often found under 'For delivery of goods please apply to'." },
-    transporterName: { type: Type.STRING, description: "Trucking or Transport Company Name" },
-    cargoType: { type: Type.STRING, description: "Enum: 'LCL' or 'FCL'. Rule: If 'CY/CY', 'CY-CY', or 'FCL' is found -> 'FCL'. If 'CFS/CFS', 'CFS-CFS', or 'LCL' is found -> 'LCL'." },
-    
-    // Classification Fields
-    cargoClass: { 
-      type: Type.STRING, 
-      description: "Enum: 'IMPORT' or 'TRANSHIPMENT'. Logic: If Consignee address contains 'Korea', 'Seoul', 'Busan', 'Incheon', set to 'IMPORT'. If Consignee is outside Korea or remarks say 'T/S', set to 'TRANSHIPMENT'." 
+// Function to generate the schema dynamically based on available categories
+const createFullDocSchema = (availableCategories: string[]): Schema => {
+  const categoryDescription = availableCategories.length > 0 
+    ? `Enum: ${availableCategories.map(c => `'${c}'`).join(', ')}. STRICTLY classify into one of these. If no match, use 'GENERAL'.`
+    : "Enum: 'FISHING_GEAR', 'BAIT', 'NETS', 'PORT_EQUIPMENT', 'GENERAL'. Infer from description.";
+
+  return {
+    type: Type.OBJECT,
+    properties: {
+      // Common Fields
+      blNumber: { type: Type.STRING, description: "B/L No, Invoice No, or Ref No" },
+      shipper: { type: Type.STRING, description: "Shipper or Supplier Name" },
+      consignee: { type: Type.STRING, description: "Consignee or Vessel Name" },
+      notifyParty: { type: Type.STRING, description: "Notify Party Name" },
+      vesselName: { type: Type.STRING, description: "Vessel Name" },
+      voyageNo: { type: Type.STRING, description: "Voyage Number" },
+      portOfLoading: { type: Type.STRING, description: "Port of Loading (POL)" },
+      date: { type: Type.STRING, description: "Date of issue" },
+      
+      // New Fields
+      koreanForwarder: { type: Type.STRING, description: "The 'DELIVERY AGENT' or Forwarder company name. Often found under 'For delivery of goods please apply to'." },
+      transporterName: { type: Type.STRING, description: "Trucking or Transport Company Name" },
+      cargoType: { type: Type.STRING, description: "Enum: 'LCL' or 'FCL'. Rule: If 'CY/CY', 'CY-CY', or 'FCL' is found -> 'FCL'. If 'CFS/CFS', 'CFS-CFS', or 'LCL' is found -> 'LCL'." },
+      
+      // Classification Fields
+      cargoClass: { 
+        type: Type.STRING, 
+        description: "Enum: 'IMPORT' or 'TRANSHIPMENT'. Logic: If Consignee address contains 'Korea', 'Seoul', 'Busan', 'Incheon', set to 'IMPORT'. If Consignee is outside Korea or remarks say 'T/S', set to 'TRANSHIPMENT'." 
+      },
+      importSubClass: { 
+        type: Type.STRING, 
+        description: "Enum: 'GENERAL', 'RETURN_EXPORT', 'SHIPS_STORES'. Logic: If description/remarks contains 'Ship Stores', 'Spare Parts for Vessel', set to 'SHIPS_STORES'. If 'Return', 'Re-export', set to 'RETURN_EXPORT'." 
+      },
+      
+      // Dynamic Category Field
+      cargoCategory: {
+          type: Type.STRING,
+          description: categoryDescription
+      },
+
+      // Cargo List
+      cargoItems: {
+        type: Type.ARRAY,
+        items: cargoItemSchema,
+        description: "List of cargo items",
+      },
+
+      // P/L Specific
+      totalPackageCount: { type: Type.NUMBER, description: "Total quantity of packages from Packing List or B/L Header" },
+      totalCbm: { type: Type.NUMBER, description: "Total Measurement (CBM). Sum of measurements or explicit Total CBM from B/L." },
+      totalGrossWeight: { type: Type.NUMBER, description: "Total Gross Weight from Packing List or B/L Header" },
+
+      // C/I Specific
+      currency: { type: Type.STRING, description: "Currency (USD, KRW, EUR)" },
+      totalAmount: { type: Type.NUMBER, description: "Total Invoice Amount/Value" },
+
+      // Export Declaration Specific
+      declarationNo: { type: Type.STRING, description: "Export Declaration Number (수출신고번호)" },
+      mainHsCode: { type: Type.STRING, description: "Main HS Code. If not explicitly found, INFER the most likely 6-digit HS Code based on the cargo description." },
+
+      // A/N Specific
+      anEta: { type: Type.STRING, description: "ETA Date from Arrival Notice" },
+      anLocation: { type: Type.STRING, description: "Location name (CY or CFS) where cargo is stored" },
+      anFreightCost: { type: Type.STRING, description: "Total Freight Cost string (e.g. 500 USD)" },
+      anOtherCosts: { type: Type.STRING, description: "Other costs like Demurrage, THC" }
     },
-    importSubClass: { 
-      type: Type.STRING, 
-      description: "Enum: 'GENERAL', 'RETURN_EXPORT', 'SHIPS_STORES'. Logic: If description/remarks contains 'Ship Stores', 'Spare Parts for Vessel', set to 'SHIPS_STORES'. If 'Return', 'Re-export', set to 'RETURN_EXPORT'." 
-    },
-    cargoCategory: {
-        type: Type.STRING,
-        description: "Enum: 'FISHING_GEAR' (어구), 'BAIT' (베이트/미끼), 'NETS' (그물), 'PORT_EQUIPMENT' (항통장비), 'GENERAL' (기타). Infer from description."
-    },
-
-    // Cargo List
-    cargoItems: {
-      type: Type.ARRAY,
-      items: cargoItemSchema,
-      description: "List of cargo items",
-    },
-
-    // P/L Specific
-    totalPackageCount: { type: Type.NUMBER, description: "Total quantity of packages from Packing List or B/L Header" },
-    totalCbm: { type: Type.NUMBER, description: "Total Measurement (CBM). Sum of measurements or explicit Total CBM from B/L." },
-    totalGrossWeight: { type: Type.NUMBER, description: "Total Gross Weight from Packing List or B/L Header" },
-
-    // C/I Specific
-    currency: { type: Type.STRING, description: "Currency (USD, KRW, EUR)" },
-    totalAmount: { type: Type.NUMBER, description: "Total Invoice Amount/Value" },
-
-    // Export Declaration Specific
-    declarationNo: { type: Type.STRING, description: "Export Declaration Number (수출신고번호)" },
-    mainHsCode: { type: Type.STRING, description: "Main HS Code. If not explicitly found, INFER the most likely 6-digit HS Code based on the cargo description." },
-
-    // A/N Specific
-    anEta: { type: Type.STRING, description: "ETA Date from Arrival Notice" },
-    anLocation: { type: Type.STRING, description: "Location name (CY or CFS) where cargo is stored" },
-    anFreightCost: { type: Type.STRING, description: "Total Freight Cost string (e.g. 500 USD)" },
-    anOtherCosts: { type: Type.STRING, description: "Other costs like Demurrage, THC" }
-  },
+  };
 };
 
-export const parseDocument = async (file: File, docType: DocumentScanType, sourceType: CargoSourceType = 'TRANSIT'): Promise<any> => {
+export const parseDocument = async (
+    file: File, 
+    docType: DocumentScanType, 
+    sourceType: CargoSourceType = 'TRANSIT',
+    availableCategories: string[] = [] // New Argument
+): Promise<any> => {
   return new Promise(async (resolve, reject) => {
     try {
       // 1. Compress Image to ensure it fits in Vercel Payload (Max 4.5MB)
       const compressedFile = await compressImage(file);
       const base64Data = await fileToGenerativePart(compressedFile);
       const mimeType = compressedFile.type === 'application/pdf' ? 'application/pdf' : compressedFile.type;
+
+      // 2. Generate Dynamic Schema
+      const fullDocSchema = createFullDocSchema(availableCategories);
+
+      // 3. Construct Prompt with Dynamic Categories
+      let categoryPrompt = "";
+      if (availableCategories.length > 0) {
+          categoryPrompt = `\n\n**CRITICAL INSTRUCTION**: You must classify 'cargoCategory' ONLY as one of the following values: ${availableCategories.join(', ')}. If the cargo does not fit any of these, default to 'GENERAL'. Do not invent new categories.`;
+      } else {
+          categoryPrompt = `\n\nClassify 'cargoCategory' as 'FISHING_GEAR', 'BAIT', 'NETS', 'PORT_EQUIPMENT', or 'GENERAL' based on description.`;
+      }
 
       let promptText = "";
 
@@ -132,12 +157,13 @@ export const parseDocument = async (file: File, docType: DocumentScanType, sourc
             CLASSIFICATION RULES:
             - **Cargo Type**: Look for terms 'CY/CY' or 'FCL' -> Set to 'FCL'. Look for 'CFS/CFS' or 'LCL' -> Set to 'LCL'.
             - **Cargo Class**: If Consignee Address in KOREA -> 'IMPORT'. Else -> 'TRANSHIPMENT'.
-            - **Cargo Category**: Classify as 'FISHING_GEAR', 'BAIT', 'NETS', 'PORT_EQUIPMENT', or 'GENERAL' based on description.
+            - **Cargo Category**: ${categoryPrompt}
             - Extract Agencies (Korean Forwarder, Transporter).
             `;
           } else {
             promptText = `Analyze this Supply Document (LOGI1/3rd Party).
             Extract standard logistics data.
+            ${categoryPrompt}
             `;
           }
           break;
@@ -188,8 +214,8 @@ export const parseDocument = async (file: File, docType: DocumentScanType, sourc
   });
 };
 
-export const parseBLImage = async (file: File, sourceType: CargoSourceType = 'TRANSIT'): Promise<Partial<BLData>> => {
-  return parseDocument(file, 'BL', sourceType);
+export const parseBLImage = async (file: File, sourceType: CargoSourceType = 'TRANSIT', availableCategories: string[] = []): Promise<Partial<BLData>> => {
+  return parseDocument(file, 'BL', sourceType, availableCategories);
 };
 
 const fileToGenerativePart = (file: File): Promise<string> => {
