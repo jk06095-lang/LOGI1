@@ -260,3 +260,28 @@ export interface ChatMessage {
     userIds: string[];
   }[];
 }
+
+// UI Store Types
+export interface Tab {
+  id: string;
+  type: 'dashboard' | 'vessel-list' | 'vessel-detail' | 'settings' | 'bl-list' | 'shipment-detail' | 'briefing' | 'cloud';
+  title: string;
+  data?: any;
+}
+
+// Standardized Window Interface for AI/Code Consistency
+export interface BaseWindowProps {
+  id?: string; // Optional identifier
+  isOpen: boolean;
+  isMinimized?: boolean;
+  onClose: () => void;
+  onMinimize?: () => void;
+  onFocus?: () => void;
+  zIndex: number;
+}
+
+export interface WindowState {
+  isOpen: boolean;
+  isMinimized: boolean;
+  data?: any;
+}

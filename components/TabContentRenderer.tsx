@@ -1,0 +1,119 @@
+
+import React from 'react';
+import { Dashboard, BriefingReport } from './Dashboard';
+import { VesselList } from './VesselList';
+import { VesselDetail } from './VesselDetail';
+import { Settings } from './Settings';
+import { BLManagement } from './BLManagement';
+import { ShipmentDetail } from './ShipmentDetail';
+import { Tab, VesselJob, BLData, BLChecklist, BackgroundTask } from '../types';
+import { User } from 'firebase/auth';
+import { useUIStore } from '../store/uiStore';
+
+interface TabContentRendererProps {
+  activeTabId: string;
+  tabs: Tab[];
+  jobs: VesselJob[];
+  bls: BLData[];
+  checklists: Record<string, BLChecklist>;
+  user: User | null;
+  reportLogoUrl: string | null;
+  logic: any;
+  dataActions: any;
+  tasks: { addTask: any, updateTask: any, removeTask: any };
+}
+
+export const TabContentRenderer: React.FC<TabContentRendererProps> = (props) => {
+  const { activeTabId, tabs, jobs, bls, checklists, user, reportLogoUrl, logic, dataActions, tasks } = props;
+  const { openWindow, addTab, closeTab, settings, processing, updateSettings } = useUIStore();
+  
+  const tab = tabs.find(t => t.id === activeTabId);
+  if (!tab) return null;
+
+  // Navigation Helpers (recreated from Store actions to match prop signature)
+  const openVesselTab = (jobId: string, initialTab: 'cargo'|'checklist' = 'cargo', blId?: string) => {
+      const job = jobs.find(j => j.id === jobId);
+      if(!job) return;
+      addTab({ 
+          id: `vessel-${jobId}`, 
+          type: 'vessel-detail', 
+          title: job.vesselName, 
+          data: { vesselId: jobId, initialTab, initialBLId: blId, timestamp: Date.now() } 
+      });
+  };
+
+  const openShipmentDetailTab = (blId: string) => {
+      const bl = bls.find(b => b.id === blId);
+      if(!bl) return;
+      let title = bl.blNumber;
+      if (bl.vesselJobId) {
+          const job = jobs.find(j => j.id === bl.vesselJobId);
+          if (job) title = `${job.vesselName.substring(0,4)}: ${bl.blNumber}`;
+      }
+      addTab({ id: `shipment-${blId}`, type: 'shipment-detail', title, data: { blId } });
+  };
+
+  const openBriefingTab = (date: Date) => {
+      addTab({ id: 'briefing-report', type: 'briefing', title: 'Report', data: { date } });
+  };
+
+  switch (tab.type) {
+    case 'dashboard':
+      return <Dashboard jobs={jobs} bls={bls} onSelectJob={openVesselTab} language={settings.language} onUpdateBL={dataActions.updateBL} onOpenBriefing={openBriefingTab} onUploadBLs={logic.handleBLUpload} onUpdateJob={dataActions.updateJob} />;
+    
+    case 'briefing':
+       return <BriefingReport jobs={jobs} bls={bls} initialDate={tab.data?.date || new Date()} language={settings.language} logoUrl={settings.logoUrl} reportLogoUrl={reportLogoUrl} onUpdateBL={dataActions.updateBL} onUpdateLogo={logic.handleUpdateLogo} onUpdateReportLogo={logic.handleUpdateReportLogo} onResetReportLogo={() => dataActions.updateReportLogo(null)} />;
+    
+    case 'vessel-list':
+      return <VesselList jobs={jobs} allBLs={bls} onSelectJob={openVesselTab} onCreateJob={dataActions.addJob} onUpdateJob={dataActions.updateJob} onDeleteJob={dataActions.deleteJob} getBLCount={(id) => bls.filter(b => b.vesselJobId === id).length} getTotalWeight={(id) => 0} language={settings.language} />;
+    
+    case 'bl-list':
+      return <BLManagement bls={bls} jobs={jobs} checklists={checklists} onUploadBLs={logic.handleBLUpload} onAssignBL={(blId, jobId) => dataActions.updateBL(blId, { vesselJobId: jobId })} onCreateJob={dataActions.addJob} onNavigateToBL={(id) => openShipmentDetailTab(id)} isProcessing={processing.isProcessing} progressMessage={processing.message} language={settings.language} />;
+    
+    case 'settings':
+      return <Settings settings={settings} onUpdateSettings={updateSettings} user={user} onLogout={props.logic.onLogout} bls={bls} jobs={jobs} onDeleteBLs={dataActions.bulkDeleteBLs} />;
+    
+    case 'shipment-detail':
+      const currentBL = bls.find(b => b.id === tab.data.blId);
+      if(!currentBL) return <div className="p-10 text-slate-400">Document not found</div>;
+      return <ShipmentDetail 
+          bl={currentBL} 
+          jobs={jobs} 
+          language={settings.language} 
+          onUpdateBL={dataActions.updateBL} 
+          onClose={() => closeTab(tab.id)} 
+          checklist={checklists[currentBL.id]} 
+          onDelete={(id) => dataActions.deleteBL(id)} 
+          onAddTask={tasks.addTask} 
+          onUpdateTask={tasks.updateTask} 
+          onNavigateToChecklist={() => { if (currentBL.vesselJobId) openVesselTab(currentBL.vesselJobId, 'checklist', currentBL.id); else alert("Assign vessel first"); }} 
+          onOpenCloudManager={() => openWindow(`bl-cloud-${currentBL.id}`)} 
+          onNavigateToVessel={(jobId) => openVesselTab(jobId, 'cargo')}
+      />;
+    
+    case 'vessel-detail':
+      const currentJob = jobs.find(j => j.id === tab.data.vesselId);
+      if (!currentJob) return <div className="p-10 text-slate-400">Vessel not found</div>;
+      return <VesselDetail 
+          key={tab.id} 
+          job={currentJob} 
+          bls={bls.filter(bl => bl.vesselJobId === currentJob.id)} 
+          checklists={checklists} 
+          onClose={() => closeTab(tab.id)} 
+          onUploadBLs={(f, type) => logic.handleBLUpload(f, type, undefined, currentJob.id)} 
+          onCreateManualBL={dataActions.addBL} 
+          onUpdateChecklist={dataActions.updateChecklist} 
+          onUpdateBL={dataActions.updateBL} 
+          isProcessing={processing.isProcessing} 
+          progressMessage={processing.message} 
+          language={settings.language} 
+          initialTab={tab.data?.initialTab} 
+          initialBLId={tab.data?.initialBLId} 
+          lastUpdate={tab.data?.timestamp} 
+          onOpenBLDetail={(id) => openShipmentDetailTab(id)} 
+          onOpenRegister={() => openWindow('register', { targetJobId: currentJob.id })} 
+      />;
+    
+    default: return null;
+  }
+};

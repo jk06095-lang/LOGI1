@@ -1,13 +1,7 @@
 
 import React, { useRef } from 'react';
 import { X, FolderOpen, Settings, Ship, Home, FileText, PieChart, ChevronLeft, ChevronRight, Cloud } from 'lucide-react';
-
-export interface Tab {
-  id: string;
-  type: 'dashboard' | 'vessel-list' | 'vessel-detail' | 'settings' | 'bl-list' | 'shipment-detail' | 'briefing' | 'cloud';
-  title: string;
-  data?: any; // To store vesselId for detail views
-}
+import { Tab } from '../types';
 
 interface TabNavigationProps {
   tabs: Tab[];
