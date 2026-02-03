@@ -15,7 +15,7 @@ import { CloudFileManager } from './components/CloudFileManager';
 import { RegisterCargoWindow } from './components/RegisterCargoWindow';
 import { AppSettings, CargoSourceType, ViewState, CargoClass } from './types';
 import { parseBLImage } from './services/geminiService';
-import { dataService } from '../services/dataService';
+import { dataService } from './services/dataService';
 import { uploadFileToStorage, deleteFileFromStorage } from './services/storageService';
 import { auth } from './lib/firebase';
 import { signOut } from 'firebase/auth';
