@@ -10,7 +10,6 @@ import { ShipmentDetail } from './components/ShipmentDetail';
 import { TabNavigation, Tab } from './components/TabNavigation';
 import { ChatWindow } from './components/ChatWindow'; 
 import { MobileLayout } from './components/MobileLayout'; 
-import { AccessGate } from './components/AccessGate';
 import { GlobalCloudManager } from './components/GlobalCloudManager';
 import { CloudFileManager } from './components/CloudFileManager';
 import { RegisterCargoWindow } from './components/RegisterCargoWindow';
@@ -215,16 +214,6 @@ const App: React.FC = () => {
     if (files.length > 0 && settings.viewMode !== 'mobile') handleSidebarNavigation('bl-list');
   };
 
-  const handleAccessVerify = async (code: string) => {
-      if (!user) return false;
-      const isValid = await dataService.verifyAccessCode(code);
-      if (isValid) {
-          await dataService.grantAuthorization(user.uid);
-          setIsAuthorized(true);
-      }
-      return isValid;
-  };
-
   // Cloud Logic Handlers
   const handleBLCloudUpload = async (blId: string, files: File[]) => {
       const taskId = `cloud-upload-${Date.now()}`;
@@ -367,8 +356,6 @@ const App: React.FC = () => {
 
   if (authLoading) return <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-slate-400 font-bold tracking-widest uppercase">Initializing LOGI1...</div>;
   if (!user) return <Login />;
-  if (isAuthorized === false) return <AccessGate onVerify={handleAccessVerify} onLogout={() => signOut(auth)} userEmail={user.email || ''} />;
-  if (isAuthorized === null) return <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-blue-500 mb-4" size={40} /><p className="text-slate-500 font-bold">Verifying Access Rights...</p></div>;
 
   if (settings.viewMode === 'mobile') {
       return <MobileLayout user={user} settings={settings} onUpdateSettings={setSettings} onLogout={() => { if (user) signOut(auth); }} bls={blData} jobs={vesselJobs} checklists={checklists} onUpdateBL={dataService.updateBL} onDeleteBL={dataService.deleteBL} onAddTask={addTask} onUpdateTask={updateTask} hasUnreadMessages={hasUnreadMessages} onCheckMessages={() => updateLastRead()} />;

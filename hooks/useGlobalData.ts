@@ -36,24 +36,8 @@ export const useGlobalData = (settings: AppSettings) => {
       if (currentUser) {
           dataService.updateUserPresence(currentUser);
           dataService.setupNotifications(currentUser); 
-          const authorized = await dataService.checkUserAuthorization(currentUser.uid);
-          if (authorized) {
-              setIsAuthorized(true);
-          } else {
-              const tempCode = sessionStorage.getItem('temp_access_code');
-              if (tempCode) {
-                  const isValid = await dataService.verifyAccessCode(tempCode);
-                  if (isValid) {
-                      await dataService.grantAuthorization(currentUser.uid);
-                      setIsAuthorized(true);
-                      sessionStorage.removeItem('temp_access_code');
-                  } else {
-                      setIsAuthorized(false);
-                  }
-              } else {
-                  setIsAuthorized(false);
-              }
-          }
+          // Access Gate Disabled: Always authorize logged-in users
+          setIsAuthorized(true);
       } else {
           setIsAuthorized(null);
       }

@@ -219,4 +219,44 @@ export type FontSize = 'small' | 'medium' | 'large' | 'xl';
 export type FontStyle = 'sans' | 'serif' | 'mono';
 
 export interface AppSettings {
-  language:
+  language: Language;
+  theme: Theme;
+  fontSize: FontSize;
+  fontStyle: FontStyle;
+  viewMode: 'mobile' | 'pc';
+  logoUrl?: string;
+}
+
+// Chat Types
+export interface ChatUser {
+  uid: string;
+  displayName: string;
+  email: string;
+  photoURL: string;
+  lastSeen: number;
+  status: 'online' | 'offline' | 'away';
+  contacts?: string[];
+  authorized?: boolean;
+  fcmTokens?: string[];
+}
+
+export interface ChatMessage {
+  id: string;
+  text: string;
+  senderId: string;
+  senderName: string;
+  senderPhoto?: string;
+  timestamp: number;
+  channelId: string;
+  readBy?: string[];
+  pending?: boolean;
+  replyTo?: {
+    id: string;
+    senderName: string;
+    text: string;
+  };
+  reactions?: {
+    emoji: string;
+    userIds: string[];
+  }[];
+}
