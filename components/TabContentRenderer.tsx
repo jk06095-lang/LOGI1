@@ -11,6 +11,25 @@ import { User } from 'firebase/auth';
 import { useUIStore } from '../store/uiStore';
 import { AppActions } from '../hooks/useActionRegistry';
 
+// Explicit interfaces to replace 'any'
+interface DataActions {
+  updateBL: (blId: string, updates: Partial<BLData>) => Promise<void>;
+  updateJob: (jobId: string, updates: Partial<VesselJob>) => Promise<void>;
+  addJob: (job: Omit<VesselJob, 'id'>) => Promise<void>;
+  deleteJob: (jobId: string) => Promise<void>;
+  bulkDeleteBLs: (ids: string[]) => Promise<void>;
+  updateChecklist: (blId: string, checklist: BLChecklist) => Promise<void>;
+  addBL: (bl: BLData) => Promise<void>;
+  deleteBL: (blId: string) => Promise<void>;
+  updateReportLogo: (url: string | null) => Promise<void>;
+}
+
+interface TaskActions {
+  addTask: (task: BackgroundTask) => void;
+  updateTask: (id: string, updates: Partial<BackgroundTask>) => void;
+  removeTask: (id: string) => void;
+}
+
 interface TabContentRendererProps {
   activeTabId: string;
   tabs: Tab[];
@@ -20,8 +39,8 @@ interface TabContentRendererProps {
   user: User | null;
   reportLogoUrl: string | null;
   logic: AppActions;
-  dataActions: any;
-  tasks: { addTask: any, updateTask: any, removeTask: any };
+  dataActions: DataActions;
+  tasks: TaskActions;
 }
 
 export const TabContentRenderer: React.FC<TabContentRendererProps> = (props) => {

@@ -1,1 +1,1 @@
-// DELETED - Duplicate logic merged into useActionRegistry.ts
+// This file is deprecated and should be deleted. Logic has been moved to useActionRegistry.ts
