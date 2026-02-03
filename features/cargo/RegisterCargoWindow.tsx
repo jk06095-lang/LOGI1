@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { X, Minus, Maximize2, Layers, Upload, Keyboard, Container, Anchor, Box, Ship, ArrowDownCircle, Check, FileText } from 'lucide-react';
 import { VesselJob, BLData, CargoSourceType, Language, CargoItem, CargoClass, BaseWindowProps } from '../../types';
 import { FileUpload } from '../../components/FileUpload';
@@ -137,7 +137,7 @@ const ModeButton = ({ mode, icon: Icon, label, activeMode, setActiveMode }: { mo
 };
 
 export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
-  isOpen, isMinimized, onClose, onMinimize, zIndex, onFocus, targetJobId, jobs, onUploadBLs, onCreateManualBL, isProcessing, progressMessage, language
+  isOpen, isMinimized, onClose, onMinimize, zIndex, onFocus, targetJobId, jobs, onUploadBLs, onCreateManualBL, isProcessing, progressMessage, language, triggerRect
 }) => {
   const t = translations[language];
   const [windowState, setWindowState] = useState<WindowState>('default');
@@ -254,6 +254,62 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
   };
   const dims = getWindowDimensions();
 
+  const variants: Variants = useMemo(() => {
+      // Default
+      if (!triggerRect) {
+          return {
+              initial: { opacity: 0, scale: 0.95, y: 30 },
+              animate: { 
+                  opacity: isMinimized ? 0 : 1, 
+                  scale: isMinimized ? 0.95 : 1,
+                  width: dims.width,
+                  height: dims.height,
+                  x: dims.x,
+                  y: dims.y,
+                  pointerEvents: isMinimized ? 'none' : 'auto'
+              },
+              exit: { opacity: 0, scale: 0.95, y: 30 }
+          };
+      }
+
+      // Genie Effect
+      return {
+          initial: {
+              position: 'fixed',
+              left: triggerRect.x,
+              top: triggerRect.y,
+              width: triggerRect.width,
+              height: triggerRect.height,
+              opacity: 0,
+              scale: 0,
+              borderRadius: "100px",
+          },
+          animate: {
+              position: 'fixed',
+              left: dims.x,
+              top: dims.y,
+              width: dims.width,
+              height: dims.height,
+              opacity: isMinimized ? 0 : 1,
+              scale: isMinimized ? 0 : 1,
+              borderRadius: "24px",
+              pointerEvents: isMinimized ? 'none' : 'auto',
+              transition: { type: "spring", stiffness: 300, damping: 28 }
+          },
+          exit: {
+              position: 'fixed',
+              left: triggerRect.x,
+              top: triggerRect.y,
+              width: triggerRect.width,
+              height: triggerRect.height,
+              opacity: 0,
+              scale: 0,
+              borderRadius: "100px",
+              transition: { duration: 0.3, ease: "anticipate" }
+          }
+      };
+  }, [triggerRect, isMinimized, dims]);
+
   // Traffic Lights Handler
   const handleYellowClick = (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -273,19 +329,15 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
         drag={windowState !== 'maximized'}
         dragMomentum={false}
         dragElastic={0.1}
-        initial={{ opacity: 0, scale: 0.95, y: 30 }}
-        animate={{ 
-            opacity: isMinimized ? 0 : 1, 
-            scale: isMinimized ? 0.95 : 1,
-            width: dims.width,
-            height: dims.height,
-            x: dims.x,
-            y: dims.y,
-            pointerEvents: isMinimized ? 'none' : 'auto'
+        initial="initial"
+        animate="animate"
+        exit="exit"
+        variants={variants}
+        style={{ 
+            zIndex: zIndex,
+            // Fallback
+            ...(triggerRect ? {} : { position: 'fixed', top: 0, left: 0 }) 
         }}
-        exit={{ opacity: 0, scale: 0.95, y: 30 }}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        style={{ position: 'fixed', top: 0, left: 0, zIndex: zIndex }}
         className="flex flex-col rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] border border-white/30 dark:border-white/20 overflow-hidden bg-white/15 dark:bg-black/20 backdrop-blur-xl backdrop-saturate-150"
         onPointerDown={onFocus}
       >

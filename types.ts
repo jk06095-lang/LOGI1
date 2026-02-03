@@ -269,6 +269,13 @@ export interface Tab {
   data?: any;
 }
 
+export interface TriggerRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 // Standardized Window Interface for AI/Code Consistency
 export interface BaseWindowProps {
   id?: string; // Optional identifier
@@ -278,6 +285,7 @@ export interface BaseWindowProps {
   onMinimize?: () => void;
   onFocus?: () => void;
   zIndex: number;
+  triggerRect?: TriggerRect; // For Genie Effect
 }
 
 export interface WindowState {
@@ -285,4 +293,5 @@ export interface WindowState {
   isMinimized: boolean;
   type: string; // Window type identifier for Registry (e.g., 'chat', 'cloud', 'register')
   data?: any;
+  triggerRect?: TriggerRect; // Store the opening source coordinates
 }

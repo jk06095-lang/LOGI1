@@ -5,7 +5,7 @@ import { chatService, generateChannelId } from '../../services/chatService';
 import { ChatMessage, ChatUser, BaseWindowProps } from '../../types';
 import { User } from 'firebase/auth';
 import saveAs from 'file-saver';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
 import { useChatScroll } from '../../hooks/useChatScroll';
 import { MessageList } from '../../components/chat/MessageList';
 import { MessageInput } from '../../components/chat/MessageInput';
@@ -17,7 +17,7 @@ interface ChatWindowProps extends BaseWindowProps {
 
 type WindowState = 'default' | 'tall' | 'maximized';
 
-export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onClose, onMinimize, sidebarWidth, user, zIndex, onFocus }) => {
+export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onClose, onMinimize, sidebarWidth, user, zIndex, onFocus, triggerRect }) => {
   const [activeTab, setActiveTab] = useState<'global' | 'dm'>('global');
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -48,6 +48,65 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
           default: return { width: 380, height: 600 };
       }
   }, [windowState]);
+
+  const variants: Variants = useMemo(() => {
+      // Default center fallback if no trigger
+      const defaultInitial = { opacity: 0, scale: 0.9, y: 15 };
+      
+      if (!triggerRect) {
+          return {
+              initial: defaultInitial,
+              animate: { 
+                  opacity: isMinimized ? 0 : 1, 
+                  scale: isMinimized ? 0.9 : 1, 
+                  y: 0, 
+                  width: dimensions.width, 
+                  height: dimensions.height,
+                  pointerEvents: isMinimized ? 'none' : 'auto'
+              },
+              exit: { opacity: 0, scale: 0.9, y: 15 }
+          };
+      }
+
+      // Genie Effect Logic
+      return {
+          initial: {
+              position: 'fixed',
+              left: triggerRect.x,
+              top: triggerRect.y,
+              width: triggerRect.width,
+              height: triggerRect.height,
+              opacity: 0,
+              scale: 0,
+              borderRadius: "100px", // Start very round
+          },
+          animate: {
+              position: 'fixed',
+              left: sidebarWidth + 20,
+              bottom: 20,
+              top: 'auto', // Reset top
+              width: dimensions.width,
+              height: dimensions.height,
+              opacity: isMinimized ? 0 : 1,
+              scale: isMinimized ? 0 : 1, // Shrink to nothing if minimized (simulating going back to lamp)
+              borderRadius: "24px",
+              pointerEvents: isMinimized ? 'none' : 'auto',
+              transition: { type: "spring", stiffness: 300, damping: 28 }
+          },
+          exit: {
+              position: 'fixed',
+              left: triggerRect.x,
+              top: triggerRect.y,
+              bottom: 'auto', // Important to release bottom
+              width: triggerRect.width,
+              height: triggerRect.height,
+              opacity: 0,
+              scale: 0,
+              borderRadius: "100px",
+              transition: { duration: 0.3, ease: "anticipate" }
+          }
+      };
+  }, [triggerRect, isMinimized, dimensions, sidebarWidth]);
 
   const channelId = useMemo(() => {
     if (activeTab === 'global') return 'global';
@@ -145,9 +204,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
       
       setMessages(prev => [...prev, optimisticMsg]);
       setReplyingTo(null);
-      
-      // Force scroll to bottom immediately for better UX
-      requestAnimationFrame(() => scrollToBottom('auto'));
+      setTimeout(scrollToBottom, 50);
       
       const sendPromise = chatService.sendChatMessage(optimisticMsg);
       pendingMsgPromises.current.set(tempId, sendPromise);
@@ -254,12 +311,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
             drag
             dragMomentum={false}
             dragElastic={0.1}
-            initial={{ opacity: 0, scale: 0.9, y: 15 }}
-            animate={{ opacity: isMinimized ? 0 : 1, scale: isMinimized ? 0.9 : 1, y: 0, width: dimensions.width, height: dimensions.height, pointerEvents: isMinimized ? 'none' : 'auto' }}
-            exit={{ opacity: 0, scale: 0.9, y: 15 }}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            variants={variants}
             onAnimationComplete={() => { if (isOpen && !isMinimized) restoreScrollPosition(); }}
-            transition={{ type: "spring", stiffness: 350, damping: 25 }}
-            style={{ position: 'fixed', left: sidebarWidth + 20, bottom: 20, zIndex: zIndex }}
+            style={{ 
+                zIndex: zIndex,
+                // Fallback fixed positioning if no triggerRect (handled by variants mostly)
+                ...(triggerRect ? {} : { position: 'fixed', left: sidebarWidth + 20, bottom: 20 })
+            }}
             className="flex flex-col rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] border border-white/30 dark:border-white/20 bg-white/15 dark:bg-black/20 backdrop-blur-xl backdrop-saturate-150 overflow-hidden pointer-events-auto"
             onPointerDown={onFocus}
         >

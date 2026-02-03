@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Anchor, Settings, Ship, ChevronLeft, ChevronRight, Home, FolderOpen, MessageCircle, ExternalLink, Cloud } from 'lucide-react';
-import { ViewState, Language } from '../types';
+import { ViewState, Language, TriggerRect } from '../types';
 import { User } from 'firebase/auth';
 import { chatService } from '../services/chatService';
 
@@ -14,10 +14,10 @@ interface SidebarProps {
   user?: User | null;
   logoUrl?: string;
   isChatOpen: boolean;
-  onToggleChat: () => void;
+  onToggleChat: (rect?: TriggerRect) => void;
   hasUnreadMessages?: boolean;
   isCloudOpen?: boolean; 
-  onToggleCloud?: () => void;
+  onToggleCloud?: (rect?: TriggerRect) => void;
 }
 
 const translations = {
@@ -67,11 +67,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'bl-list', label: t.blMgmt, icon: FolderOpen },
   ];
 
-  const handleChatClick = () => {
-      onToggleChat();
+  const handleChatClick = (e: React.MouseEvent) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const trigger: TriggerRect = {
+          x: rect.left,
+          y: rect.top,
+          width: rect.width,
+          height: rect.height
+      };
+      
+      onToggleChat(trigger);
       if (!isChatOpen && user) {
           chatService.markChannelRead('global', user.uid);
       }
+  };
+
+  const handleCloudClick = (e: React.MouseEvent) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const trigger: TriggerRect = {
+          x: rect.left,
+          y: rect.top,
+          width: rect.width,
+          height: rect.height
+      };
+      if (onToggleCloud) onToggleCloud(trigger);
   };
 
   return (
@@ -147,7 +166,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Cloud & Message Area */}
       <div className="px-2 mb-2 space-y-1">
          <button
-            onClick={onToggleCloud}
+            onClick={handleCloudClick}
             title={isCollapsed ? t.cloud : ''}
             className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${
                 isCloudOpen

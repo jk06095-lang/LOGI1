@@ -55,7 +55,8 @@ export const WindowRenderer: React.FC<WindowRendererProps> = ({ user, jobs, bls,
           onMinimize: () => minimizeWindow(id, true),
           onFocus: () => focusWindow(id),
           zIndex: getZIndex(id),
-          data: state.data
+          data: state.data,
+          triggerRect: state.triggerRect
         };
 
         // Render specific window based on type

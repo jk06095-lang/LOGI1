@@ -1,6 +1,6 @@
 
 import { create } from 'zustand';
-import { AppSettings, Tab, WindowState } from '../types';
+import { AppSettings, Tab, WindowState, TriggerRect } from '../types';
 
 interface UIStore {
   // Settings
@@ -21,7 +21,7 @@ interface UIStore {
   // Floating Windows
   windows: Record<string, WindowState>;
   windowStack: string[]; // For Z-Index
-  openWindow: (id: string, type: string, data?: any) => void;
+  openWindow: (id: string, type: string, data?: any, triggerRect?: TriggerRect) => void;
   closeWindow: (id: string) => void;
   minimizeWindow: (id: string, minimized: boolean) => void;
   focusWindow: (id: string) => void;
@@ -74,7 +74,7 @@ export const useUIStore = create<UIStore>((set, get) => {
     windows: {},
     windowStack: [],
     
-    openWindow: (id, type, data) => set((state) => {
+    openWindow: (id, type, data, triggerRect) => set((state) => {
       // Create or update window state
       const newWindows = { 
         ...state.windows, 
@@ -82,7 +82,8 @@ export const useUIStore = create<UIStore>((set, get) => {
           isOpen: true, 
           isMinimized: false, 
           type, 
-          data: data !== undefined ? data : state.windows[id]?.data // Update data if provided
+          data: data !== undefined ? data : state.windows[id]?.data, // Update data if provided
+          triggerRect: triggerRect !== undefined ? triggerRect : state.windows[id]?.triggerRect // Update trigger rect if provided
         } 
       };
       

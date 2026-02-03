@@ -52,9 +52,9 @@ const App: React.FC = () => {
         onToggleCollapse={store.toggleSidebar} 
         language={store.settings.language} user={user} logoUrl={store.settings.logoUrl}
         isChatOpen={!!store.windows['chat']?.isOpen} 
-        onToggleChat={() => store.windows['chat']?.isOpen ? store.closeWindow('chat') : (store.openWindow('chat', 'chat'), updateLastRead())}
+        onToggleChat={(rect) => store.windows['chat']?.isOpen ? store.closeWindow('chat') : (store.openWindow('chat', 'chat', undefined, rect), updateLastRead())}
         isCloudOpen={!!store.windows['cloud']?.isOpen} 
-        onToggleCloud={() => store.windows['cloud']?.isOpen ? store.closeWindow('cloud') : store.openWindow('cloud', 'cloud')}
+        onToggleCloud={(rect) => store.windows['cloud']?.isOpen ? store.closeWindow('cloud') : store.openWindow('cloud', 'cloud', undefined, rect)}
         hasUnreadMessages={latestUnreadTs > lastReadTs}
       />
       

@@ -4,7 +4,7 @@ import { BLData, VesselJob, Attachment, BaseWindowProps } from '../../types';
 import { FileText, FileImage, FileSpreadsheet, Download, Search, X, FolderOpen, Ship, Box, Minus, Maximize2, Trash2, Edit2 } from 'lucide-react';
 import { dataService } from '../../services/dataService'; 
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, Variants } from 'framer-motion';
 
 interface GlobalCloudManagerProps extends BaseWindowProps {
   jobs: VesselJob[];
@@ -43,7 +43,7 @@ const formatSize = (bytes: number) => {
 type WindowState = 'default' | 'maximized';
 
 export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({ 
-  isOpen, isMinimized, onClose, onMinimize, jobs, bls, onUpdateBL, zIndex, onFocus 
+  isOpen, isMinimized, onClose, onMinimize, jobs, bls, onUpdateBL, zIndex, onFocus, triggerRect 
 }) => {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null); // null = All/Root
   const [searchTerm, setSearchTerm] = useState('');
@@ -141,6 +141,63 @@ export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({
   };
   const dims = getWindowDimensions();
 
+  const variants: Variants = useMemo(() => {
+      // Default
+      if (!triggerRect) {
+          return {
+              initial: { opacity: 0, scale: 0.95 },
+              animate: { 
+                  opacity: isMinimized ? 0 : 1, 
+                  scale: isMinimized ? 0.9 : 1,
+                  width: dims.width,
+                  height: dims.height,
+                  x: windowState === 'maximized' ? 0 : undefined,
+                  y: windowState === 'maximized' ? 0 : undefined,
+                  pointerEvents: isMinimized ? 'none' : 'auto'
+              },
+              exit: { opacity: 0, scale: 0.95 }
+          };
+      }
+
+      // Genie Effect
+      return {
+          initial: {
+              position: 'fixed',
+              left: triggerRect.x,
+              top: triggerRect.y,
+              width: triggerRect.width,
+              height: triggerRect.height,
+              opacity: 0,
+              scale: 0,
+              borderRadius: "100px",
+          },
+          animate: {
+              position: 'fixed',
+              // Use fixed positioning for the window if not maximized, else center
+              left: windowState === 'maximized' ? '2.5vw' : '10vw',
+              top: windowState === 'maximized' ? '5vh' : '10vh',
+              width: dims.width,
+              height: dims.height,
+              opacity: isMinimized ? 0 : 1,
+              scale: isMinimized ? 0 : 1,
+              borderRadius: "24px",
+              pointerEvents: isMinimized ? 'none' : 'auto',
+              transition: { type: "spring", stiffness: 300, damping: 28 }
+          },
+          exit: {
+              position: 'fixed',
+              left: triggerRect.x,
+              top: triggerRect.y,
+              width: triggerRect.width,
+              height: triggerRect.height,
+              opacity: 0,
+              scale: 0,
+              borderRadius: "100px",
+              transition: { duration: 0.3, ease: "anticipate" }
+          }
+      };
+  }, [triggerRect, isMinimized, dims, windowState]);
+
   // Context Menu Actions
   const handleContextMenu = (e: React.MouseEvent, file: Attachment & { blId: string }) => {
       e.preventDefault();
@@ -213,23 +270,14 @@ export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({
           drag={windowState !== 'maximized'}
           dragMomentum={false}
           dragElastic={0.1}
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ 
-              opacity: isMinimized ? 0 : 1, 
-              scale: isMinimized ? 0.9 : 1,
-              width: dims.width,
-              height: dims.height,
-              x: windowState === 'maximized' ? 0 : undefined, // Reset X/Y if max
-              y: windowState === 'maximized' ? 0 : undefined,
-              pointerEvents: isMinimized ? 'none' : 'auto'
-          }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          variants={variants}
           style={{ 
-              position: 'fixed',
-              left: windowState === 'maximized' ? '2.5vw' : '10vw',
-              top: windowState === 'maximized' ? '5vh' : '10vh',
-              zIndex: zIndex 
+              zIndex: zIndex,
+              // Fallback if no trigger
+              ...(triggerRect ? {} : { position: 'fixed', left: windowState === 'maximized' ? '2.5vw' : '10vw', top: windowState === 'maximized' ? '5vh' : '10vh' })
           }}
           className={`flex flex-col rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] border border-white/30 dark:border-white/20 overflow-hidden 
             bg-white/15 dark:bg-black/20 backdrop-blur-xl backdrop-saturate-150
