@@ -82,6 +82,7 @@ export const MessageList: React.FC<MessageListProps> = ({
                         
                         <div 
                            ref={(el) => { if (el && msg.id) messageRefs.current.set(msg.id, el); }}
+                           data-msg-id={msg.id}
                            className={`flex gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'} items-start relative mb-2`}
                         >
                             {!isMe && (

@@ -3,12 +3,12 @@ import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 're
 import { BLData, VesselJob, AppSettings, ChatMessage, ChatUser, BLChecklist, BackgroundTask, Language } from '../types';
 import { 
     Search, FileText, MessageCircle, LogOut, X, ArrowLeft, User as UserIcon, 
-    Check, List as ListIcon, Box, ExternalLink, ChevronDown, LayoutGrid, Globe, Ship, Anchor
+    Check, List as ListIcon, Box, ExternalLink, ChevronDown, LayoutGrid, Globe, Ship, Anchor, FileSpreadsheet, Scale, Package
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { chatService } from '../services/chatService';
 import { User } from 'firebase/auth';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { MessageList } from './chat/MessageList';
 import { MessageInput } from './chat/MessageInput';
 
@@ -31,8 +31,8 @@ const mobileTranslations = {
     mobile: '모바일',
     pc: 'PC / 태블릿',
     logout: '로그아웃',
-    attachedDocs: '첨부 문서',
-    arrivalNotice: 'Arrival Notice',
+    attachedDocs: '첨부 문서 (현장 확인용)',
+    arrivalNotice: 'A/N',
     logisticsInfo: '물류 정보',
     cargoItems: '화물 상세',
     vessel: '선박',
@@ -55,6 +55,12 @@ const mobileTranslations = {
     addFriendHint: '친구 추가는 PC 버전에서 가능합니다.',
     selectVessel: '선박 선택',
     searchVessel: '선박 검색...',
+    docBL: 'B/L',
+    docCI: 'Invoice',
+    docPL: 'Packing List',
+    docEtc: '기타 문서',
+    open: '열기',
+    missing: '미등록',
     locale: 'ko-KR'
   },
   en: {
@@ -75,8 +81,8 @@ const mobileTranslations = {
     mobile: 'Mobile',
     pc: 'PC',
     logout: 'Log Out',
-    attachedDocs: 'Attached Documents',
-    arrivalNotice: 'Arrival Notice',
+    attachedDocs: 'Field Documents',
+    arrivalNotice: 'A/N',
     logisticsInfo: 'Logistics Info',
     cargoItems: 'Cargo Items',
     vessel: 'Vessel',
@@ -99,6 +105,12 @@ const mobileTranslations = {
     addFriendHint: 'Add friends via PC version.',
     selectVessel: 'Select Vessel',
     searchVessel: 'Search Vessel...',
+    docBL: 'B/L',
+    docCI: 'Invoice',
+    docPL: 'Packing List',
+    docEtc: 'Others',
+    open: 'Open',
+    missing: 'Missing',
     locale: 'en-US'
   },
   cn: {
@@ -119,8 +131,8 @@ const mobileTranslations = {
     mobile: '手机',
     pc: '电脑',
     logout: '退出登录',
-    attachedDocs: '附件文档',
-    arrivalNotice: '到货通知书',
+    attachedDocs: '现场文档',
+    arrivalNotice: '到货通知',
     logisticsInfo: '物流信息',
     cargoItems: '货物详情',
     vessel: '船舶',
@@ -143,6 +155,12 @@ const mobileTranslations = {
     addFriendHint: '请在PC端添加好友。',
     selectVessel: '选择船舶',
     searchVessel: '搜索船舶...',
+    docBL: '提单',
+    docCI: '发票',
+    docPL: '装箱单',
+    docEtc: '其他',
+    open: '打开',
+    missing: '缺失',
     locale: 'zh-CN'
   }
 };
@@ -488,75 +506,178 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
   );
 };
 
-// Define MobileShipmentDetail component (Unchanged)
+// --- REDESIGNED Mobile Shipment Detail (Bottom Sheet / Overlay) ---
 const MobileShipmentDetail: React.FC<{
   bl: BLData;
   onClose: () => void;
   language: Language;
 }> = ({ bl, onClose, language }) => {
   const t = mobileTranslations[language];
-  // ... (keeping implementation detailed in original file, just returning structure here for brevity in this update block, 
-  // but in real file assume it's the same content as before)
+  const totalQty = bl.cargoItems.reduce((acc, i) => acc + (i.quantity || 0), 0);
+  const totalWeight = bl.cargoItems.reduce((acc, i) => acc + (i.grossWeight || 0), 0);
+  const totalVol = bl.cargoItems.reduce((acc, i) => acc + (i.measurement || 0), 0);
+
+  const handleDragEnd = (event: any, info: PanInfo) => {
+      if (info.offset.y > 100) {
+          onClose();
+      }
+  };
+
+  const DocButton = ({ icon: Icon, label, url, colorClass }: { icon: any, label: string, url?: string, colorClass: string }) => (
+      <div 
+          onClick={() => url ? window.open(url, '_blank') : null}
+          className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all active:scale-95 ${
+              url 
+              ? `bg-white dark:bg-slate-800 cursor-pointer shadow-sm ${colorClass}` 
+              : 'bg-slate-100 dark:bg-slate-800/50 border-transparent opacity-50 cursor-default'
+          }`}
+      >
+          <div className={`p-2.5 rounded-full mb-1.5 ${url ? 'bg-current/10' : 'bg-slate-200 dark:bg-slate-700'}`}>
+              <Icon size={20} className={url ? '' : 'text-slate-400'} strokeWidth={2.5} />
+          </div>
+          <span className="text-[10px] font-bold text-center leading-tight truncate w-full">{label}</span>
+          <span className={`text-[8px] mt-0.5 font-medium ${url ? 'text-current opacity-80' : 'text-slate-400'}`}>
+              {url ? t.open : t.missing}
+          </span>
+      </div>
+  );
+
   return (
-    <div className="absolute inset-0 bg-slate-50 dark:bg-slate-900 z-50 flex flex-col">
-        <div className="px-4 py-3 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center gap-3 pt-safe-top shadow-sm">
-            <button onClick={onClose} className="p-2 -ml-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300">
-                <ArrowLeft size={20} />
-            </button>
-            <div className="flex-1 min-w-0">
-                <h2 className="font-bold text-base text-slate-800 dark:text-white truncate">{bl.blNumber}</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{bl.vesselName} {bl.voyageNo}</p>
+    <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex flex-col justify-end"
+        onClick={onClose}
+    >
+        <motion.div 
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            drag="y"
+            dragConstraints={{ top: 0 }}
+            dragElastic={0.1}
+            onDragEnd={handleDragEnd}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-slate-50 dark:bg-slate-900 rounded-t-3xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col relative"
+        >
+            {/* Drag Handle */}
+            <div className="w-full flex justify-center pt-3 pb-1 cursor-grab active:cursor-grabbing bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700/50">
+                <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-600 rounded-full" />
             </div>
-        </div>
-        
-        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar pb-safe-bottom">
-            <div className="bg-white dark:bg-slate-800 rounded-xl p-4 shadow-sm border border-slate-100 dark:border-slate-700 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t.shipper}</label>
-                        <p className="text-sm font-medium text-slate-800 dark:text-slate-200 mt-0.5 break-words">{bl.shipper}</p>
-                    </div>
-                    <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t.consignee}</label>
-                        <p className="text-sm font-medium text-slate-800 dark:text-slate-200 mt-0.5 break-words">{bl.consignee}</p>
-                    </div>
+
+            {/* Header */}
+            <div className="px-6 py-4 bg-white dark:bg-slate-800 flex justify-between items-start">
+                <div>
+                    <h2 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight flex items-center gap-2">
+                        {bl.blNumber}
+                    </h2>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5 mt-1">
+                        <Ship size={14} className="text-blue-500"/>
+                        {bl.vesselName} <span className="opacity-60">{bl.voyageNo}</span>
+                    </p>
                 </div>
-                <div className="border-t border-slate-100 dark:border-slate-700 my-2"></div>
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t.pol}</label>
-                        <p className="text-sm font-medium text-slate-800 dark:text-slate-200 mt-0.5">{bl.portOfLoading}</p>
-                    </div>
-                    <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t.pod}</label>
-                        <p className="text-sm font-medium text-slate-800 dark:text-slate-200 mt-0.5">{bl.portOfDischarge}</p>
-                    </div>
-                </div>
-                <div className="grid grid-cols-3 gap-2 bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg">
-                     <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase">{t.cargoItems}</label>
-                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{bl.cargoItems.reduce((acc, i) => acc + (i.quantity || 0), 0)}</p>
-                     </div>
-                     <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase">{t.weight}</label>
-                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{bl.cargoItems.reduce((acc, i) => acc + (i.grossWeight || 0), 0)}</p>
-                     </div>
-                     <div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase">{t.vol}</label>
-                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{bl.cargoItems.reduce((acc, i) => acc + (i.measurement || 0), 0).toFixed(3)}</p>
-                     </div>
-                </div>
-                {bl.fileUrl && (
-                    <button 
-                        onClick={() => window.open(bl.fileUrl, '_blank')}
-                        className="w-full flex items-center justify-center gap-2 py-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-bold rounded-xl text-sm mt-2"
-                    >
-                        <FileText size={16} /> {t.attachedDocs}
-                    </button>
-                )}
+                <button onClick={onClose} className="p-2 bg-slate-100 dark:bg-slate-700 rounded-full text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600">
+                    <X size={20} />
+                </button>
             </div>
-        </div>
-    </div>
+
+            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar pb-safe-bottom">
+                
+                {/* Quick Document Grid */}
+                <div className="mb-6">
+                    <div className="flex items-center gap-2 mb-3">
+                        <ExternalLink size={16} className="text-blue-600 dark:text-blue-400" />
+                        <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t.attachedDocs}</h3>
+                    </div>
+                    <div className="grid grid-cols-4 gap-3">
+                        <DocButton 
+                            icon={FileText} 
+                            label={t.docBL} 
+                            url={bl.fileUrl} 
+                            colorClass="text-blue-600 border-blue-100 dark:border-blue-900/30" 
+                        />
+                        <DocButton 
+                            icon={FileSpreadsheet} 
+                            label={t.docCI} 
+                            url={bl.commercialInvoice?.fileUrl} 
+                            colorClass="text-emerald-600 border-emerald-100 dark:border-emerald-900/30" 
+                        />
+                        <DocButton 
+                            icon={Package} 
+                            label={t.docPL} 
+                            url={bl.packingList?.fileUrl} 
+                            colorClass="text-purple-600 border-purple-100 dark:border-purple-900/30" 
+                        />
+                        <DocButton 
+                            icon={Box} 
+                            label={t.docEtc} 
+                            url={bl.arrivalNotice?.fileUrl || bl.exportDeclaration?.fileUrl} 
+                            colorClass="text-slate-600 border-slate-200 dark:border-slate-700" 
+                        />
+                    </div>
+                </div>
+
+                {/* Info Cards */}
+                <div className="space-y-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-slate-700">
+                        <div className="flex items-center gap-2 mb-4">
+                            <Anchor size={16} className="text-slate-400" />
+                            <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t.logisticsInfo}</h3>
+                        </div>
+                        <div className="grid grid-cols-2 gap-y-4 gap-x-6">
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 block mb-1">{t.shipper}</label>
+                                <p className="text-sm font-medium text-slate-900 dark:text-white break-words leading-snug">{bl.shipper}</p>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 block mb-1">{t.consignee}</label>
+                                <p className="text-sm font-medium text-slate-900 dark:text-white break-words leading-snug">{bl.consignee}</p>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 block mb-1">{t.pol}</label>
+                                <p className="text-sm text-slate-700 dark:text-slate-300">{bl.portOfLoading}</p>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 block mb-1">{t.pod}</label>
+                                <p className="text-sm text-slate-700 dark:text-slate-300">{bl.portOfDischarge}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-slate-700">
+                        <div className="flex items-center gap-2 mb-4">
+                            <Scale size={16} className="text-slate-400" />
+                            <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t.cargoItems}</h3>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 bg-slate-50 dark:bg-slate-700/30 p-3 rounded-xl border border-slate-100 dark:border-slate-700/50">
+                             <div className="text-center">
+                                <label className="text-[10px] font-bold text-slate-400 block mb-0.5">Q'TY</label>
+                                <p className="text-base font-bold text-slate-800 dark:text-white">{totalQty.toLocaleString()}</p>
+                             </div>
+                             <div className="text-center border-l border-slate-200 dark:border-slate-600">
+                                <label className="text-[10px] font-bold text-slate-400 block mb-0.5">{t.weight}</label>
+                                <p className="text-base font-bold text-slate-800 dark:text-white">{totalWeight.toLocaleString()}</p>
+                             </div>
+                             <div className="text-center border-l border-slate-200 dark:border-slate-600">
+                                <label className="text-[10px] font-bold text-slate-400 block mb-0.5">{t.vol}</label>
+                                <p className="text-base font-bold text-slate-800 dark:text-white">{totalVol.toFixed(3)}</p>
+                             </div>
+                        </div>
+                        {/* Simple item list preview */}
+                        {bl.cargoItems.length > 0 && (
+                            <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700/50">
+                                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium line-clamp-2">
+                                    {bl.cargoItems[0].description}
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </motion.div>
+    </motion.div>
   );
 };
 
@@ -616,6 +737,8 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
 
   const handleCloseDetail = () => {
       window.history.back();
+      // State clear happens in popstate or explicit setter
+      setSelectedBLId(null); 
   };
 
   const handleOpenChatRoom = () => {
@@ -667,21 +790,6 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
   }, [vesselFilter, jobs, t]);
 
   const renderContent = () => {
-    if (selectedBLId) {
-        const selectedBL = bls.find(b => b.id === selectedBLId);
-        if (selectedBL) {
-            return (
-                <MobileShipmentDetail 
-                    bl={selectedBL}
-                    onClose={handleCloseDetail}
-                    language={settings.language}
-                />
-            );
-        } else {
-            setSelectedBLId(null);
-        }
-    }
-
     switch(currentView) {
       case 'cargo':
         return (
@@ -731,7 +839,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                           <div 
                             key={bl.id} 
                             onClick={() => handleOpenDetail(bl.id)}
-                            className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm active:scale-95 transition-transform"
+                            className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm active:scale-95 transition-transform cursor-pointer"
                           >
                               <div className="flex justify-between items-start mb-2">
                                   <span className="text-[10px] font-bold bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded">
@@ -928,7 +1036,18 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
             {renderContent()}
         </div>
         
-        {!selectedBLId && !(currentView === 'chat' && chatView === 'room') && (
+        {/* Mobile Detail Overlay - Rendered conditionally but on top */}
+        <AnimatePresence>
+            {selectedBLId && (
+                <MobileShipmentDetail 
+                    bl={bls.find(b => b.id === selectedBLId)!} 
+                    onClose={handleCloseDetail} 
+                    language={settings.language} 
+                />
+            )}
+        </AnimatePresence>
+        
+        {!(currentView === 'chat' && chatView === 'room') && !selectedBLId && (
             <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-[320px] z-50 px-4 mb-[env(safe-area-inset-bottom)]">
                 <div className="
                     relative flex items-center justify-around px-2 py-3.5
