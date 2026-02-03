@@ -667,7 +667,8 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
           const blob = await response.blob();
           const file = new File([blob], "temp", { type: blob.type });
 
-          const ocrResult = await parseDocument(file, type);
+          // Pass current categories to parser for better classification
+          const ocrResult = await parseDocument(file, type, formData.sourceType, categories);
           onUpdateTask(taskId, { progress: 80, message: 'Applying Data...' });
 
           const updates: Partial<BLData> = {};
