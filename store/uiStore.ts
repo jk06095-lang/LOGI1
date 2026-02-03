@@ -75,7 +75,17 @@ export const useUIStore = create<UIStore>((set, get) => {
     windowStack: [],
     
     openWindow: (id, type, data) => set((state) => {
-      const newWindows = { ...state.windows, [id]: { isOpen: true, isMinimized: false, type, data } };
+      // Create or update window state
+      const newWindows = { 
+        ...state.windows, 
+        [id]: { 
+          isOpen: true, 
+          isMinimized: false, 
+          type, 
+          data: data !== undefined ? data : state.windows[id]?.data // Update data if provided
+        } 
+      };
+      
       // Move to top of stack
       const newStack = state.windowStack.filter(w => w !== id).concat(id);
       return { windows: newWindows, windowStack: newStack };
