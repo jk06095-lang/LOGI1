@@ -17,6 +17,14 @@ interface WindowRendererProps {
   dataActions: any; // Direct service access if needed
 }
 
+// Window Component Registry
+const WINDOW_REGISTRY: Record<string, React.FC<any>> = {
+  'chat': ChatWindow,
+  'cloud': GlobalCloudManager,
+  'register': RegisterCargoWindow,
+  'bl-cloud': CloudFileManager
+};
+
 export const WindowRenderer: React.FC<WindowRendererProps> = ({ user, jobs, bls, actions, dataActions }) => {
   const { windows, windowStack, closeWindow, minimizeWindow, focusWindow, sidebarCollapsed, settings, processing } = useUIStore();
 
@@ -31,87 +39,78 @@ export const WindowRenderer: React.FC<WindowRendererProps> = ({ user, jobs, bls,
       {(Object.entries(windows) as [string, WindowState][]).map(([id, state]) => {
         if (!state.isOpen) return null;
 
-        if (id === 'chat') {
-          return (
-            <ChatWindow
-              key={id}
-              id={id}
-              isOpen={state.isOpen}
-              isMinimized={state.isMinimized}
-              onClose={() => closeWindow(id)}
-              onMinimize={() => minimizeWindow(id, true)}
-              onFocus={() => focusWindow(id)}
-              zIndex={getZIndex(id)}
-              sidebarWidth={sidebarCollapsed ? 64 : 224}
-              user={user}
-            />
-          );
+        const Component = WINDOW_REGISTRY[state.type];
+        if (!Component) {
+            console.warn(`No component registered for window type: ${state.type}`);
+            return null;
         }
 
-        if (id === 'cloud') {
-          return (
-            <GlobalCloudManager
-              key={id}
-              id={id}
-              isOpen={state.isOpen}
-              isMinimized={state.isMinimized}
-              onClose={() => closeWindow(id)}
-              onMinimize={() => minimizeWindow(id, true)}
-              onFocus={() => focusWindow(id)}
-              zIndex={getZIndex(id)}
-              jobs={jobs}
-              bls={bls}
-              onUpdateBL={dataActions.updateBL}
-            />
-          );
+        // Common Props for all windows
+        const commonProps = {
+          key: id,
+          id,
+          isOpen: state.isOpen,
+          isMinimized: state.isMinimized,
+          onClose: () => closeWindow(id),
+          onMinimize: () => minimizeWindow(id, true),
+          onFocus: () => focusWindow(id),
+          zIndex: getZIndex(id),
+          data: state.data
+        };
+
+        // Render specific window based on type
+        switch (state.type) {
+          case 'chat':
+            return (
+              <Component
+                {...commonProps}
+                sidebarWidth={sidebarCollapsed ? 64 : 224}
+                user={user}
+              />
+            );
+
+          case 'cloud':
+            return (
+              <Component
+                {...commonProps}
+                jobs={jobs}
+                bls={bls}
+                onUpdateBL={dataActions.updateBL}
+              />
+            );
+
+          case 'register':
+            return (
+              <Component
+                {...commonProps}
+                targetJobId={state.data?.targetJobId}
+                jobs={jobs}
+                onUploadBLs={actions.cargo.uploadBL}
+                onCreateManualBL={dataActions.addBL}
+                isProcessing={processing.isProcessing}
+                progressMessage={processing.message}
+                language={settings.language}
+              />
+            );
+
+          case 'bl-cloud':
+            const blId = state.data?.blId || id.replace('bl-cloud-', '');
+            const bl = bls.find(b => b.id === blId);
+            if (!bl) return null;
+
+            return (
+              <Component
+                {...commonProps}
+                attachments={bl.attachments || []}
+                onUpload={(files: File[]) => actions.cargo.uploadCloudFiles(bl.id, files)}
+                onDelete={(attId: string) => actions.cargo.deleteCloudFile(bl.id, attId)}
+                onRename={(attId: string, name: string) => actions.cargo.renameCloudFile(bl.id, attId, name)}
+              />
+            );
+
+          default:
+            return null;
         }
-
-        if (id === 'register') {
-          return (
-            <RegisterCargoWindow
-              key={id}
-              id={id}
-              isOpen={state.isOpen}
-              isMinimized={state.isMinimized}
-              onClose={() => closeWindow(id)}
-              onMinimize={() => minimizeWindow(id, true)}
-              onFocus={() => focusWindow(id)}
-              zIndex={getZIndex(id)}
-              targetJobId={state.data?.targetJobId}
-              jobs={jobs}
-              onUploadBLs={actions.cargo.uploadBL}
-              onCreateManualBL={dataActions.addBL}
-              isProcessing={processing.isProcessing}
-              progressMessage={processing.message}
-              language={settings.language}
-            />
-          );
-        }
-
-        if (id.startsWith('bl-cloud-')) {
-          const blId = id.replace('bl-cloud-', '');
-          const bl = bls.find(b => b.id === blId);
-          if (!bl) return null;
-
-          return (
-            <CloudFileManager
-              key={id}
-              id={id}
-              isOpen={state.isOpen}
-              isMinimized={state.isMinimized}
-              onClose={() => closeWindow(id)}
-              onMinimize={() => minimizeWindow(id, true)}
-              onFocus={() => focusWindow(id)}
-              zIndex={getZIndex(id)}
-              attachments={bl.attachments || []}
-              onUpload={(files) => actions.cargo.uploadCloudFiles(bl.id, files)}
-              onDelete={(attId) => actions.cargo.deleteCloudFile(bl.id, attId)}
-              onRename={(attId, name) => actions.cargo.renameCloudFile(bl.id, attId, name)}
-            />
-          );
-        }
-
-        return null;
       })}
     </>
   );

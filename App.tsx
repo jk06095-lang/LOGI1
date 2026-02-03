@@ -51,8 +51,10 @@ const App: React.FC = () => {
         isCollapsed={store.sidebarCollapsed} 
         onToggleCollapse={store.toggleSidebar} 
         language={store.settings.language} user={user} logoUrl={store.settings.logoUrl}
-        isChatOpen={!!store.windows['chat']?.isOpen} onToggleChat={() => store.windows['chat']?.isOpen ? store.closeWindow('chat') : (store.openWindow('chat'), updateLastRead())}
-        isCloudOpen={!!store.windows['cloud']?.isOpen} onToggleCloud={() => store.windows['cloud']?.isOpen ? store.closeWindow('cloud') : store.openWindow('cloud')}
+        isChatOpen={!!store.windows['chat']?.isOpen} 
+        onToggleChat={() => store.windows['chat']?.isOpen ? store.closeWindow('chat') : (store.openWindow('chat', 'chat'), updateLastRead())}
+        isCloudOpen={!!store.windows['cloud']?.isOpen} 
+        onToggleCloud={() => store.windows['cloud']?.isOpen ? store.closeWindow('cloud') : store.openWindow('cloud', 'cloud')}
         hasUnreadMessages={latestUnreadTs > lastReadTs}
       />
       
@@ -88,12 +90,7 @@ const App: React.FC = () => {
                     checklists={checklists} 
                     user={user} 
                     reportLogoUrl={reportLogoUrl} 
-                    logic={{ // Passing necessary legacy wrappers alongside new actions for TabRenderer compatibility
-                        handleBLUpload: actions.cargo.uploadBL, 
-                        onLogout: actions.auth.logout, 
-                        handleUpdateLogo: actions.settings.updateLogo,
-                        handleUpdateReportLogo: actions.settings.updateReportLogo
-                    }} 
+                    logic={actions} 
                     dataActions={dataService} 
                     tasks={{addTask, updateTask, removeTask}} 
                  />

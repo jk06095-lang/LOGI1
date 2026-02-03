@@ -21,7 +21,7 @@ interface UIStore {
   // Floating Windows
   windows: Record<string, WindowState>;
   windowStack: string[]; // For Z-Index
-  openWindow: (id: string, data?: any) => void;
+  openWindow: (id: string, type: string, data?: any) => void;
   closeWindow: (id: string) => void;
   minimizeWindow: (id: string, minimized: boolean) => void;
   focusWindow: (id: string) => void;
@@ -74,8 +74,8 @@ export const useUIStore = create<UIStore>((set, get) => {
     windows: {},
     windowStack: [],
     
-    openWindow: (id, data) => set((state) => {
-      const newWindows = { ...state.windows, [id]: { isOpen: true, isMinimized: false, data } };
+    openWindow: (id, type, data) => set((state) => {
+      const newWindows = { ...state.windows, [id]: { isOpen: true, isMinimized: false, type, data } };
       // Move to top of stack
       const newStack = state.windowStack.filter(w => w !== id).concat(id);
       return { windows: newWindows, windowStack: newStack };

@@ -9,6 +9,7 @@ import { ShipmentDetail } from './ShipmentDetail';
 import { Tab, VesselJob, BLData, BLChecklist, BackgroundTask } from '../types';
 import { User } from 'firebase/auth';
 import { useUIStore } from '../store/uiStore';
+import { AppActions } from '../hooks/useActionRegistry';
 
 interface TabContentRendererProps {
   activeTabId: string;
@@ -18,7 +19,7 @@ interface TabContentRendererProps {
   checklists: Record<string, BLChecklist>;
   user: User | null;
   reportLogoUrl: string | null;
-  logic: any;
+  logic: AppActions;
   dataActions: any;
   tasks: { addTask: any, updateTask: any, removeTask: any };
 }
@@ -59,19 +60,19 @@ export const TabContentRenderer: React.FC<TabContentRendererProps> = (props) => 
 
   switch (tab.type) {
     case 'dashboard':
-      return <Dashboard jobs={jobs} bls={bls} onSelectJob={openVesselTab} language={settings.language} onUpdateBL={dataActions.updateBL} onOpenBriefing={openBriefingTab} onUploadBLs={logic.handleBLUpload} onUpdateJob={dataActions.updateJob} />;
+      return <Dashboard jobs={jobs} bls={bls} onSelectJob={openVesselTab} language={settings.language} onUpdateBL={dataActions.updateBL} onOpenBriefing={openBriefingTab} onUploadBLs={logic.cargo.uploadBL} onUpdateJob={dataActions.updateJob} />;
     
     case 'briefing':
-       return <BriefingReport jobs={jobs} bls={bls} initialDate={tab.data?.date || new Date()} language={settings.language} logoUrl={settings.logoUrl} reportLogoUrl={reportLogoUrl} onUpdateBL={dataActions.updateBL} onUpdateLogo={logic.handleUpdateLogo} onUpdateReportLogo={logic.handleUpdateReportLogo} onResetReportLogo={() => dataActions.updateReportLogo(null)} />;
+       return <BriefingReport jobs={jobs} bls={bls} initialDate={tab.data?.date || new Date()} language={settings.language} logoUrl={settings.logoUrl} reportLogoUrl={reportLogoUrl} onUpdateBL={dataActions.updateBL} onUpdateLogo={logic.settings.updateLogo} onUpdateReportLogo={logic.settings.updateReportLogo} onResetReportLogo={() => dataActions.updateReportLogo(null)} />;
     
     case 'vessel-list':
       return <VesselList jobs={jobs} allBLs={bls} onSelectJob={openVesselTab} onCreateJob={dataActions.addJob} onUpdateJob={dataActions.updateJob} onDeleteJob={dataActions.deleteJob} getBLCount={(id) => bls.filter(b => b.vesselJobId === id).length} getTotalWeight={(id) => 0} language={settings.language} />;
     
     case 'bl-list':
-      return <BLManagement bls={bls} jobs={jobs} checklists={checklists} onUploadBLs={logic.handleBLUpload} onAssignBL={(blId, jobId) => dataActions.updateBL(blId, { vesselJobId: jobId })} onCreateJob={dataActions.addJob} onNavigateToBL={(id) => openShipmentDetailTab(id)} isProcessing={processing.isProcessing} progressMessage={processing.message} language={settings.language} />;
+      return <BLManagement bls={bls} jobs={jobs} checklists={checklists} onUploadBLs={logic.cargo.uploadBL} onAssignBL={(blId, jobId) => dataActions.updateBL(blId, { vesselJobId: jobId })} onCreateJob={dataActions.addJob} onNavigateToBL={(id) => openShipmentDetailTab(id)} isProcessing={processing.isProcessing} progressMessage={processing.message} language={settings.language} />;
     
     case 'settings':
-      return <Settings settings={settings} onUpdateSettings={updateSettings} user={user} onLogout={props.logic.onLogout} bls={bls} jobs={jobs} onDeleteBLs={dataActions.bulkDeleteBLs} />;
+      return <Settings settings={settings} onUpdateSettings={updateSettings} user={user} onLogout={logic.auth.logout} bls={bls} jobs={jobs} onDeleteBLs={dataActions.bulkDeleteBLs} />;
     
     case 'shipment-detail':
       const currentBL = bls.find(b => b.id === tab.data.blId);
@@ -87,7 +88,7 @@ export const TabContentRenderer: React.FC<TabContentRendererProps> = (props) => 
           onAddTask={tasks.addTask} 
           onUpdateTask={tasks.updateTask} 
           onNavigateToChecklist={() => { if (currentBL.vesselJobId) openVesselTab(currentBL.vesselJobId, 'checklist', currentBL.id); else alert("Assign vessel first"); }} 
-          onOpenCloudManager={() => openWindow(`bl-cloud-${currentBL.id}`)} 
+          onOpenCloudManager={() => openWindow(`bl-cloud-${currentBL.id}`, 'bl-cloud', { blId: currentBL.id })} 
           onNavigateToVessel={(jobId) => openVesselTab(jobId, 'cargo')}
       />;
     
@@ -100,7 +101,7 @@ export const TabContentRenderer: React.FC<TabContentRendererProps> = (props) => 
           bls={bls.filter(bl => bl.vesselJobId === currentJob.id)} 
           checklists={checklists} 
           onClose={() => closeTab(tab.id)} 
-          onUploadBLs={(f, type) => logic.handleBLUpload(f, type, undefined, currentJob.id)} 
+          onUploadBLs={(f, type) => logic.cargo.uploadBL(f, type, undefined, currentJob.id)} 
           onCreateManualBL={dataActions.addBL} 
           onUpdateChecklist={dataActions.updateChecklist} 
           onUpdateBL={dataActions.updateBL} 
@@ -111,7 +112,7 @@ export const TabContentRenderer: React.FC<TabContentRendererProps> = (props) => 
           initialBLId={tab.data?.initialBLId} 
           lastUpdate={tab.data?.timestamp} 
           onOpenBLDetail={(id) => openShipmentDetailTab(id)} 
-          onOpenRegister={() => openWindow('register', { targetJobId: currentJob.id })} 
+          onOpenRegister={() => openWindow('register', 'register', { targetJobId: currentJob.id })} 
       />;
     
     default: return null;

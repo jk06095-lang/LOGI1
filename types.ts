@@ -283,5 +283,6 @@ export interface BaseWindowProps {
 export interface WindowState {
   isOpen: boolean;
   isMinimized: boolean;
+  type: string; // Window type identifier for Registry
   data?: any;
 }
