@@ -1,5 +1,5 @@
 
-import { useRef, useState, useCallback, useLayoutEffect, useEffect } from 'react';
+import React, { useRef, useState, useCallback, useLayoutEffect, useEffect } from 'react';
 import { ChatMessage } from '../types';
 
 export const useChatScroll = (
@@ -16,52 +16,53 @@ export const useChatScroll = (
     const isRestoring = useRef(false);
     const saveTimeoutRef = useRef<any>(null);
 
+    // Tracks the ID of the message that was "last read" when the component mounted
+    // Used to render the "New Messages" divider.
+    const [initialLastReadId, setInitialLastReadId] = useState<string | null>(null);
+
     // Generate storage key
     const getStorageKey = useCallback(() => {
         if (!channelId || !userUid) return null;
-        return `chat_scroll_${userUid}_${channelId}`;
+        return `last_read_${channelId}`; // CHANGED: Simplified key as per request
     }, [channelId, userUid]);
 
-    // Save Scroll Position (Message ID + Offset)
-    const saveScrollPosition = useCallback(() => {
-        if (!scrollRef.current || !channelId || isRestoring.current) return;
+    // Save Last Read Message ID
+    const saveLastReadId = useCallback(() => {
+        if (!scrollRef.current || !channelId) return;
 
         const container = scrollRef.current;
-        const { scrollTop, scrollHeight, clientHeight } = container;
+        const { scrollTop, clientHeight } = container;
         const key = getStorageKey();
         if (!key) return;
 
-        // 1. Check if user is at the bottom
-        const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
-        if (isAtBottom) {
-            localStorage.setItem(key, JSON.stringify({ atBottom: true }));
-            return;
-        }
-
-        // 2. Identify the top-most visible message
         const children = Array.from(container.children) as HTMLElement[];
-        let topMsgId: string | null = null;
-        let offset = 0;
+        let bottomMostVisibleId: string | null = null;
 
+        // Find the message at the bottom of the viewport
         for (const child of children) {
             const msgId = child.getAttribute('data-msg-id');
             if (msgId) {
                 const childTop = child.offsetTop;
                 const childBottom = childTop + child.offsetHeight;
 
-                // If element is visible within the viewport (top part)
-                if (childBottom > scrollTop + 10) {
-                    topMsgId = msgId;
-                    offset = scrollTop - childTop;
-                    break;
+                // Check if this element is visible at the bottom of the scroll view
+                // (allowing some buffer)
+                if (childBottom >= scrollTop + clientHeight - 50 && childTop <= scrollTop + clientHeight) {
+                    bottomMostVisibleId = msgId;
                 }
             }
         }
 
-        if (topMsgId) {
-            localStorage.setItem(key, JSON.stringify({ messageId: topMsgId, offset, atBottom: false }));
+        // If we are at the very bottom, we can safely say the last message is read
+        const isAtBottom = container.scrollHeight - scrollTop - clientHeight < 50;
+        if (isAtBottom && messages.length > 0) {
+            bottomMostVisibleId = messages[messages.length - 1].id;
         }
-    }, [channelId, getStorageKey]);
+
+        if (bottomMostVisibleId) {
+            localStorage.setItem(key, bottomMostVisibleId);
+        }
+    }, [channelId, getStorageKey, messages]);
 
     // Restore Scroll Position
     const restoreScrollPosition = useCallback(() => {
@@ -69,81 +70,53 @@ export const useChatScroll = (
 
         const container = scrollRef.current;
         const key = getStorageKey();
-        const savedState = key ? localStorage.getItem(key) : null;
+        const savedLastReadId = key ? localStorage.getItem(key) : null;
 
         const scrollInstant = (top: number) => {
             container.scrollTo({ top, behavior: 'auto' });
         };
 
-        // Priority 1: Unread Messages (Smart Resume)
-        // If there are unread messages, position the "Last Read Message" at the bottom
-        // so the user can see context and scroll down to new messages.
-        if (userUid) {
-            const firstUnreadIndex = messages.findIndex(m => m.senderId !== userUid && (!m.readBy || !m.readBy.includes(userUid)));
+        if (savedLastReadId) {
+            setInitialLastReadId(savedLastReadId);
 
-            if (firstUnreadIndex !== -1) {
-                // Target the message BEFORE the first unread one (The Last Read Message)
-                const targetIndex = Math.max(0, firstUnreadIndex - 1);
-                const targetMsg = messages[targetIndex];
+            // Check if this ID exists in current messages
+            const msgIndex = messages.findIndex(m => m.id === savedLastReadId);
 
-                let el = messageRefs.current.get(targetMsg.id);
-                if (!el) el = container.querySelector(`[data-msg-id="${targetMsg.id}"]`) as HTMLDivElement;
+            if (msgIndex !== -1) {
+                // FOUND: Scroll so this message is at the BOTTOM of the viewport
+                let el = messageRefs.current.get(savedLastReadId);
+                // Fallback to query selector if ref is missing
+                if (!el) el = container.querySelector(`[data-msg-id="${savedLastReadId}"]`) as HTMLDivElement;
 
                 if (el) {
-                    // Calculate offset to align the bottom of the element with the bottom of the container
-                    // This simulates "scrolled to the end of what I read"
+                    // Position element's bottom at viewport's bottom
                     const offset = el.offsetTop + el.offsetHeight - container.clientHeight;
                     scrollInstant(Math.max(0, offset));
                     return;
-                } else if (targetIndex === 0) {
-                    // If target is the very first message, just scroll to top
-                    scrollInstant(0);
-                    return;
                 }
             }
+            // If saved ID is not found (too old or invalid), fall through to default
         }
 
-        // Priority 2: Resume Session from LocalStorage (Restored)
-        if (savedState) {
-            try {
-                const { atBottom, messageId, offset } = JSON.parse(savedState);
-
-                if (atBottom) {
-                    scrollInstant(container.scrollHeight);
-                    return;
-                }
-
-                if (messageId) {
-                    let el = messageRefs.current.get(messageId);
-                    // Fallback to DOM if ref missing
-                    if (!el) el = container.querySelector(`[data-msg-id="${messageId}"]`) as HTMLDivElement;
-
-                    if (el) {
-                        // Clamp offset to ensure valid scroll
-                        const safeOffset = Math.min(offset || 0, el.offsetHeight);
-                        scrollInstant(el.offsetTop + safeOffset);
-                        return;
-                    }
-                }
-            } catch (e) {
-                console.error("Scroll restore error", e);
-            }
-        }
-
-        // Priority 3: Default to Bottom
+        // DEFAULT: Scroll to Bottom (Latest)
         scrollInstant(container.scrollHeight);
 
-    }, [channelId, messages, userUid, getStorageKey]);
+    }, [channelId, messages, getStorageKey]);
 
-    const handleScroll = useCallback(() => {
+    // Handle Scroll & Save
+    const handleScroll = useCallback((e?: React.UIEvent) => {
         if (!scrollRef.current) return;
         const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
         setShowScrollDown(scrollHeight - scrollTop - clientHeight > 200);
 
         // Debounce saving position
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-        saveTimeoutRef.current = setTimeout(saveScrollPosition, 200);
-    }, [saveScrollPosition]);
+        saveTimeoutRef.current = setTimeout(saveLastReadId, 200);
+
+        // Signal parent if we hit top (for pagination)
+        // Passed via prop or exposed function? 
+        // For now, logic is mainly external, but we could expose "isAtTop"
+    }, [saveLastReadId]);
 
     const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
         if (scrollRef.current) {
@@ -155,14 +128,8 @@ export const useChatScroll = (
     useEffect(() => {
         prevMessagesLengthRef.current = 0;
         messageRefs.current.clear();
+        setInitialLastReadId(null);
     }, [channelId]);
-
-    // Save on unmount
-    useEffect(() => {
-        return () => {
-            if (isOpen && channelId) saveScrollPosition();
-        };
-    }, [isOpen, channelId, saveScrollPosition]);
 
     // Handle Scroll Restoration & New Messages
     useLayoutEffect(() => {
@@ -175,7 +142,8 @@ export const useChatScroll = (
 
         if (isChannelLoad) {
             isRestoring.current = true;
-            // Temporarily force auto behavior for instant jump
+
+            // Temporarily force auto behavior
             const originalBehavior = container.style.scrollBehavior;
             container.style.scrollBehavior = 'auto';
 
@@ -185,12 +153,27 @@ export const useChatScroll = (
                 container.style.scrollBehavior = originalBehavior;
                 isRestoring.current = false;
             });
-        } else if (messages.length > prevMessagesLengthRef.current && !isRestoring.current) {
-            // Auto-scroll for new messages if user is near bottom
+        }
+        /* 
+           NOTE: When prepending history (pagination), the length increases but we are NOT at the bottom.
+           The parent component (ChatWindow) should handle scroll adjustment for prepend.
+           We only handle "Auto-scroll for NEW messages at bottom".
+        */
+        else if (messages.length > prevMessagesLengthRef.current && !isRestoring.current) {
+            // Only auto-scroll if the NEW message is at the END (timestamp check or simple append check)
+            // If we prepended history, we shouldn't scroll to bottom.
+
+            // Simple check: If the user was already near bottom, stay at bottom.
             const { scrollTop, scrollHeight, clientHeight } = container;
-            const isNearBottom = scrollHeight - scrollTop - clientHeight < 300;
+            const isNearBottom = (scrollHeight - scrollTop - clientHeight) < 300;
+
+            // However, strictly speaking, history load adds to START.
+            // A naive length check doesn't distinguish head vs tail addition.
+            // Assumption: This hook is used where 'messages' is updated.
 
             if (isNearBottom) {
+                // This might be risky if we just loaded 50 old messages and we were at bottom?
+                // No, if we loaded old messages, we would be at Top (scrollTop=0).
                 container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
             }
         }
@@ -199,8 +182,17 @@ export const useChatScroll = (
     }, [messages, channelId, isOpen, restoreScrollPosition]);
 
     const signalHistoryLoad = () => {
-        // Placeholder for infinite scroll history loading logic
+        // Placeholder
     };
 
-    return { scrollRef, handleScroll, scrollToBottom, showScrollDown, messageRefs, signalHistoryLoad, restoreScrollPosition };
+    return {
+        scrollRef,
+        handleScroll,
+        scrollToBottom,
+        showScrollDown,
+        messageRefs,
+        signalHistoryLoad,
+        restoreScrollPosition,
+        initialLastReadId // Expose this for the Divider
+    };
 };

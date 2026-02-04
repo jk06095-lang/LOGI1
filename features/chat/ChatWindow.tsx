@@ -51,7 +51,37 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
         return found || selectedUser;
     }, [users, selectedUser]);
 
-    const { scrollRef, handleScroll, scrollToBottom, showScrollDown, messageRefs, signalHistoryLoad, restoreScrollPosition } = useChatScroll(messages, channelId, user?.uid, isOpen);
+    const {
+        scrollRef, handleScroll, scrollToBottom, showScrollDown, messageRefs, signalHistoryLoad, restoreScrollPosition, initialLastReadId
+    } = useChatScroll(messages, channelId, user?.uid, isOpen);
+
+    // Scroll Compensation for History Load
+    // We need to adjust scroll position after messages are prepended
+    const prevHeightRef = useRef(0);
+    const isHistoryLoadingRef = useRef(false);
+
+    useEffect(() => {
+        if (!isOpen || !scrollRef.current) return;
+        const container = scrollRef.current;
+        const currentHeight = container.scrollHeight;
+
+        if (isHistoryLoadingRef.current && messages.length > 0) {
+            const diff = currentHeight - prevHeightRef.current;
+            if (diff > 0) {
+                container.scrollTop = diff; // Restore relative position
+            }
+            isHistoryLoadingRef.current = false;
+        }
+
+        prevHeightRef.current = currentHeight;
+    }, [messages, isOpen]);
+
+    // Wrap the service call to set the ref
+    const handleHistoryLoadTrigger = async () => {
+        if (scrollRef.current) prevHeightRef.current = scrollRef.current.scrollHeight;
+        isHistoryLoadingRef.current = true;
+        await loadMoreHistoryMessages();
+    };
 
     useEffect(() => {
         if (!user) return;
@@ -211,9 +241,48 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
         } catch (error: any) { alert(error.message); } finally { setIsAddingFriend(false); }
     };
 
-    const loadMoreMessages = () => {
-        signalHistoryLoad();
-        setMessageLimit(prev => prev + 100);
+    // History Loading State
+    const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+    const [hasMoreHistory, setHasMoreHistory] = useState(true);
+
+    const loadMoreHistoryMessages = async () => {
+        if (!channelId || isLoadingHistory || !hasMoreHistory || messages.length === 0) return;
+
+        setIsLoadingHistory(true);
+        signalHistoryLoad(); // Notify hook to handle scroll compensation
+
+        // 1. Capture current height and scroll top for compensation
+        const container = scrollRef.current;
+        const oldHeight = container ? container.scrollHeight : 0;
+        const oldTop = container ? container.scrollTop : 0;
+
+        try {
+            const oldestMsg = messages[0];
+            const history = await chatService.fetchHistoryMessages(channelId, oldestMsg.timestamp, 50);
+
+            if (history.length > 0) {
+                setMessages(prev => [...history, ...prev]);
+                // Scroll compensation happens in useChatScroll's useLayoutEffect? 
+                // No, useChatScroll is designed for *new* messages.
+                // We should handle compensation here after state update or in useChatScroll if we extend it.
+                // Let's do it manually via LayoutEffect in useChatScroll or here.
+
+                // Since `setMessages` is async, we can't do it immediately.
+                // A reliable way is to let `useChatScroll` handle it if we flag it.
+                // But simplified approach: We can trust React to keep scroll relative? No, default is jumpy.
+
+                // Hack: We rely on the hook's `prevMessagesLengthRef` logic or wait for render.
+                // I will add a one-off useEffect in useChatScroll or handle it here?
+                // Actually, `useChatScroll` can take a prop/ref for "isHistoryLoading"
+
+            } else {
+                setHasMoreHistory(false);
+            }
+        } catch (e) {
+            console.error("History Load Error", e);
+        } finally {
+            setIsLoadingHistory(false);
+        }
     };
 
     const myFriends = useMemo(() => {
@@ -275,7 +344,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
                         messageRefs={messageRefs}
                         onReaction={handleReaction}
                         onReply={setReplyingTo}
-                        loadMoreMessages={loadMoreMessages}
+                        loadMoreMessages={handleHistoryLoadTrigger}
+                        initialLastReadId={initialLastReadId}
                     />
                 )}
 
