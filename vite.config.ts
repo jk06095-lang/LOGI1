@@ -9,9 +9,13 @@ const __dirname = path.dirname(__filename);
 
 export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory
-  const env = loadEnv(mode, (process as any).cwd(), '');
+  const env = loadEnv(mode, (process as any).cwd(), ['VITE_', 'GEMINI_']);
 
   return {
+    server: {
+      host: '127.0.0.1',
+      port: 8080,
+    },
     plugins: [react()],
     resolve: {
       alias: {
