@@ -8,19 +8,8 @@ interface WindowFrameProps {
     id: string;
     isOpen: boolean;
     isMinimized: boolean;
-    onClose: () => void;
-    onMinimize: () => void;
-    title?: React.ReactNode;
-    triggerRect?: TriggerRect;
-    zIndex: number;
-    initialWidth?: number;
-    initialHeight?: number;
-    minWidth?: number;
-    minHeight?: number;
-    children: React.ReactNode;
-    headerContent?: React.ReactNode;
-    className?: string;
-    sidebarWidth?: number;
+    onFocus?: () => void;
+    align?: 'left' | 'center' | 'right';
 }
 
 export const WindowFrame: React.FC<WindowFrameProps> = ({
@@ -29,6 +18,7 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
     isMinimized,
     onClose,
     onMinimize,
+    onFocus,
     title,
     triggerRect,
     zIndex,
@@ -39,7 +29,8 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
     children,
     headerContent,
     className = "",
-    sidebarWidth = 64
+    sidebarWidth = 64,
+    align = 'left'
 }) => {
     const [isMaximized, setIsMaximized] = useState(false);
 
@@ -60,9 +51,11 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
     }, []);
 
     const maxDimensions = useMemo(() => {
+        const maxWidth = Math.min(windowSize.width * 0.9, 1400); // 90% width, max 1400px
+        const maxHeight = Math.min(windowSize.height * 0.9, 900); // 90% height, max 900px
         return {
-            width: windowSize.width - 40,
-            height: windowSize.height - 40
+            width: maxWidth,
+            height: maxHeight
         };
     }, [windowSize]);
 
@@ -72,21 +65,39 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
     }, [isMaximized, maxDimensions, initialWidth, initialHeight]);
 
     const variants: Variants = useMemo(() => {
+        // Center calculation for maximized state
+        const maxLeft = (windowSize.width - maxDimensions.width) / 2;
+        const maxTop = (windowSize.height - maxDimensions.height) / 2;
+
+        // Normal state position
+        // Left: next to sidebar
+        const normalLeft = sidebarWidth + 20;
+        // Right: right side of screen - width - padding
+        const rightLeft = windowSize.width - initialWidth - 40;
+
+        const targetLeft = align === 'right' ? rightLeft : normalLeft;
+        const normalTop = 50;
+
         // Fallback if no trigger rect (fade in center)
         if (!triggerRect) {
             return {
-                initial: { opacity: 0, scale: 0.9, y: 20, x: 0 },
+                initial: { opacity: 0, scale: 0.9, x: '-50%', y: '-50%', left: '50%', top: '50%' },
                 animate: {
                     opacity: isMinimized ? 0 : 1,
                     scale: isMinimized ? 0.9 : 1,
-                    y: 0,
-                    x: 0, // Ensure it's centered or positioned correctly
+
+                    // Maximized vs Normal logic
+                    left: isMaximized ? maxLeft : (align === 'center' ? '50%' : targetLeft),
+                    top: isMaximized ? maxTop : (align === 'center' ? '50%' : normalTop),
+                    x: isMaximized ? 0 : (align === 'center' ? '-50%' : 0),
+                    y: isMaximized ? 0 : (align === 'center' ? '-50%' : 0),
+
                     width: currentDimensions.width,
                     height: currentDimensions.height,
                     borderRadius: "1.5rem",
                     transition: { type: "spring", stiffness: 300, damping: 25 }
                 },
-                exit: { opacity: 0, scale: 0.9, y: 20 }
+                exit: { opacity: 0, scale: 0.9 }
             };
         }
 
@@ -99,17 +110,15 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
                 width: triggerRect.width,
                 height: triggerRect.height,
                 opacity: 0,
-                scale: 0,
                 borderRadius: "100px",
+                x: 0, y: 0 // Reset transform
             },
             animate: {
                 position: "fixed",
-                top: isMaximized ? 20 : "auto", // Center vertically if max, or let drag handle it? 
-                // Logic tweak: For maximize to work nicely with drag, we usually want centered or specific coords.
-                // For now, let's fix it to bottom-left/center area or rely on layout.
-                // Simple approach: position fixed at a default location if not maximized.
-                left: isMaximized ? (window.innerWidth - currentDimensions.width) / 2 : (sidebarWidth + 20),
-                bottom: isMaximized ? 20 : 20, // Reset bottom
+                // Logic: If maximized, center on screen.
+                // If normal, place based on align
+                top: isMaximized ? maxTop : normalTop,
+                left: isMaximized ? maxLeft : targetLeft,
 
                 width: currentDimensions.width,
                 height: currentDimensions.height,
@@ -119,7 +128,6 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
                 transition: { type: "spring", stiffness: 260, damping: 24 } // Apple-ish spring
             },
             exit: {
-                // Disappear animation (scales down slightly and fades)
                 opacity: 0,
                 scale: 0.95,
                 transition: { duration: 0.2 }
@@ -136,14 +144,14 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
                 transition: { type: "spring", stiffness: 300, damping: 28 }
             }
         };
-    }, [triggerRect, isMinimized, isMaximized, currentDimensions, sidebarWidth]);
+    }, [triggerRect, isMinimized, isMaximized, currentDimensions, sidebarWidth, windowSize, maxDimensions, align, initialWidth]);
 
     return (
         <AnimatePresence>
             {isOpen && (
                 <motion.div
                     key={id}
-                    drag={!isMaximized} // Disable drag when maximized
+                    drag // Always draggable
                     dragMomentum={false}
                     dragElastic={0.1}
                     // Use custom variant logic to handle minimization state specifically
@@ -151,16 +159,27 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
                     animate={isMinimized ? "minimize" : "animate"}
                     exit="exit"
                     variants={variants}
-                    style={{ zIndex }}
                     className={`flex flex-col bg-white/15 dark:bg-black/20 backdrop-blur-xl backdrop-saturate-150 rounded-3xl shadow-2xl border border-white/20 overflow-hidden ${className}`}
-                    onPointerDown={(e) => {
-                        // Focus window on click
+                    style={{
+                        zIndex,
+                        position: 'fixed', // Force fixed to prevent layout shift
+                        // If no triggerRect and not maximized, align center or custom
+                        ...((!triggerRect && !isMaximized && align === 'center') ? {
+                            left: '50%',
+                            top: '50%',
+                            x: '-50%',
+                            y: '-50%'
+                        } : {})
+                    }}
+                    onPointerDownCapture={(e) => {
+                        // Focus window on click (Use capture to ensure it fires before children stop propagation)
+                        if (onFocus) onFocus();
                     }}
                 >
                     {/* Standard Mac-style Header */}
                     <div
                         className="h-10 bg-gradient-to-b from-white/10 to-transparent flex items-center px-4 justify-between shrink-0 border-b border-white/10 cursor-grab active:cursor-grabbing"
-                        onPointerDown={(e) => !isMaximized && e.stopPropagation()} // Allow drag only on header if preferred, but usually drag whole window is ok. Here we put drag on parent.
+                        onPointerDown={(e) => e.stopPropagation()} // Allow drag only on header if preferred, but usually drag whole window is ok. Here we put drag on parent.
                     >
                         {/* Traffic Lights */}
                         <div className="flex items-center gap-2 group" onPointerDown={(e) => e.stopPropagation()}>

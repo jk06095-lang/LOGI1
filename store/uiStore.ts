@@ -6,18 +6,18 @@ interface UIStore {
   // Settings
   settings: AppSettings;
   updateSettings: (settings: Partial<AppSettings>) => void;
-  
+
   // Layout
   sidebarCollapsed: boolean;
   toggleSidebar: () => void;
-  
+
   // Tabs
   tabs: Tab[];
   activeTabId: string;
   addTab: (tab: Tab) => void;
   closeTab: (id: string) => void;
   setActiveTab: (id: string) => void;
-  
+
   // Floating Windows
   windows: Record<string, WindowState>;
   windowStack: string[]; // For Z-Index
@@ -25,7 +25,8 @@ interface UIStore {
   closeWindow: (id: string) => void;
   minimizeWindow: (id: string, minimized: boolean) => void;
   focusWindow: (id: string) => void;
-  
+  toggleWindow: (id: string, type: string, data?: any, triggerRect?: TriggerRect) => void;
+
   // Global Processing
   processing: { isProcessing: boolean; message: string };
   setProcessing: (isProcessing: boolean, message?: string) => void;
@@ -33,7 +34,7 @@ interface UIStore {
 
 export const useUIStore = create<UIStore>((set, get) => {
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-  
+
   return {
     settings: {
       language: 'ko',
@@ -43,13 +44,13 @@ export const useUIStore = create<UIStore>((set, get) => {
       viewMode: isMobile ? 'mobile' : 'pc'
     },
     updateSettings: (newSettings) => set((state) => ({ settings: { ...state.settings, ...newSettings } })),
-    
+
     sidebarCollapsed: false,
     toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
-    
+
     tabs: [{ id: 'dashboard', type: 'dashboard', title: 'Dashboard' }],
     activeTabId: 'dashboard',
-    
+
     addTab: (tab) => set((state) => {
       const existing = state.tabs.find(t => t.id === tab.id);
       if (existing) {
@@ -59,57 +60,99 @@ export const useUIStore = create<UIStore>((set, get) => {
       }
       return { tabs: [...state.tabs, tab], activeTabId: tab.id };
     }),
-    
+
     closeTab: (id) => set((state) => {
       if (id === 'dashboard') return state;
       const newTabs = state.tabs.filter(t => t.id !== id);
-      const newActiveId = state.activeTabId === id 
-        ? (newTabs[newTabs.length - 1]?.id || 'dashboard') 
+      const newActiveId = state.activeTabId === id
+        ? (newTabs[newTabs.length - 1]?.id || 'dashboard')
         : state.activeTabId;
       return { tabs: newTabs, activeTabId: newActiveId };
     }),
-    
+
     setActiveTab: (id) => set({ activeTabId: id }),
-    
+
     windows: {},
     windowStack: [],
-    
+
     openWindow: (id, type, data, triggerRect) => set((state) => {
       // Create or update window state
-      const newWindows = { 
-        ...state.windows, 
-        [id]: { 
-          isOpen: true, 
-          isMinimized: false, 
-          type, 
+      const newWindows = {
+        ...state.windows,
+        [id]: {
+          isOpen: true,
+          isMinimized: false,
+          type,
           data: data !== undefined ? data : state.windows[id]?.data, // Update data if provided
           triggerRect: triggerRect !== undefined ? triggerRect : state.windows[id]?.triggerRect // Update trigger rect if provided
-        } 
+        }
       };
-      
+
       // Move to top of stack
       const newStack = state.windowStack.filter(w => w !== id).concat(id);
       return { windows: newWindows, windowStack: newStack };
     }),
-    
+
     closeWindow: (id) => set((state) => {
       const newWindows = { ...state.windows };
       delete newWindows[id];
       const newStack = state.windowStack.filter(w => w !== id);
       return { windows: newWindows, windowStack: newStack };
     }),
-    
+
     minimizeWindow: (id, minimized) => set((state) => ({
       windows: { ...state.windows, [id]: { ...state.windows[id], isMinimized: minimized } }
     })),
-    
+
+    toggleWindow: (id, type, data, triggerRect) => set((state) => {
+      const window = state.windows[id];
+      const isTop = state.windowStack.length > 0 && state.windowStack[state.windowStack.length - 1] === id;
+
+      // Case 1: Not open -> Open it
+      if (!window || !window.isOpen) {
+        // Logic duplicated from openWindow to ensure atomic update
+        const newWindows = {
+          ...state.windows,
+          [id]: {
+            isOpen: true,
+            isMinimized: false,
+            type,
+            data: data !== undefined ? data : window?.data,
+            triggerRect: triggerRect !== undefined ? triggerRect : window?.triggerRect
+          }
+        };
+        const newStack = state.windowStack.filter(w => w !== id).concat(id);
+        return { windows: newWindows, windowStack: newStack };
+      }
+
+      // Case 2: Minimized -> Restore and Focus
+      if (window.isMinimized) {
+        return {
+          windows: { ...state.windows, [id]: { ...window, isMinimized: false } },
+          windowStack: state.windowStack.filter(w => w !== id).concat(id)
+        };
+      }
+
+      // Case 3: Open and Focused -> Minimize
+      if (isTop) {
+        return {
+          windows: { ...state.windows, [id]: { ...window, isMinimized: true } }
+        };
+      }
+
+      // Case 4: Open but blurred -> Focus
+      return {
+        windowStack: state.windowStack.filter(w => w !== id).concat(id)
+      };
+    }),
+
     focusWindow: (id) => set((state) => {
       // If already top, do nothing
       if (state.windowStack.length > 0 && state.windowStack[state.windowStack.length - 1] === id) return state;
       const newStack = state.windowStack.filter(w => w !== id).concat(id);
       return { windowStack: newStack };
     }),
-    
+
     processing: { isProcessing: false, message: '' },
     setProcessing: (isProcessing, message = '') => set({ processing: { isProcessing, message } })
   };

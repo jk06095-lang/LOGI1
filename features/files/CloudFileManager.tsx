@@ -260,6 +260,7 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
                     Cloud Documents
                 </div>
             }
+            align="right"
         >
             {/* Main Container - Handles Drag & Drop */}
             <div className="flex flex-col h-full overflow-hidden"
@@ -304,8 +305,8 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
                                         onDoubleClick={(e) => handleFileDoubleClick(e, file)}
                                         onPointerDown={(e) => e.stopPropagation()} // Prevent dragging the window when clicking a file
                                         className={`group flex flex-col items-center gap-2 p-3 rounded-2xl transition-all cursor-pointer relative border ${isSelected
-                                                ? 'bg-blue-100/50 border-blue-500 dark:bg-blue-900/40 dark:border-blue-400 shadow-md ring-1 ring-blue-500/50'
-                                                : 'border-transparent hover:bg-white/40 dark:hover:bg-black/40'
+                                            ? 'bg-blue-100/50 border-blue-500 dark:bg-blue-900/40 dark:border-blue-400 shadow-md ring-1 ring-blue-500/50'
+                                            : 'border-transparent hover:bg-white/40 dark:hover:bg-black/40'
                                             }`}
                                         title={file.name}
                                     >

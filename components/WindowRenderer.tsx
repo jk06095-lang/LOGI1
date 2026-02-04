@@ -14,7 +14,8 @@ interface WindowRendererProps {
   jobs: VesselJob[];
   bls: BLData[];
   actions: AppActions;
-  dataActions: any; // Direct service access if needed
+  dataActions: any;
+  sidebarWidth: number;
 }
 
 // Window Component Registry
@@ -25,7 +26,7 @@ const WINDOW_REGISTRY: Record<string, React.FC<any>> = {
   'bl-cloud': CloudFileManager
 };
 
-export const WindowRenderer: React.FC<WindowRendererProps> = ({ user, jobs, bls, actions, dataActions }) => {
+export const WindowRenderer: React.FC<WindowRendererProps> = ({ user, jobs, bls, actions, dataActions, sidebarWidth }) => {
   const { windows, windowStack, closeWindow, minimizeWindow, focusWindow, sidebarCollapsed, settings, processing } = useUIStore();
 
   const getZIndex = (id: string) => {
@@ -41,8 +42,8 @@ export const WindowRenderer: React.FC<WindowRendererProps> = ({ user, jobs, bls,
 
         const Component = WINDOW_REGISTRY[state.type];
         if (!Component) {
-            console.warn(`No component registered for window type: ${state.type}`);
-            return null;
+          console.warn(`No component registered for window type: ${state.type}`);
+          return null;
         }
 
         // Common Props for all windows
@@ -56,7 +57,8 @@ export const WindowRenderer: React.FC<WindowRendererProps> = ({ user, jobs, bls,
           onFocus: () => focusWindow(id),
           zIndex: getZIndex(id),
           data: state.data,
-          triggerRect: state.triggerRect
+          triggerRect: state.triggerRect,
+          sidebarWidth // Pass to all windows
         };
 
         // Render specific window based on type

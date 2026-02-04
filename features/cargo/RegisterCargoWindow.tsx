@@ -122,8 +122,8 @@ const ModeButton = ({ mode, icon: Icon, label, activeMode, setActiveMode }: { mo
         <button
             onClick={() => setActiveMode(mode as CargoMode)}
             className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl text-left transition-all duration-300 group relative overflow-hidden w-full ${isActive
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 scale-[1.02]'
-                    : 'bg-white/40 dark:bg-white/5 hover:bg-white/60 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 scale-[1.02]'
+                : 'bg-white/40 dark:bg-white/5 hover:bg-white/60 dark:hover:bg-white/10 text-slate-600 dark:text-slate-300'
                 }`}
         >
             <div className={`p-1.5 rounded-lg transition-colors ${isActive ? 'bg-white/20 text-white' : 'bg-transparent text-slate-500 dark:text-slate-400 group-hover:text-blue-500'}`}>
@@ -246,6 +246,7 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
                     {t.title}
                 </div>
             }
+            align="right"
         >
             <div className="flex-1 flex overflow-hidden">
                 {/* Sidebar (Configuration) */}
