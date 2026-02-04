@@ -191,6 +191,7 @@ export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({
             onClose={onClose}
             onMinimize={onMinimize}
             zIndex={zIndex}
+            onFocus={onFocus}
             triggerRect={triggerRect}
             initialWidth={950}
             initialHeight={600}
@@ -228,8 +229,8 @@ export const GlobalCloudManager: React.FC<GlobalCloudManagerProps> = ({
                                         key={folder.id}
                                         onClick={() => setCurrentFolderId(folder.id)}
                                         className={`flex items-center gap-2.5 px-3 py-1.5 rounded-lg cursor-pointer transition-all ${isActive
-                                                ? 'bg-blue-100/50 dark:bg-blue-900/40 text-blue-800 dark:text-blue-100 font-bold shadow-sm'
-                                                : 'text-slate-600 dark:text-slate-400 hover:bg-white/10'
+                                            ? 'bg-blue-100/50 dark:bg-blue-900/40 text-blue-800 dark:text-blue-100 font-bold shadow-sm'
+                                            : 'text-slate-600 dark:text-slate-400 hover:bg-white/10'
                                             }`}
                                     >
                                         {folder.id === 'unassigned' ? <Box size={14} className="opacity-70" /> : <Ship size={14} className="opacity-70" />}

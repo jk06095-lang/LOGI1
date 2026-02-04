@@ -237,6 +237,7 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
             onClose={onClose}
             onMinimize={onMinimize}
             zIndex={zIndex}
+            onFocus={onFocus}
             triggerRect={triggerRect}
             initialWidth={950}
             initialHeight={650}

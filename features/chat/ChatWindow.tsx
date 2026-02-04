@@ -231,13 +231,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
             onClose={onClose}
             onMinimize={onMinimize}
             zIndex={zIndex}
+            onFocus={onFocus}
             triggerRect={triggerRect}
             title={
                 <div className="flex items-center gap-2 justify-center">
                     {liveSelectedUser ? (
                         <>
                             <span className={`w-2.5 h-2.5 rounded-full shadow-sm border border-white/20 transition-colors duration-500 ${liveSelectedUser.status === 'online' ? 'bg-emerald-500 shadow-emerald-500/50' :
-                                    liveSelectedUser.status === 'away' ? 'bg-amber-500 shadow-amber-500/50' : 'bg-slate-400'
+                                liveSelectedUser.status === 'away' ? 'bg-amber-500 shadow-amber-500/50' : 'bg-slate-400'
                                 }`}></span>
                             {liveSelectedUser.displayName}
                         </>

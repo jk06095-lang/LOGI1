@@ -251,6 +251,7 @@ export const CloudFileManager: React.FC<CloudFileManagerProps> = ({
             onClose={onClose}
             onMinimize={onMinimize}
             zIndex={zIndex}
+            onFocus={onFocus}
             triggerRect={triggerRect}
             initialWidth={700}
             initialHeight={480}
