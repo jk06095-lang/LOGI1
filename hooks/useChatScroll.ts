@@ -75,23 +75,49 @@ export const useChatScroll = (
             container.scrollTo({ top, behavior: 'auto' });
         };
 
-        // Priority 1: Resume Session from LocalStorage (DISABLED per user request)
-        // We want to always show the latest messages or unread ones.
-        /*
+        // Priority 1: Unread Messages (Smart Resume)
+        // If there are unread messages, position the "Last Read Message" at the bottom
+        // so the user can see context and scroll down to new messages.
+        if (userUid) {
+            const firstUnreadIndex = messages.findIndex(m => m.senderId !== userUid && (!m.readBy || !m.readBy.includes(userUid)));
+
+            if (firstUnreadIndex !== -1) {
+                // Target the message BEFORE the first unread one (The Last Read Message)
+                const targetIndex = Math.max(0, firstUnreadIndex - 1);
+                const targetMsg = messages[targetIndex];
+
+                let el = messageRefs.current.get(targetMsg.id);
+                if (!el) el = container.querySelector(`[data-msg-id="${targetMsg.id}"]`) as HTMLDivElement;
+
+                if (el) {
+                    // Calculate offset to align the bottom of the element with the bottom of the container
+                    // This simulates "scrolled to the end of what I read"
+                    const offset = el.offsetTop + el.offsetHeight - container.clientHeight;
+                    scrollInstant(Math.max(0, offset));
+                    return;
+                } else if (targetIndex === 0) {
+                    // If target is the very first message, just scroll to top
+                    scrollInstant(0);
+                    return;
+                }
+            }
+        }
+
+        // Priority 2: Resume Session from LocalStorage (Restored)
         if (savedState) {
             try {
                 const { atBottom, messageId, offset } = JSON.parse(savedState);
-                
+
                 if (atBottom) {
                     scrollInstant(container.scrollHeight);
                     return;
-                } 
-                
+                }
+
                 if (messageId) {
                     let el = messageRefs.current.get(messageId);
                     // Fallback to DOM if ref missing
                     if (!el) el = container.querySelector(`[data-msg-id="${messageId}"]`) as HTMLDivElement;
-  
+
                     if (el) {
                         // Clamp offset to ensure valid scroll
                         const safeOffset = Math.min(offset || 0, el.offsetHeight);
@@ -101,22 +127,6 @@ export const useChatScroll = (
                 }
             } catch (e) {
                 console.error("Scroll restore error", e);
-            }
-        }
-        */
-
-        // Priority 2: Jump to First Unread Message
-        if (userUid) {
-            const firstUnread = messages.find(m => m.senderId !== userUid && (!m.readBy || !m.readBy.includes(userUid)));
-            if (firstUnread) {
-                let el = messageRefs.current.get(firstUnread.id);
-                if (!el) el = container.querySelector(`[data-msg-id="${firstUnread.id}"]`) as HTMLDivElement;
-
-                if (el) {
-                    // Scroll to unread message with context (50px above)
-                    scrollInstant(Math.max(0, el.offsetTop - 50));
-                    return;
-                }
             }
         }
 
