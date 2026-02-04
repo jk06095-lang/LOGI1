@@ -21,9 +21,9 @@ const cargoItemSchema: Schema = {
 
 // Function to generate the schema dynamically based on available categories
 const createFullDocSchema = (availableCategories: string[]): Schema => {
-  const categoryDescription = availableCategories.length > 0 
-    ? `Enum: ${availableCategories.map(c => `'${c}'`).join(', ')}. STRICTLY classify into one of these. If no match, use 'GENERAL'.`
-    : "Enum: 'FISHING_GEAR', 'BAIT', 'NETS', 'PORT_EQUIPMENT', 'GENERAL'. Infer from description.";
+  const categoryDescription = availableCategories.length > 0
+    ? `Enum: ${availableCategories.map(c => `'${c}'`).join(', ')}. STRICTLY classify into one of these. If no match, use 'GENERAL'. Do not translate.`
+    : "Classify as 'GENERAL'.";
 
   return {
     type: Type.OBJECT,
@@ -37,26 +37,26 @@ const createFullDocSchema = (availableCategories: string[]): Schema => {
       voyageNo: { type: Type.STRING, description: "Voyage Number" },
       portOfLoading: { type: Type.STRING, description: "Port of Loading (POL)" },
       date: { type: Type.STRING, description: "Date of issue" },
-      
+
       // New Fields
       koreanForwarder: { type: Type.STRING, description: "The 'DELIVERY AGENT' or Forwarder company name. Often found under 'For delivery of goods please apply to'." },
       transporterName: { type: Type.STRING, description: "Trucking or Transport Company Name" },
       cargoType: { type: Type.STRING, description: "Enum: 'LCL' or 'FCL'. Rule: If 'CY/CY', 'CY-CY', or 'FCL' is found -> 'FCL'. If 'CFS/CFS', 'CFS-CFS', or 'LCL' is found -> 'LCL'." },
-      
+
       // Classification Fields
-      cargoClass: { 
-        type: Type.STRING, 
-        description: "Enum: 'IMPORT' or 'TRANSHIPMENT'. Logic: If Consignee address contains 'Korea', 'Seoul', 'Busan', 'Incheon', set to 'IMPORT'. If Consignee is outside Korea or remarks say 'T/S', set to 'TRANSHIPMENT'." 
+      cargoClass: {
+        type: Type.STRING,
+        description: "Enum: 'IMPORT' or 'TRANSHIPMENT'. Logic: If Consignee address contains 'Korea', 'Seoul', 'Busan', 'Incheon', set to 'IMPORT'. If Consignee is outside Korea or remarks say 'T/S', set to 'TRANSHIPMENT'."
       },
-      importSubClass: { 
-        type: Type.STRING, 
-        description: "Enum: 'GENERAL', 'RETURN_EXPORT', 'SHIPS_STORES'. Logic: If description/remarks contains 'Ship Stores', 'Spare Parts for Vessel', set to 'SHIPS_STORES'. If 'Return', 'Re-export', set to 'RETURN_EXPORT'." 
+      importSubClass: {
+        type: Type.STRING,
+        description: "Enum: 'GENERAL', 'RETURN_EXPORT', 'SHIPS_STORES'. Logic: If description/remarks contains 'Ship Stores', 'Spare Parts for Vessel', set to 'SHIPS_STORES'. If 'Return', 'Re-export', set to 'RETURN_EXPORT'."
       },
-      
+
       // Dynamic Category Field
       cargoCategory: {
-          type: Type.STRING,
-          description: categoryDescription
+        type: Type.STRING,
+        description: categoryDescription
       },
 
       // Cargo List
@@ -89,10 +89,10 @@ const createFullDocSchema = (availableCategories: string[]): Schema => {
 };
 
 export const parseDocument = async (
-    file: File, 
-    docType: DocumentScanType, 
-    sourceType: CargoSourceType = 'TRANSIT',
-    availableCategories: string[] = [] // New Argument
+  file: File,
+  docType: DocumentScanType,
+  sourceType: CargoSourceType = 'TRANSIT',
+  availableCategories: string[] = [] // New Argument
 ): Promise<any> => {
   return new Promise(async (resolve, reject) => {
     try {
@@ -107,14 +107,14 @@ export const parseDocument = async (
       // 3. Construct Prompt with Dynamic Categories
       let categoryPrompt = "";
       if (availableCategories.length > 0) {
-          categoryPrompt = `\n\n**CRITICAL INSTRUCTION**: You must classify 'cargoCategory' ONLY as one of the following values: ${availableCategories.join(', ')}. If the cargo does not fit any of these, default to 'GENERAL'. Do not invent new categories.`;
+        categoryPrompt = `\n\n**CRITICAL INSTRUCTION**: You must classify 'cargoCategory' ONLY as one of the following values: ${availableCategories.join(', ')}. If the cargo does not fit any of these, default to 'GENERAL'. Do not invent new categories. Do not translate the category into another language; return the exact string from the list.`;
       } else {
-          categoryPrompt = `\n\nClassify 'cargoCategory' as 'FISHING_GEAR', 'BAIT', 'NETS', 'PORT_EQUIPMENT', or 'GENERAL' based on description.`;
+        categoryPrompt = `\n\nClassify 'cargoCategory' as 'GENERAL'.`;
       }
 
       let promptText = "";
 
-      switch(docType) {
+      switch (docType) {
         case 'PL':
           promptText = `Analyze this PACKING LIST.
           Extract: Total Packages, Total Gross Weight, Total Measurement (CBM), and detailed cargo items.
@@ -142,7 +142,7 @@ export const parseDocument = async (
           break;
         case 'BL':
         default:
-           if (sourceType === 'TRANSIT') {
+          if (sourceType === 'TRANSIT') {
             promptText = `Analyze this Bill of Lading (B/L).
             Extract: B/L Number, Vessel, Shipper, Consignee, Notify Party, Port of Loading.
             
@@ -176,16 +176,16 @@ export const parseDocument = async (
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            prompt: promptText,
-            image: base64Data,
-            mimeType: mimeType,
-            schema: fullDocSchema
+          prompt: promptText,
+          image: base64Data,
+          mimeType: mimeType,
+          schema: fullDocSchema
         }),
       });
 
       if (!response.ok) {
-         const errData = await response.json();
-         throw new Error(errData.error || `Server Error: ${response.status}`);
+        const errData = await response.json();
+        throw new Error(errData.error || `Server Error: ${response.status}`);
       }
 
       const data = await response.json();
@@ -193,16 +193,16 @@ export const parseDocument = async (
 
       if (!text) throw new Error("No response from AI");
       const parsed = JSON.parse(text);
-      
+
       // Post-processing
       if (!parsed.totalCbm && parsed.cargoItems && parsed.cargoItems.length > 0) {
-          const sumCbm = parsed.cargoItems.reduce((acc: number, item: any) => acc + (item.measurement || 0), 0);
-          if (sumCbm > 0) parsed.totalCbm = parseFloat(sumCbm.toFixed(3));
+        const sumCbm = parsed.cargoItems.reduce((acc: number, item: any) => acc + (item.measurement || 0), 0);
+        if (sumCbm > 0) parsed.totalCbm = parseFloat(sumCbm.toFixed(3));
       }
-      
+
       if (!parsed.totalGrossWeight && parsed.cargoItems && parsed.cargoItems.length > 0) {
-          const sumWeight = parsed.cargoItems.reduce((acc: number, item: any) => acc + (item.grossWeight || 0), 0);
-          if (sumWeight > 0) parsed.totalGrossWeight = parseFloat(sumWeight.toFixed(2));
+        const sumWeight = parsed.cargoItems.reduce((acc: number, item: any) => acc + (item.grossWeight || 0), 0);
+        if (sumWeight > 0) parsed.totalGrossWeight = parseFloat(sumWeight.toFixed(2));
       }
 
       resolve(parsed);
