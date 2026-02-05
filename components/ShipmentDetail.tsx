@@ -50,7 +50,7 @@ const translations = {
         totalPkgs: '총 포장단위',
         totalWeight: '총 중량',
         totalCbm: '총 용적',
-        hsCode: '세번부호',
+        hsCode: 'HS 코드',
         remarks: '비고',
         items: '화물 상세',
         desc: '품명',
@@ -74,6 +74,7 @@ const translations = {
         transporter: '운송사',
         storageLoc: '장치장',
         storagePeriod: '보관기간',
+        storageDays: '일',
         documents: '첨부 문서',
         arrivalNotice: '화물도착통지서',
         manifest: '적하목록',
@@ -176,6 +177,7 @@ const translations = {
         transporter: 'Transporter',
         storageLoc: 'Storage / Warehouse',
         storagePeriod: 'Storage Period',
+        storageDays: 'days',
         documents: 'Attached Documents',
         arrivalNotice: 'Arrival Notice',
         manifest: 'Manifest',
@@ -278,6 +280,7 @@ const translations = {
         transporter: '运输公司',
         storageLoc: '仓库/地点',
         storagePeriod: '保管期间',
+        storageDays: '天',
         documents: '单证文件',
         arrivalNotice: '到货通知书',
         manifest: '舱单',
@@ -982,7 +985,58 @@ export const ShipmentDetail: React.FC<ShipmentDetailProps> = ({ bl, jobs, langua
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
                                 <DetailInput label={t.storageLoc} value={formData.storageLocation} onChange={(e: any) => handleInputChange('storageLocation', e.target.value)} placeholder={t.placeholders.warehouse} />
                                 <div className="grid grid-cols-2 gap-4">
-                                    <DetailInput label={t.storagePeriod} value={formData.storagePeriod} onChange={(e: any) => handleInputChange('storagePeriod', e.target.value)} placeholder={t.placeholders.date + " ~ " + t.placeholders.date} />
+                                    {/* Storage Period with Days Calculation */}
+                                    <div className="flex flex-col h-full">
+                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">{t.storagePeriod}</label>
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="text"
+                                                className="flex-1 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-sm px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-slate-800 dark:text-slate-100 placeholder-slate-400 font-medium"
+                                                value={formData.storagePeriod || ''}
+                                                onChange={(e) => {
+                                                    let val = e.target.value.replace(/[^0-9~\-]/g, '');
+                                                    // Auto-format: add dashes for YYYY-MM-DD format
+                                                    const parts = val.split('~');
+                                                    const formatted = parts.map((p, idx) => {
+                                                        const nums = p.replace(/-/g, '');
+                                                        if (nums.length <= 4) return nums;
+                                                        if (nums.length <= 6) return nums.slice(0, 4) + '-' + nums.slice(4);
+                                                        if (nums.length <= 8) return nums.slice(0, 4) + '-' + nums.slice(4, 6) + '-' + nums.slice(6, 8);
+                                                        return nums.slice(0, 4) + '-' + nums.slice(4, 6) + '-' + nums.slice(6, 8);
+                                                    }).join('~');
+
+                                                    // Auto-add ~ after first complete date (YYYY-MM-DD = 10 chars)
+                                                    const finalFormatted = (formatted.length === 10 && !formatted.includes('~'))
+                                                        ? formatted + '~'
+                                                        : formatted;
+
+                                                    handleInputChange('storagePeriod', finalFormatted);
+                                                }}
+                                                placeholder="YYYY-MM-DD~YYYY-MM-DD"
+                                            />
+                                            {/* Days Calculation Badge */}
+                                            {(() => {
+                                                const period = formData.storagePeriod || '';
+                                                const [start, end] = period.split('~').map((d: string) => d?.trim());
+                                                if (start && end && start.length === 10 && end.length === 10) {
+                                                    const startDate = new Date(start);
+                                                    const endDate = new Date(end);
+                                                    if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+                                                        const diffTime = endDate.getTime() - startDate.getTime();
+                                                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                                        if (diffDays >= 0) {
+                                                            return (
+                                                                <span className={`px-2 py-1 rounded-full text-xs font-bold whitespace-nowrap ${diffDays > 14 ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' : diffDays > 7 ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
+                                                                    +{diffDays}{t.storageDays}
+                                                                </span>
+                                                            );
+                                                        }
+                                                    }
+                                                }
+                                                return null;
+                                            })()}
+                                        </div>
+                                    </div>
                                     <div className="grid grid-cols-2 gap-2">
                                         <DetailInput
                                             label={t.invAmount}

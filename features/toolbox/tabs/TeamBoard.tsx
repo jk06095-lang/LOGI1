@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../../lib/firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, deleteDoc, where, getDocs } from 'firebase/firestore';
 import { Pin, Trash2, CheckCircle2, Circle, MessageSquare, Plus, PenSquare } from 'lucide-react';
@@ -55,6 +55,9 @@ export const TeamBoard: React.FC = () => {
     const [commentText, setCommentText] = useState('');
     const [commentsByPost, setCommentsByPost] = useState<Record<string, Comment[]>>({});
 
+    // Track comment subscriptions
+    const commentUnsubscribesRef = useRef<Record<string, () => void>>({});
+
     useEffect(() => {
         const q = query(collection(db, 'toolbox_posts'), orderBy('createdAt', 'desc'));
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -64,20 +67,34 @@ export const TeamBoard: React.FC = () => {
             })) as Post[];
             setPosts(loadedPosts);
         });
-        return () => unsubscribe();
+        return () => {
+            unsubscribe();
+            // Clean up all comment subscriptions
+            const refs = commentUnsubscribesRef.current;
+            for (const key in refs) {
+                if (refs[key]) refs[key]();
+            }
+        };
     }, []);
 
-    const toggleComments = async (postId: string) => {
+    const toggleComments = (postId: string) => {
         if (activeCommentPostId === postId) {
             setActiveCommentPostId(null);
             return;
         }
 
         setActiveCommentPostId(postId);
+
+        // If already subscribed, don't subscribe again
+        if (commentUnsubscribesRef.current[postId]) return;
+
+        // Set up real-time subscription for comments
         const q = query(collection(db, `toolbox_posts/${postId}/comments`), orderBy('createdAt', 'asc'));
-        const snapshot = await getDocs(q);
-        const loadedComments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Comment[];
-        setCommentsByPost(prev => ({ ...prev, [postId]: loadedComments }));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const loadedComments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Comment[];
+            setCommentsByPost(prev => ({ ...prev, [postId]: loadedComments }));
+        });
+        commentUnsubscribesRef.current[postId] = unsubscribe;
     };
 
     const handleSubmit = async (content: string, type: string) => {
