@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Anchor, Settings, Ship, ChevronLeft, ChevronRight, Home, FolderOpen, MessageCircle, ExternalLink, Cloud } from 'lucide-react';
+import { Anchor, Settings, Ship, ChevronLeft, ChevronRight, Home, FolderOpen, MessageCircle, ExternalLink, Cloud, Briefcase } from 'lucide-react';
 import { ViewState, Language, TriggerRect } from '../types';
 import { User } from 'firebase/auth';
 import { chatService } from '../services/chatService';
@@ -16,8 +16,10 @@ interface SidebarProps {
   isChatOpen: boolean;
   onToggleChat: (rect?: TriggerRect) => void;
   hasUnreadMessages?: boolean;
-  isCloudOpen?: boolean; 
+  isCloudOpen?: boolean;
   onToggleCloud?: (rect?: TriggerRect) => void;
+  isToolboxOpen?: boolean;
+  onToggleToolbox?: (rect?: TriggerRect) => void;
 }
 
 const translations = {
@@ -27,6 +29,7 @@ const translations = {
     blMgmt: '화물 관리',
     settings: '환경 설정',
     cloud: '클라우드',
+    toolbox: '도구함',
     role: '운영자',
     menu: '메인 메뉴',
     message: '메시지',
@@ -38,6 +41,7 @@ const translations = {
     blMgmt: 'Cargo Mgmt',
     settings: 'Settings',
     cloud: 'Cloud',
+    toolbox: 'Toolbox',
     role: 'Operator',
     menu: 'Main Menu',
     message: 'Messages',
@@ -49,6 +53,7 @@ const translations = {
     blMgmt: '货物管理',
     settings: '系统设置',
     cloud: '云盘',
+    toolbox: '工具箱',
     role: '操作员',
     menu: '主菜单',
     message: '消息',
@@ -56,8 +61,8 @@ const translations = {
   }
 };
 
-export const Sidebar: React.FC<SidebarProps> = ({ 
-  currentView, onNavigate, isCollapsed, onToggleCollapse, language, user, logoUrl, isChatOpen, onToggleChat, hasUnreadMessages, isCloudOpen, onToggleCloud 
+export const Sidebar: React.FC<SidebarProps> = ({
+  currentView, onNavigate, isCollapsed, onToggleCollapse, language, user, logoUrl, isChatOpen, onToggleChat, hasUnreadMessages, isCloudOpen, onToggleCloud, isToolboxOpen, onToggleToolbox
 }) => {
   const t = translations[language];
 
@@ -68,36 +73,47 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   const handleChatClick = (e: React.MouseEvent) => {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const trigger: TriggerRect = {
-          x: rect.left,
-          y: rect.top,
-          width: rect.width,
-          height: rect.height
-      };
-      
-      onToggleChat(trigger);
-      if (!isChatOpen && user) {
-          chatService.markChannelRead('global', user.uid);
-      }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const trigger: TriggerRect = {
+      x: rect.left,
+      y: rect.top,
+      width: rect.width,
+      height: rect.height
+    };
+
+    onToggleChat(trigger);
+    if (!isChatOpen && user) {
+      chatService.markChannelRead('global', user.uid);
+    }
   };
 
   const handleCloudClick = (e: React.MouseEvent) => {
-      const rect = e.currentTarget.getBoundingClientRect();
-      const trigger: TriggerRect = {
-          x: rect.left,
-          y: rect.top,
-          width: rect.width,
-          height: rect.height
-      };
-      if (onToggleCloud) onToggleCloud(trigger);
+    const rect = e.currentTarget.getBoundingClientRect();
+    const trigger: TriggerRect = {
+      x: rect.left,
+      y: rect.top,
+      width: rect.width,
+      height: rect.height
+    };
+    if (onToggleCloud) onToggleCloud(trigger);
+  };
+
+  const handleToolboxClick = (e: React.MouseEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const trigger: TriggerRect = {
+      x: rect.left,
+      y: rect.top,
+      width: rect.width,
+      height: rect.height
+    };
+    if (onToggleToolbox) onToggleToolbox(trigger);
   };
 
   return (
-    <div 
+    <div
       className={`${isCollapsed ? 'w-16' : 'w-56'} bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col h-full font-sans transition-all duration-300 relative z-40 shadow-sm print:hidden`}
     >
-      <button 
+      <button
         onClick={onToggleCollapse}
         className="absolute -right-3 top-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full p-1 shadow-sm text-slate-500 hover:text-blue-600 z-50"
       >
@@ -106,9 +122,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       <div className={`px-4 flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} h-20`}>
         {logoUrl ? (
-           <div className={`flex items-center justify-center ${isCollapsed ? 'w-8 h-8' : 'w-auto h-10'}`}>
-              <img src={logoUrl} alt="LOGI1" className="max-w-full max-h-full object-contain" />
-           </div>
+          <div className={`flex items-center justify-center ${isCollapsed ? 'w-8 h-8' : 'w-auto h-10'}`}>
+            <img src={logoUrl} alt="LOGI1" className="max-w-full max-h-full object-contain" />
+          </div>
         ) : (
           <>
             <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex-shrink-0 flex items-center justify-center text-white shadow-md shadow-blue-500/30 ring-1 ring-blue-500/20">
@@ -141,11 +157,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
               key={item.id}
               onClick={() => onNavigate(item.id as ViewState)}
               title={isCollapsed ? item.label : ''}
-              className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${
-                isActive 
-                  ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 shadow-sm' 
-                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
-              }`}
+              className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${isActive
+                ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 shadow-sm'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
+                }`}
             >
               <Icon size={18} strokeWidth={isActive ? 2.5 : 2} />
               {!isCollapsed && <span className="truncate">{item.label}</span>}
@@ -154,9 +169,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         })}
 
         <button
-           onClick={() => onNavigate('settings')}
-           title={isCollapsed ? t.settings : ''}
-           className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${currentView === 'settings' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'}`}
+          onClick={() => onNavigate('settings')}
+          title={isCollapsed ? t.settings : ''}
+          className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${currentView === 'settings' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'}`}
         >
           <Settings size={18} />
           {!isCollapsed && <span>{t.settings}</span>}
@@ -165,45 +180,54 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Cloud & Message Area */}
       <div className="px-2 mb-2 space-y-1">
-         <button
-            onClick={handleCloudClick}
-            title={isCollapsed ? t.cloud : ''}
-            className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${
-                isCloudOpen
-                ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 shadow-sm' 
-                : 'text-slate-600 dark:text-slate-400 hover:bg-sky-50 dark:hover:bg-sky-900/10 hover:text-sky-600 dark:hover:text-sky-300'
+        <button
+          onClick={handleToolboxClick}
+          title={isCollapsed ? t.toolbox : ''}
+          className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${isToolboxOpen
+            ? 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 shadow-sm'
+            : 'text-slate-600 dark:text-slate-400 hover:bg-amber-50 dark:hover:bg-amber-900/10 hover:text-amber-600 dark:hover:text-amber-300'
             }`}
-         >
-            <Cloud size={18} strokeWidth={isCloudOpen ? 2.5 : 2} />
-            {!isCollapsed && <span>{t.cloud}</span>}
-         </button>
+        >
+          <Briefcase size={18} strokeWidth={isToolboxOpen ? 2.5 : 2} />
+          {!isCollapsed && <span>{t.toolbox}</span>}
+        </button>
+        <button
+          onClick={handleCloudClick}
+          title={isCollapsed ? t.cloud : ''}
+          className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium ${isCloudOpen
+            ? 'bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 shadow-sm'
+            : 'text-slate-600 dark:text-slate-400 hover:bg-sky-50 dark:hover:bg-sky-900/10 hover:text-sky-600 dark:hover:text-sky-300'
+            }`}
+        >
+          <Cloud size={18} strokeWidth={isCloudOpen ? 2.5 : 2} />
+          {!isCollapsed && <span>{t.cloud}</span>}
+        </button>
 
-         <button
-            onClick={handleChatClick}
-            title={isCollapsed ? t.message : ''}
-            className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium relative group ${
-                isChatOpen 
-                ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 shadow-sm' 
-                : 'text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 hover:text-indigo-600 dark:hover:text-indigo-300'
+        <button
+          onClick={handleChatClick}
+          title={isCollapsed ? t.message : ''}
+          className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-xl transition-all duration-200 text-sm font-medium relative group ${isChatOpen
+            ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 shadow-sm'
+            : 'text-slate-600 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 hover:text-indigo-600 dark:hover:text-indigo-300'
             }`}
-         >
-            <div className="relative">
-                <MessageCircle size={18} className={isChatOpen ? 'fill-current' : ''} />
-                {hasUnreadMessages && !isChatOpen && (
-                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-800 animate-pulse"></span>
-                )}
-            </div>
-            {!isCollapsed && (
-              <div className="flex-1 flex justify-between items-center">
-                 <span>{t.message}</span>
-                 {hasUnreadMessages && !isChatOpen && <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
-              </div>
+        >
+          <div className="relative">
+            <MessageCircle size={18} className={isChatOpen ? 'fill-current' : ''} />
+            {hasUnreadMessages && !isChatOpen && (
+              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-800 animate-pulse"></span>
             )}
-         </button>
+          </div>
+          {!isCollapsed && (
+            <div className="flex-1 flex justify-between items-center">
+              <span>{t.message}</span>
+              {hasUnreadMessages && !isChatOpen && <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
+            </div>
+          )}
+        </button>
       </div>
 
       <div className="p-4 border-t border-slate-100 dark:border-slate-800">
-        <a 
+        <a
           href="https://myaccount.google.com/"
           target="_blank"
           rel="noopener noreferrer"
@@ -211,19 +235,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
           title={t.manageAccount}
         >
           <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex-shrink-0 flex items-center justify-center text-slate-600 dark:text-slate-300 font-bold text-xs border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden group-hover:border-blue-300 transition-colors">
-             {user?.photoURL ? (
-               <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" />
-             ) : (
-               <span>{user?.displayName ? user.displayName.substring(0,2).toUpperCase() : 'OP'}</span>
-             )}
+            {user?.photoURL ? (
+              <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" />
+            ) : (
+              <span>{user?.displayName ? user.displayName.substring(0, 2).toUpperCase() : 'OP'}</span>
+            )}
           </div>
           {!isCollapsed && (
             <div className="flex-1 overflow-hidden">
               <div className="flex items-center gap-1">
-                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate group-hover:text-blue-600 transition-colors flex-1">
-                    {user?.displayName || t.role}
-                  </p>
-                  <ExternalLink size={10} className="text-slate-400 group-hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100" />
+                <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate group-hover:text-blue-600 transition-colors flex-1">
+                  {user?.displayName || t.role}
+                </p>
+                <ExternalLink size={10} className="text-slate-400 group-hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100" />
               </div>
               <p className="text-[10px] text-slate-500 dark:text-slate-500 truncate">{user?.email || 'admin@logi1.com'}</p>
             </div>

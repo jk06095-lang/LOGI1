@@ -5,6 +5,7 @@ import { ChatWindow } from '../features/chat/ChatWindow';
 import { GlobalCloudManager } from '../features/files/GlobalCloudManager';
 import { RegisterCargoWindow } from '../features/cargo/RegisterCargoWindow';
 import { CloudFileManager } from '../features/files/CloudFileManager';
+import { ToolboxWindow } from '../features/toolbox/ToolboxWindow';
 import { VesselJob, BLData, WindowState } from '../types';
 import { User } from 'firebase/auth';
 import { AppActions } from '../hooks/useActionRegistry';
@@ -23,7 +24,8 @@ const WINDOW_REGISTRY: Record<string, React.FC<any>> = {
   'chat': ChatWindow,
   'cloud': GlobalCloudManager,
   'register': RegisterCargoWindow,
-  'bl-cloud': CloudFileManager
+  'bl-cloud': CloudFileManager,
+  'toolbox': ToolboxWindow
 };
 
 export const WindowRenderer: React.FC<WindowRendererProps> = ({ user, jobs, bls, actions, dataActions, sidebarWidth }) => {
@@ -108,6 +110,13 @@ export const WindowRenderer: React.FC<WindowRendererProps> = ({ user, jobs, bls,
                 onUpload={(files: File[]) => actions.cargo.uploadCloudFiles(bl.id, files)}
                 onDelete={(attId: string) => actions.cargo.deleteCloudFile(bl.id, attId)}
                 onRename={(attId: string, name: string) => actions.cargo.renameCloudFile(bl.id, attId, name)}
+              />
+            );
+
+          case 'toolbox':
+            return (
+              <Component
+                {...commonProps}
               />
             );
 

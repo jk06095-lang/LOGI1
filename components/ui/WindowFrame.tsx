@@ -1,6 +1,5 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
-import { motion, AnimatePresence, Variants } from 'framer-motion';
+import { motion, AnimatePresence, Variants, useDragControls } from 'framer-motion';
 import { X, Minus } from 'lucide-react';
 import { TriggerRect } from '../../types';
 
@@ -8,7 +7,20 @@ interface WindowFrameProps {
     id: string;
     isOpen: boolean;
     isMinimized: boolean;
+    onClose: () => void;
+    onMinimize: () => void;
     onFocus?: () => void;
+    title?: string;
+    triggerRect?: TriggerRect;
+    zIndex: number;
+    initialWidth?: number;
+    initialHeight?: number;
+    minWidth?: number;
+    minHeight?: number;
+    children?: React.ReactNode;
+    headerContent?: React.ReactNode;
+    className?: string;
+    sidebarWidth?: number;
     align?: 'left' | 'center' | 'right';
 }
 
@@ -33,6 +45,7 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
     align = 'left'
 }) => {
     const [isMaximized, setIsMaximized] = useState(false);
+    const dragControls = useDragControls();
 
     const [windowSize, setWindowSize] = useState({
         width: typeof window !== 'undefined' ? window.innerWidth : 1200,
@@ -139,7 +152,6 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
                 width: triggerRect.width,
                 height: triggerRect.height,
                 opacity: 0,
-                scale: 0,
                 borderRadius: "100px",
                 transition: { type: "spring", stiffness: 300, damping: 28 }
             }
@@ -151,7 +163,9 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
             {isOpen && (
                 <motion.div
                     key={id}
-                    drag // Always draggable
+                    drag
+                    dragListener={false}
+                    dragControls={dragControls}
                     dragMomentum={false}
                     dragElastic={0.1}
                     // Use custom variant logic to handle minimization state specifically
@@ -163,6 +177,7 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
                     style={{
                         zIndex,
                         position: 'fixed', // Force fixed to prevent layout shift
+                        pointerEvents: isMinimized ? 'none' : 'auto', // Prevent interaction when minimized
                         // If no triggerRect and not maximized, align center or custom
                         ...((!triggerRect && !isMaximized && align === 'center') ? {
                             left: '50%',
@@ -179,7 +194,7 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
                     {/* Standard Mac-style Header */}
                     <div
                         className="h-10 bg-gradient-to-b from-white/10 to-transparent flex items-center px-4 justify-between shrink-0 border-b border-white/10 cursor-grab active:cursor-grabbing"
-                        onPointerDown={(e) => e.stopPropagation()} // Allow drag only on header if preferred, but usually drag whole window is ok. Here we put drag on parent.
+                        onPointerDown={(e) => dragControls.start(e)}
                     >
                         {/* Traffic Lights */}
                         <div className="flex items-center gap-2 group" onPointerDown={(e) => e.stopPropagation()}>
@@ -219,7 +234,10 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
                     </div>
 
                     {/* Content Area */}
-                    <div className="flex-1 overflow-hidden relative flex flex-col">
+                    <div
+                        className="flex-1 overflow-hidden relative flex flex-col cursor-auto"
+                        onPointerDown={(e) => e.stopPropagation()}
+                    >
                         {children}
                     </div>
                 </motion.div>

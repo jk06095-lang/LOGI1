@@ -55,6 +55,8 @@ const App: React.FC = () => {
         onToggleChat={(rect) => { store.toggleWindow('chat', 'chat', undefined, rect); updateLastRead(); }}
         isCloudOpen={!!store.windows['cloud']?.isOpen}
         onToggleCloud={(rect) => store.toggleWindow('cloud', 'cloud', undefined, rect)}
+        isToolboxOpen={!!store.windows['toolbox']?.isOpen}
+        onToggleToolbox={(rect) => store.toggleWindow('toolbox', 'toolbox', undefined, rect)}
         hasUnreadMessages={latestUnreadTs > lastReadTs}
       />
 
