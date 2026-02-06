@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../../lib/firebase';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, deleteDoc, where, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, deleteDoc, where, getDocs, increment } from 'firebase/firestore';
 import { Pin, Trash2, CheckCircle2, Circle, MessageSquare, Plus, PenSquare } from 'lucide-react';
 import { WritePostModal } from '../components/WritePostModal';
 import { useUIStore } from '../../../store/uiStore';
@@ -23,6 +23,7 @@ interface Post {
     authorUid?: string; // Add Uid
     createdAt: any;
     completed?: boolean;
+    commentCount?: number;
 }
 
 // Mock User (In real app, get from Context)
@@ -53,6 +54,8 @@ export const TeamBoard: React.FC = () => {
     // Comment UI State
     const [activeCommentPostId, setActiveCommentPostId] = useState<string | null>(null);
     const [commentText, setCommentText] = useState('');
+    const [editingCommentId, setEditingCommentId] = useState<string | null>(null); // Track which comment is being edited
+    const [editingCommentText, setEditingCommentText] = useState('');
     const [commentsByPost, setCommentsByPost] = useState<Record<string, Comment[]>>({});
 
     // Track comment subscriptions
@@ -149,7 +152,50 @@ export const TeamBoard: React.FC = () => {
             [postId]: [...(prev[postId] || []), newComment as Comment]
         }));
         setCommentText('');
+
+        // Increment comment count on the post
+        const postRef = doc(db, 'toolbox_posts', postId);
+        await updateDoc(postRef, {
+            commentCount: increment(1)
+        });
     };
+
+    const handleDeleteComment = async (postId: string, commentId: string) => {
+        if (!confirm('Delete this comment?')) return;
+        try {
+            await deleteDoc(doc(db, `toolbox_posts/${postId}/comments`, commentId));
+
+            // Decrement comment count
+            const postRef = doc(db, 'toolbox_posts', postId);
+            await updateDoc(postRef, {
+                commentCount: increment(-1)
+            });
+
+            // Optimistic removal strictly handled by subscription, but we can double check
+        } catch (e) {
+            console.error("Failed to delete comment", e);
+        }
+    };
+
+    const startEditingComment = (comment: Comment) => {
+        setEditingCommentId(comment.id);
+        setEditingCommentText(comment.content);
+    };
+
+    const handleUpdateComment = async (postId: string, commentId: string) => {
+        if (!editingCommentText.trim()) return;
+        try {
+            const commentRef = doc(db, `toolbox_posts/${postId}/comments`, commentId);
+            await updateDoc(commentRef, {
+                content: editingCommentText
+            });
+            setEditingCommentId(null);
+        } catch (e) {
+            console.error("Failed to update comment", e);
+        }
+    };
+
+
 
     const toggleTask = async (id: string, currentStatus: boolean, authorUid?: string) => {
         // Permission check for task toggle? Maybe allow anyone to toggle tasks
@@ -158,8 +204,21 @@ export const TeamBoard: React.FC = () => {
     };
 
     const deletePost = async (id: string, authorUid?: string) => {
-        if (confirm(t.deletePostConfirm)) {
+        if (!confirm(t.deletePostConfirm)) return;
+
+        try {
+            // Delete all comments first to avoid orphans
+            const commentsRef = collection(db, `toolbox_posts/${id}/comments`);
+            const commentsSnapshot = await getDocs(commentsRef);
+
+            const deletePromises = commentsSnapshot.docs.map(doc => deleteDoc(doc.ref));
+            await Promise.all(deletePromises);
+
+            // Then delete the post
             await deleteDoc(doc(db, 'toolbox_posts', id));
+        } catch (error) {
+            console.error("Error deleting post:", error);
+            alert("Failed to delete post");
         }
     };
 
@@ -184,6 +243,8 @@ export const TeamBoard: React.FC = () => {
             >
                 <PenSquare size={24} />
             </button>
+
+
 
             {/* Notices */}
             {notices.length > 0 && (
@@ -251,7 +312,7 @@ export const TeamBoard: React.FC = () => {
                                         className="text-xs text-gray-500 hover:text-blue-600 flex items-center space-x-1"
                                     >
                                         <MessageSquare size={14} />
-                                        <span>{comments.length > 0 ? `${comments.length} ${t.comments}` : t.comment}</span>
+                                        <span>{(post.commentCount || 0) > 0 ? `${post.commentCount} ${t.comments}` : t.comment}</span>
                                     </button>
                                 </div>
 
@@ -259,12 +320,36 @@ export const TeamBoard: React.FC = () => {
                                 {activeCommentPostId === post.id && (
                                     <div className="mt-3 pl-4 border-l-2 border-gray-100 dark:border-gray-700 space-y-3 animate-in slide-in-from-top-2">
                                         {comments.map(comment => (
-                                            <div key={comment.id} className="text-xs group/comment flex justify-between">
-                                                <div>
+                                            <div key={comment.id} className="text-xs group/comment flex justify-between items-start mb-2">
+                                                <div className="flex-1">
                                                     <span className="font-bold text-gray-700 dark:text-gray-300 mr-2">{comment.author}</span>
-                                                    <span className="text-gray-600 dark:text-gray-400">{comment.content}</span>
+                                                    {editingCommentId === comment.id ? (
+                                                        <div className="flex items-center space-x-2 mt-1">
+                                                            <input
+                                                                type="text"
+                                                                className="flex-1 border rounded px-2 py-1 text-xs"
+                                                                value={editingCommentText}
+                                                                onChange={(e) => setEditingCommentText(e.target.value)}
+                                                                autoFocus
+                                                            />
+                                                            <button onClick={() => handleUpdateComment(post.id, comment.id)} className="text-blue-500 text-[10px] hover:underline">Save</button>
+                                                            <button onClick={() => setEditingCommentId(null)} className="text-gray-500 text-[10px] hover:underline">Cancel</button>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-gray-600 dark:text-gray-400">{comment.content}</span>
+                                                    )}
                                                 </div>
-                                                {/* Only implemented delete own comment logic conceptually here */}
+                                                {/* Edit/Delete Actions for Owner */}
+                                                {comment.authorUid === CURRENT_USER.uid && !editingCommentId && (
+                                                    <div className="flex items-center space-x-1 opacity-0 group-hover/comment:opacity-100 transition-opacity">
+                                                        <button onClick={() => startEditingComment(comment)} className="p-1 hover:text-blue-500 text-gray-400">
+                                                            <PenSquare size={10} />
+                                                        </button>
+                                                        <button onClick={() => handleDeleteComment(post.id, comment.id)} className="p-1 hover:text-red-500 text-gray-400">
+                                                            <Trash2 size={10} />
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
                                         ))}
                                         <div className="flex items-center space-x-2 mt-2">
