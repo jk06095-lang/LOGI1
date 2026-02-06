@@ -66,6 +66,7 @@ interface ToolboxStrings {
     newMemo: string;
     searchMemos: string;
     noMemosFound: string;
+    yesterday: string;
     untitledMemo: string;
     lastEdited: string;
     edit: string;
@@ -89,6 +90,10 @@ interface ToolboxStrings {
     writeComment: string;
     remove: string;
     deletePostConfirm: string;
+    expandTasks: string;
+    collapseTasks: string;
+    uploading: string;
+    uploadFailed: string;
 }
 
 const translations: Record<SupportedLanguage, ToolboxStrings> = {
@@ -157,6 +162,7 @@ const translations: Record<SupportedLanguage, ToolboxStrings> = {
         newMemo: '새 메모',
         searchMemos: '메모 검색...',
         noMemosFound: '메모를 찾을 수 없습니다.',
+        yesterday: '어제',
         untitledMemo: '제목 없는 메모',
         lastEdited: '마지막 수정:',
         edit: '수정',
@@ -180,6 +186,10 @@ const translations: Record<SupportedLanguage, ToolboxStrings> = {
         writeComment: '댓글을 입력하세요...',
         remove: '제거',
         deletePostConfirm: '이 게시물을 삭제하시겠습니까?',
+        expandTasks: '할 일 펼치기',
+        collapseTasks: '할 일 접기',
+        uploading: '업로드 중...',
+        uploadFailed: '업로드 실패',
     },
     en: {
         // Window Title
@@ -246,6 +256,7 @@ const translations: Record<SupportedLanguage, ToolboxStrings> = {
         newMemo: 'New Memo',
         searchMemos: 'Search memos...',
         noMemosFound: 'No memos found.',
+        yesterday: 'Yesterday',
         untitledMemo: 'Untitled Memo',
         lastEdited: 'Last edited:',
         edit: 'Edit',
@@ -269,6 +280,10 @@ const translations: Record<SupportedLanguage, ToolboxStrings> = {
         writeComment: 'Write a comment...',
         remove: 'Remove',
         deletePostConfirm: 'Delete this post?',
+        expandTasks: 'Expand Tasks',
+        collapseTasks: 'Collapse Tasks',
+        uploading: 'Uploading...',
+        uploadFailed: 'Upload failed',
     }
 };
 

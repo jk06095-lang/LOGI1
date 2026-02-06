@@ -3,9 +3,18 @@ import { createPortal } from 'react-dom';
 import { Bold, Italic, Type, List, ListOrdered, Image as ImageIcon, Link as LinkIcon, Paperclip, CheckSquare, MoreHorizontal, Table as TableIcon, Plus, Minus, X, ArrowRight, ArrowDown, Trash2 } from 'lucide-react';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../../../lib/firebase';
+
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUIStore } from '../../../store/uiStore';
 import { getToolboxStrings, ToolboxStrings } from '../i18n';
+import { editorStyles } from '../styles/editorStyles';
+
+const ALLOWED_MIME_TYPES = {
+    images: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
+    docs: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'text/plain', 'text/markdown', 'text/csv'],
+    archives: ['application/zip', 'application/x-zip-compressed', 'application/x-rar-compressed', 'application/x-7z-compressed']
+};
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 interface RichEditorProps {
     initialContent?: string;
@@ -309,143 +318,7 @@ export const RichEditor: React.FC<RichEditorProps> = (props) => {
 // ... Real implementation ...
 
 // Editor CSS Styles (inline since Tailwind Typography not available)
-const editorStyles = `
-    .rich-editor-content h1 {
-        font-size: 2rem;
-        font-weight: 700;
-        line-height: 1.2;
-        margin: 0.5em 0;
-        color: inherit;
-    }
-    .rich-editor-content h2 {
-        font-size: 1.5rem;
-        font-weight: 600;
-        line-height: 1.3;
-        margin: 0.5em 0;
-        color: inherit;
-    }
-    .rich-editor-content h3 {
-        font-size: 1.25rem;
-        font-weight: 600;
-        line-height: 1.4;
-        margin: 0.5em 0;
-        color: inherit;
-    }
-    .rich-editor-content ul {
-        list-style-type: disc;
-        padding-left: 1.5em;
-        margin: 0.5em 0;
-    }
-    .rich-editor-content ol {
-        list-style-type: decimal;
-        padding-left: 1.5em;
-        margin: 0.5em 0;
-    }
-    .rich-editor-content li {
-        margin: 0.25em 0;
-    }
-    .rich-editor-content p {
-        margin: 0.25em 0;
-    }
-    .rich-editor-content blockquote {
-        border-left: 4px solid #3b82f6;
-        padding-left: 1em;
-        margin: 0.5em 0;
-        color: #6b7280;
-        font-style: italic;
-    }
-    .rich-editor-content hr {
-        border: none;
-        border-top: 1px solid #e5e7eb;
-        margin: 1em 0;
-    }
-    .rich-editor-content table {
-        width: 100%;
-        border-collapse: collapse;
-        margin: 1em 0;
-        border-radius: 4px;
-        overflow: hidden;
-    }
-    .rich-editor-content td, .rich-editor-content th {
-        border: 1px solid #e5e7eb;
-        padding: 8px 12px;
-        min-width: 80px;
-        vertical-align: top;
-        background-color: transparent;
-        transition: background-color 0.15s ease;
-    }
-    .rich-editor-content td:focus-within {
-        background-color: #f0f9ff;
-        outline: none;
-    }
-    .rich-editor-content tr:first-child td,
-    .rich-editor-content tr:first-child th {
-        background-color: #f9fafb;
-        font-weight: 500;
-    }
-    .rich-editor-content a {
-        color: #3b82f6;
-        text-decoration: underline;
-    }
-    .rich-editor-content strong, .rich-editor-content b {
-        font-weight: 700;
-    }
-    .rich-editor-content em, .rich-editor-content i {
-        font-style: italic;
-    }
-    .dark .rich-editor-content h1,
-    .dark .rich-editor-content h2,
-    .dark .rich-editor-content h3 {
-        color: #f3f4f6;
-    }
-    .dark .rich-editor-content hr {
-        border-top-color: #374151;
-    }
-    .dark .rich-editor-content td, .dark .rich-editor-content th {
-        border-color: #374151;
-    }
-    .dark .rich-editor-content td:focus-within {
-        background-color: rgba(59, 130, 246, 0.1);
-    }
-    .dark .rich-editor-content tr:first-child td,
-    .dark .rich-editor-content tr:first-child th {
-        background-color: #1e293b;
-    }
-    /* Checklist Styles */
-    .rich-editor-content .checklist-item {
-        display: flex;
-        align-items: flex-start;
-        gap: 12px;
-        margin: 8px 0;
-        padding: 4px 0;
-    }
-    .rich-editor-content .checklist-checkbox {
-        width: 18px;
-        height: 18px;
-        margin-top: 2px;
-        cursor: pointer;
-        accent-color: #3b82f6;
-        flex-shrink: 0;
-    }
-    .rich-editor-content .checklist-label {
-        flex: 1;
-        min-height: 24px;
-        outline: none;
-        cursor: text;
-        line-height: 1.5;
-    }
-    .rich-editor-content .checklist-label:empty::before {
-        content: '';
-        display: inline-block;
-    }
-    .rich-editor-content .checklist-checkbox:checked + .checklist-label {
-        text-decoration: line-through;
-        color: #9ca3af;
-    }
-    .dark .rich-editor-content .checklist-checkbox:checked + .checklist-label {
-        color: #6b7280;
-    }
-`;
+// Editor CSS Styles imported from ../styles/editorStyles
 
 const RichEditorImplementation: React.FC<RichEditorProps> = ({ initialContent = '', onChange, placeholder }) => {
     const contentRef = useRef<HTMLDivElement>(null);
@@ -925,6 +798,56 @@ const RichEditorImplementation: React.FC<RichEditorProps> = ({ initialContent = 
         handleInput();
     };
 
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Validation
+        const allAllowed = [...ALLOWED_MIME_TYPES.images, ...ALLOWED_MIME_TYPES.docs, ...ALLOWED_MIME_TYPES.archives];
+        if (!allAllowed.includes(file.type) && !file.name.match(/\.(rar|7z)$/i)) { // Extra check for some extensions that might have varying mime types
+            alert(`${t.uploadFailed}: Unsupported format. \nAllowed: Images, PDF, Office Docs, Text, Zip`);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            return;
+        }
+
+        if (file.size > MAX_FILE_SIZE) {
+            alert(`${t.uploadFailed}: File too large (Max 10MB)`);
+            if (fileInputRef.current) fileInputRef.current.value = '';
+            return;
+        }
+
+        try {
+            // Create unique filename
+            const filename = `${Date.now()}_${file.name}`;
+            const storageRef = ref(storage, `toolbox_uploads/${filename}`);
+
+            // Upload
+            await uploadBytes(storageRef, file);
+            const url = await getDownloadURL(storageRef);
+
+            contentRef.current?.focus();
+
+            if (file.type.startsWith('image/')) {
+                // Insert image
+                document.execCommand('insertHTML', false, `<img src="${url}" alt="${file.name}" style="max-width: 100%; border-radius: 8px; margin: 1em 0;" />`);
+            } else {
+                // Insert file attachment
+                document.execCommand('insertHTML', false, `<div class="file-attachment"><a href="${url}" download="${file.name}" target="_blank">📎 ${file.name}</a></div>&nbsp;`);
+            }
+
+            handleInput();
+        } catch (err) {
+            console.error(err);
+            alert(t.uploadFailed);
+        }
+
+        // Reset input
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
     const execCommand = (cmd: string, arg?: string) => {
         document.execCommand(cmd, false, arg);
         contentRef.current?.focus();
@@ -934,7 +857,7 @@ const RichEditorImplementation: React.FC<RichEditorProps> = ({ initialContent = 
     return (
         <div className="flex flex-col h-full bg-white dark:bg-slate-900 overflow-hidden relative group">
             <style>{editorStyles}</style>
-            <input type="file" ref={fileInputRef} className="hidden" />
+            <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
             <div className="flex items-center space-x-1 p-2 border-b border-gray-100 dark:border-slate-800 bg-white dark:bg-slate-900 z-10">
                 <ToolbarButton icon={Bold} onClick={() => execCommand('bold')} tooltip={t.bold} />
                 <ToolbarButton icon={Italic} onClick={() => execCommand('italic')} tooltip={t.italic} />

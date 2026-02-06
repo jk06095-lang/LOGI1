@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { WindowFrame } from '../../components/ui/WindowFrame';
-import { Briefcase, Search, FileText, CheckSquare, Globe, Menu, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Briefcase, Search, FileText, CheckSquare, Globe, Menu, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { HSCodeSearch } from './tabs/HSCodeSearch';
 import { MyMemo } from './tabs/MyMemo';
 
@@ -8,6 +8,7 @@ import { TeamBoard } from './tabs/TeamBoard';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUIStore } from '../../store/uiStore';
 import { getToolboxStrings } from './i18n';
+import { performGarbageCollection } from './utils/fileCleanupService';
 
 interface ToolboxWindowProps {
     id: string;
@@ -77,7 +78,7 @@ export const ToolboxWindow: React.FC<ToolboxWindowProps> = (props) => {
 
                     <div className="p-4 flex flex-col h-full">
                         <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'} mb-6 px-1 h-8`}>
-                            {!isSidebarCollapsed && <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{t.apps}</h3>}
+                            {/* Empty header or minimal indicator if needed, user requested removal */}
                         </div>
 
                         <div className="space-y-1 flex-1">
@@ -95,6 +96,11 @@ export const ToolboxWindow: React.FC<ToolboxWindowProps> = (props) => {
                                     {!isSidebarCollapsed && <span className="text-sm font-medium">{tab.label}</span>}
                                 </button>
                             ))}
+                        </div>
+
+                        {/* Footer / Settings - Removed Cleanup Button */}
+                        <div className={`mt-auto pt-4 border-t border-gray-200 dark:border-gray-800 flex ${isSidebarCollapsed ? 'justify-center' : 'px-4'}`}>
+                            {/* Cleanup Storage button removed as per request */}
                         </div>
                     </div>
                 </div>

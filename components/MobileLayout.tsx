@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 're
 import { BLData, VesselJob, AppSettings, ChatMessage, ChatUser, BLChecklist, BackgroundTask, Language } from '../types';
 import {
     Search, FileText, MessageCircle, LogOut, X, ArrowLeft, User as UserIcon,
-    Check, List as ListIcon, Box, ExternalLink, ChevronDown, LayoutGrid, Globe, Ship, Anchor, FileSpreadsheet, Scale, Package
+    Check, List as ListIcon, Box, ExternalLink, ChevronDown, LayoutGrid, Globe, Ship, Anchor, FileSpreadsheet, Scale, Package, Briefcase
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { chatService } from '../services/chatService';
@@ -12,6 +12,9 @@ import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { MessageList } from './chat/MessageList';
 import { MessageInput } from './chat/MessageInput';
 import { useChatScroll } from '../hooks/useChatScroll';
+import { HSCodeSearch } from '../features/toolbox/tabs/HSCodeSearch';
+import { MyMemo } from '../features/toolbox/tabs/MyMemo';
+import { TeamBoard } from '../features/toolbox/tabs/TeamBoard';
 
 const mobileTranslations = {
     ko: {
@@ -62,6 +65,10 @@ const mobileTranslations = {
         docEtc: '기타 문서',
         open: '열기',
         missing: '미등록',
+        toolbox: '도구함',
+        hsCode: 'HS코드',
+        myMemo: '나의메모',
+        teamBoard: '팀게시판',
         locale: 'ko-KR'
     },
     en: {
@@ -112,6 +119,10 @@ const mobileTranslations = {
         docEtc: 'Others',
         open: 'Open',
         missing: 'Missing',
+        toolbox: 'Toolbox',
+        hsCode: 'HS Code',
+        myMemo: 'My Memo',
+        teamBoard: 'Team Board',
         locale: 'en-US'
     },
     cn: {
@@ -162,6 +173,10 @@ const mobileTranslations = {
         docEtc: '其他',
         open: '打开',
         missing: '缺失',
+        toolbox: '工具箱',
+        hsCode: 'HS编码',
+        myMemo: '我的备忘录',
+        teamBoard: '团队看板',
         locale: 'zh-CN'
     }
 };
@@ -738,8 +753,9 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
     onCheckMessages
 }) => {
     const t = mobileTranslations[settings.language];
-    const [currentView, setCurrentView] = useState<'cargo' | 'chat' | 'settings'>('cargo');
+    const [currentView, setCurrentView] = useState<'cargo' | 'chat' | 'settings' | 'toolbox'>('cargo');
     const [chatView, setChatView] = useState<'list' | 'room'>('list');
+    const [toolboxTab, setToolboxTab] = useState<'hscode' | 'memo' | 'board'>('memo');
     const [activeChannel, setActiveChannel] = useState<{ id: string; name: string; type: 'global' | 'dm' }>({ id: 'global', name: t.globalChat, type: 'global' });
     const [searchTerm, setSearchTerm] = useState('');
     const [vesselFilter, setVesselFilter] = useState('all');
@@ -1069,6 +1085,41 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                         </p>
                     </div>
                 );
+            case 'toolbox':
+                // Pass isMobile prop specifically to MyMemo
+                const ActiveTool = toolboxTab === 'hscode' ? HSCodeSearch : toolboxTab === 'memo' ? () => <MyMemo isMobile={true} /> : TeamBoard;
+                return (
+                    <div className="flex flex-col h-full bg-slate-50 dark:bg-black pt-safe-top">
+                        {/* Apple-style Mobile Header (Segmented Control) */}
+                        <div className="bg-slate-50 dark:bg-black px-4 pt-2 pb-2 z-10 custom-safe-top">
+                            <div className="bg-gray-200 dark:bg-gray-800 p-1 rounded-lg flex relative font-medium text-[13px]">
+                                <button
+                                    onClick={() => setToolboxTab('memo')}
+                                    className={`flex-1 py-1.5 rounded-[6px] text-center transition-all ${toolboxTab === 'memo' ? 'bg-white dark:bg-gray-600 text-black dark:text-white shadow-sm font-semibold' : 'text-gray-500 dark:text-gray-400'}`}
+                                >
+                                    {t.myMemo}
+                                </button>
+                                <button
+                                    onClick={() => setToolboxTab('board')}
+                                    className={`flex-1 py-1.5 rounded-[6px] text-center transition-all ${toolboxTab === 'board' ? 'bg-white dark:bg-gray-600 text-black dark:text-white shadow-sm font-semibold' : 'text-gray-500 dark:text-gray-400'}`}
+                                >
+                                    {t.teamBoard}
+                                </button>
+                                <button
+                                    onClick={() => setToolboxTab('hscode')}
+                                    className={`flex-1 py-1.5 rounded-[6px] text-center transition-all ${toolboxTab === 'hscode' ? 'bg-white dark:bg-gray-600 text-black dark:text-white shadow-sm font-semibold' : 'text-gray-500 dark:text-gray-400'}`}
+                                >
+                                    {t.hsCode}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 overflow-hidden relative pb-20">
+                            <ActiveTool />
+                        </div>
+                    </div>
+                );
         }
     };
 
@@ -1129,6 +1180,18 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                                     <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-[#FF3B30] rounded-full border border-white dark:border-black shadow-sm animate-pulse"></span>
                                 )}
                             </div>
+                        </button>
+
+                        <button
+                            onClick={() => setCurrentView('toolbox')}
+                            className={`flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all duration-300 relative group ${currentView === 'toolbox' ? 'scale-110' : 'hover:bg-white/20 dark:hover:bg-white/10'}`}
+                        >
+                            <div className={`absolute inset-0 bg-blue-500/10 dark:bg-blue-500/20 rounded-full blur-md transition-opacity duration-300 ${currentView === 'toolbox' ? 'opacity-100' : 'opacity-0'}`} />
+                            <Briefcase
+                                size={24}
+                                strokeWidth={currentView === 'toolbox' ? 2.5 : 2}
+                                className={`relative z-10 transition-colors duration-300 ${currentView === 'toolbox' ? 'text-blue-600 dark:text-blue-400 fill-blue-600/10' : 'text-slate-500 dark:text-slate-400'}`}
+                            />
                         </button>
 
                         <button

@@ -11,6 +11,7 @@ interface WindowFrameProps {
     onMinimize: () => void;
     onFocus?: () => void;
     title?: string;
+    icon?: any; // Using any for simplicity as LucideIcon might need import, or we can use React.ElementType
     triggerRect?: TriggerRect;
     zIndex: number;
     initialWidth?: number;
@@ -42,7 +43,8 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
     headerContent,
     className = "",
     sidebarWidth = 64,
-    align = 'left'
+    align = 'left',
+    icon: Icon
 }) => {
     const [isMaximized, setIsMaximized] = useState(false);
     const dragControls = useDragControls();
@@ -223,7 +225,8 @@ export const WindowFrame: React.FC<WindowFrameProps> = ({
                         </div>
 
                         {/* Title */}
-                        <div className="flex-1 text-center mx-4 truncate font-semibold text-slate-700 dark:text-slate-200 text-sm select-none">
+                        <div className="flex-1 text-center mx-4 truncate font-semibold text-slate-700 dark:text-slate-200 text-sm select-none flex items-center justify-center gap-2">
+                            {Icon && <Icon size={14} className="text-gray-500 dark:text-gray-400" />}
                             {title}
                         </div>
 

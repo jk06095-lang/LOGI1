@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../../lib/firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, deleteDoc, where, getDocs, increment } from 'firebase/firestore';
-import { Pin, Trash2, CheckCircle2, Circle, MessageSquare, Plus, PenSquare } from 'lucide-react';
+import { Pin, Trash2, CheckCircle2, Circle, MessageSquare, Plus, PenSquare, ChevronRight, ChevronLeft } from 'lucide-react';
 import { WritePostModal } from '../components/WritePostModal';
 import { useUIStore } from '../../../store/uiStore';
 import { getToolboxStrings } from '../i18n';
+import { editorStyles } from '../styles/editorStyles';
+import { extractStorageUrls, deleteFiles } from '../utils/fileCleanupService';
 
 // --- Types ---
 interface Comment {
@@ -36,7 +38,7 @@ const CURRENT_USER = {
 const SafeHtmlViewer: React.FC<{ content: string; className?: string }> = ({ content, className }) => {
     return (
         <div
-            className={`prose dark:prose-invert max-w-none text-sm ${className}`}
+            className={`prose dark:prose-invert max-w-none text-sm rich-editor-content ${className}`}
             dangerouslySetInnerHTML={{ __html: content }}
         />
     );
@@ -50,6 +52,7 @@ export const TeamBoard: React.FC = () => {
     const [posts, setPosts] = useState<Post[]>([]);
     const [isWriteModalOpen, setIsWriteModalOpen] = useState(false);
     const [editingPost, setEditingPost] = useState<Post | null>(null);
+    const [tasksCollapsed, setTasksCollapsed] = useState(false); // New state for collapsible sidebar
 
     // Comment UI State
     const [activeCommentPostId, setActiveCommentPostId] = useState<string | null>(null);
@@ -214,6 +217,14 @@ export const TeamBoard: React.FC = () => {
             const deletePromises = commentsSnapshot.docs.map(doc => deleteDoc(doc.ref));
             await Promise.all(deletePromises);
 
+            // [NEW] Cleanup files in storage associated with the post
+            const postDoc = await getDocs(query(collection(db, 'toolbox_posts'), where('__name__', '==', id)));
+            if (!postDoc.empty) {
+                const content = postDoc.docs[0].data().content;
+                const fileUrls = extractStorageUrls(content);
+                await deleteFiles(fileUrls);
+            }
+
             // Then delete the post
             await deleteDoc(doc(db, 'toolbox_posts', id));
         } catch (error) {
@@ -228,6 +239,7 @@ export const TeamBoard: React.FC = () => {
 
     return (
         <div className="flex flex-col h-full bg-white dark:bg-gray-900 relative">
+            <style>{editorStyles}</style>
             <WritePostModal
                 isOpen={isWriteModalOpen}
                 onClose={() => { setIsWriteModalOpen(false); setEditingPost(null); }}
@@ -376,10 +388,34 @@ export const TeamBoard: React.FC = () => {
                 </div>
 
                 {/* Tasks Sidebar (Right) */}
-                <div className="w-72 bg-gray-50/50 dark:bg-gray-800/30 border-l border-gray-200 dark:border-gray-800 p-4 overflow-y-auto hidden lg:block">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">{t.teamTasks}</h3>
-                        <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] font-bold">{tasks.filter(t => !t.completed).length} {t.open}</span>
+                <div
+                    className={`${tasksCollapsed ? 'w-14 items-center' : 'w-72'} bg-gray-50/50 dark:bg-gray-800/30 border-l border-gray-200 dark:border-gray-800 hidden lg:flex flex-col transition-all duration-300 relative`}
+                >
+                    {/* Sidebar Header: Toggle + Title/Count */}
+                    <div className={`w-full flex shrink-0 ${tasksCollapsed ? 'flex-col items-center py-4 gap-2' : 'flex-row items-center p-4 border-b border-gray-100 dark:border-gray-800'}`}>
+
+                        <button
+                            onClick={() => setTasksCollapsed(!tasksCollapsed)}
+                            className={`p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-blue-600 transition-colors focus:outline-none ${!tasksCollapsed ? 'mr-2' : ''}`}
+                            title={tasksCollapsed ? t.expandTasks : t.collapseTasks}
+                        >
+                            {tasksCollapsed ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+                        </button>
+
+                        {!tasksCollapsed ? (
+                            <div className="flex-1 flex items-center justify-between overflow-hidden">
+                                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider truncate">{t.teamTasks}</h3>
+                                <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ml-2">
+                                    {tasks.filter(t => !t.completed).length} {t.open}
+                                </span>
+                            </div>
+                        ) : (
+                            <div className="flex items-center justify-center">
+                                <span className="text-xs font-bold text-blue-600 dark:text-blue-400">
+                                    {tasks.filter(t => !t.completed).length}
+                                </span>
+                            </div>
+                        )}
                     </div>
 
                     <div className="space-y-2">
@@ -406,5 +442,6 @@ export const TeamBoard: React.FC = () => {
                 </div>
             </div>
         </div>
+
     );
 };

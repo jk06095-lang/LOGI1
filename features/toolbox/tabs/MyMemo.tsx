@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { PenSquare, Save, Trash2, Plus, FileText, Search, MoreVertical, X } from 'lucide-react';
+import { PenSquare, Save, Trash2, Plus, FileText, Search, MoreVertical, X, CloudOff, ChevronLeft, Share, Edit } from 'lucide-react';
 import { WritePostModal } from '../components/WritePostModal';
 import { useUIStore } from '../../../store/uiStore';
 import { getToolboxStrings } from '../i18n';
-
-const STORAGE_KEY = 'logi1-toolbox-memos-v2';
-const LEGACY_KEY = 'logi1-toolbox-memo';
+import { editorStyles } from '../styles/editorStyles';
+import { extractStorageUrls, deleteFiles } from '../utils/fileCleanupService';
+import { db, auth } from '../../../lib/firebase';
+import { collection, query, where, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 
 interface Memo {
     id: string;
     title: string;
     content: string;
     updatedAt: number;
+    authorUid: string;
 }
 
 // Reuse Renderer
@@ -20,13 +22,17 @@ const SafeHtmlViewer: React.FC<{ content: string; emptyText?: string; className?
 
     return (
         <div
-            className={`prose dark:prose-invert prose-sm max-w-none [&>ul]:list-disc [&>ol]:list-decimal [&>ul]:ml-4 [&>ol]:ml-4 ${className}`}
+            className={`prose dark:prose-invert prose-sm max-w-none rich-editor-content [&>ul]:list-disc [&>ol]:list-decimal [&>ul]:ml-4 [&>ol]:ml-4 ${className}`}
             dangerouslySetInnerHTML={{ __html: content }}
         />
     );
 };
 
-export const MyMemo: React.FC = () => {
+interface MyMemoProps {
+    isMobile?: boolean;
+}
+
+export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
     // Localization
     const language = useUIStore((state) => state.settings.language);
     const t = getToolboxStrings(language);
@@ -34,75 +40,119 @@ export const MyMemo: React.FC = () => {
     const [activeMemoId, setActiveMemoId] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [user, setUser] = useState(auth.currentUser);
+
+    // Mobile Navigation State
+    const [mobileView, setMobileView] = useState<'list' | 'detail'>('list');
 
     useEffect(() => {
-        // Load memos
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-            try {
-                setMemos(JSON.parse(saved));
-            } catch (e) {
-                console.error("Failed to parse available memos");
-            }
-        } else {
-            // Migration check
-            const legacy = localStorage.getItem(LEGACY_KEY);
-            if (legacy) {
-                const newMemo: Memo = {
-                    id: Date.now().toString(),
-                    title: 'Legacy Memo',
-                    content: legacy,
-                    updatedAt: Date.now()
-                };
-                setMemos([newMemo]);
-                localStorage.setItem(STORAGE_KEY, JSON.stringify([newMemo]));
-                // Optional: localStorage.removeItem(LEGACY_KEY);
-            }
-        }
+        const unsubscribeAuth = auth.onAuthStateChanged((u) => {
+            setUser(u);
+        });
+        return () => unsubscribeAuth();
     }, []);
 
-    const saveMemos = (newMemos: Memo[]) => {
-        setMemos(newMemos);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(newMemos));
+    useEffect(() => {
+        if (!user) {
+            setMemos([]);
+            return;
+        }
+
+        const q = query(
+            collection(db, 'toolbox_memos'),
+            where('authorUid', '==', user.uid),
+            orderBy('updatedAt', 'desc')
+        );
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const loadedMemos = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+                updatedAt: doc.data().updatedAt?.toMillis ? doc.data().updatedAt.toMillis() : Date.now()
+            })) as Memo[];
+            setMemos(loadedMemos);
+        });
+
+        return () => unsubscribe();
+    }, [user]);
+
+    // Format Date for List
+    const getFormattedDate = (timestamp: number) => {
+        const date = new Date(timestamp);
+        const now = new Date();
+        const isToday = date.toDateString() === now.toDateString();
+        const isYesterday = new Date(now.setDate(now.getDate() - 1)).toDateString() === date.toDateString();
+
+        if (isToday) return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        if (isYesterday) return t.yesterday || 'Yesterday';
+        return date.toLocaleDateString();
     };
+
 
     const handleSave = async (content: string, type: string) => {
-        // Extract title from content (first non-empty line or 20 chars)
+        if (!user) return;
+
+        // Extract title from content
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = content;
-        const text = tempDiv.textContent || '';
-        const title = text.slice(0, 30).trim() || t.untitledMemo;
+        const text = tempDiv.innerText || tempDiv.textContent || '';
+        const lines = text.split('\n').filter(line => line.trim().length > 0);
+        const title = lines.length > 0 ? lines[0].slice(0, 30) : t.untitledMemo;
 
-        if (activeMemoId) {
-            // Update
-            const updated = memos.map(m => m.id === activeMemoId ? { ...m, title, content, updatedAt: Date.now() } : m);
-            saveMemos(updated);
-        } else {
-            // Create New
-            const newMemo: Memo = {
-                id: Date.now().toString(),
-                title,
-                content,
-                updatedAt: Date.now()
-            };
-            saveMemos([newMemo, ...memos]);
-            setActiveMemoId(newMemo.id);
+        try {
+            if (activeMemoId) {
+                // Update
+                const memoRef = doc(db, 'toolbox_memos', activeMemoId);
+                await updateDoc(memoRef, {
+                    title,
+                    content,
+                    updatedAt: serverTimestamp()
+                });
+            } else {
+                // Create New
+                const docRef = await addDoc(collection(db, 'toolbox_memos'), {
+                    title,
+                    content,
+                    authorUid: user.uid,
+                    updatedAt: serverTimestamp(),
+                    createdAt: serverTimestamp()
+                });
+                setActiveMemoId(docRef.id);
+            }
+            setIsEditing(false);
+        } catch (error) {
+            console.error("Error saving memo:", error);
+            alert("Failed to save memo");
         }
-        setIsEditing(false);
     };
 
-    const handleDelete = (id: string, e?: React.MouseEvent) => {
+    const handleDelete = async (id: string, e?: React.MouseEvent) => {
         e?.stopPropagation();
-        if (confirm(t.deleteMemoConfirm)) {
-            const updated = memos.filter(m => m.id !== id);
-            saveMemos(updated);
-            if (activeMemoId === id) setActiveMemoId(null);
+        if (!confirm(t.deleteMemoConfirm)) return;
+
+        try {
+            const memoToDelete = memos.find(m => m.id === id);
+            if (memoToDelete) {
+                const urls = extractStorageUrls(memoToDelete.content);
+                if (urls.length > 0) {
+                    deleteFiles(urls).catch(err => console.error("Failed to cleanup files", err));
+                }
+            }
+
+            await deleteDoc(doc(db, 'toolbox_memos', id));
+            if (activeMemoId === id) {
+                setActiveMemoId(null);
+                if (isMobile) setMobileView('list');
+            }
+        } catch (error) {
+            console.error("Error deleting memo:", error);
+            alert("Failed to delete memo");
         }
     };
 
     const handleCreateNew = () => {
         setActiveMemoId(null);
-        setIsEditing(true);
+        setIsEditing(true); // Opens modal
     };
 
     const handleEditCurrent = () => {
@@ -117,8 +167,144 @@ export const MyMemo: React.FC = () => {
         m.content.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+    if (!user) {
+        return (
+            <div className="flex h-full items-center justify-center bg-white dark:bg-gray-900 text-gray-400 flex-col gap-2">
+                <CloudOff size={48} />
+                <p>Please login to use My Memo</p>
+            </div>
+        );
+    }
+
+    // --- MOBILE VIEW (Apple Notes Style) ---
+    if (isMobile) {
+        return (
+            <div className="flex flex-col h-full bg-slate-50 dark:bg-black overflow-hidden relative">
+                <style>{editorStyles}</style>
+
+                {/* Mobile List View */}
+                {mobileView === 'list' && (
+                    <div className="flex-1 flex flex-col h-full">
+                        {/* Apple-style Large Header */}
+                        <div className="px-5 pt-2 pb-2 bg-slate-50 dark:bg-black">
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                                <input
+                                    type="text"
+                                    placeholder="Search"
+                                    className="w-full bg-gray-200 dark:bg-gray-800 text-gray-900 dark:text-white rounded-xl pl-9 pr-4 py-2 text-[15px] border-none focus:ring-0 placeholder-gray-500"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        {/* List */}
+                        <div className="flex-1 overflow-y-auto px-4 pb-20 custom-scrollbar">
+                            <div className="bg-white dark:bg-gray-900 rounded-xl overflow-hidden shadow-sm border border-gray-100 dark:border-gray-800 mt-2">
+                                <div className="divide-y divide-gray-100 dark:divide-gray-800 ml-4">
+                                    {filteredMemos.length === 0 ? (
+                                        <div className="p-8 text-center text-gray-400 text-sm italic">No memos found</div>
+                                    ) : (
+                                        filteredMemos.map((memo, index) => (
+                                            <div
+                                                key={memo.id}
+                                                onClick={() => {
+                                                    setActiveMemoId(memo.id);
+                                                    setMobileView('detail');
+                                                }}
+                                                className={`py-3 pr-4 flex flex-col gap-1 cursor-pointer active:bg-gray-50 dark:active:bg-gray-800 transition-colors ${index === filteredMemos.length - 1 ? '' : ''}`}
+                                            >
+                                                <h3 className="font-bold text-[16px] text-gray-900 dark:text-gray-100 leading-tight truncate">
+                                                    {memo.title}
+                                                </h3>
+                                                <div className="flex items-center gap-2 text-[14px] leading-snug">
+                                                    <span className="text-gray-400 whitespace-nowrap">{getFormattedDate(memo.updatedAt)}</span>
+                                                    <span className="text-gray-500 dark:text-gray-400 truncate opacity-90">
+                                                        {memo.content.replace(/<[^>]*>/g, '').slice(0, 50)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Mobile Bottom Toolbar - positioned above nav bar */}
+                        <div className="absolute bottom-20 left-0 right-0 bg-slate-50/90 dark:bg-black/90 backdrop-blur-xl border-t border-gray-200 dark:border-gray-800 flex items-center justify-between px-6 py-3 z-10">
+                            <div className="text-[12px] font-medium text-gray-500">
+                                {memos.length} {t.myMemos?.includes('메모') ? '개' : 'Memos'}
+                            </div>
+                            <button
+                                onClick={handleCreateNew}
+                                className="text-amber-500 hover:opacity-70 transition-opacity p-2"
+                            >
+                                <PenSquare size={26} strokeWidth={2} />
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Mobile Detail View (Editor) */}
+                {mobileView === 'detail' && activeMemo && (
+                    <div className="absolute inset-0 z-20 bg-white dark:bg-black flex flex-col animate-in slide-in-from-right duration-200">
+                        {/* Navigation Bar */}
+                        <div className="h-14 flex items-center justify-between px-2 border-b border-gray-100 dark:border-gray-800">
+                            <button
+                                onClick={() => setMobileView('list')}
+                                className="flex items-center text-amber-500 px-2 py-2 hover:opacity-70"
+                            >
+                                <ChevronLeft size={26} />
+                                <span className="text-[17px] font-medium -ml-1">Memos</span>
+                            </button>
+
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={() => handleDelete(activeMemo.id)}
+                                    className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                                >
+                                    <Trash2 size={20} />
+                                </button>
+                                <button
+                                    onClick={handleEditCurrent}
+                                    className="p-2 text-amber-500 hover:opacity-70 transition-opacity font-bold text-[17px]"
+                                >
+                                    Done
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Editor Content Area */}
+                        <div
+                            className="flex-1 overflow-y-auto p-5 custom-scrollbar"
+                            onClick={handleEditCurrent} // Clicking body also triggers edit
+                        >
+                            <div className="mb-4">
+                                <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{activeMemo.title}</h1>
+                                <p className="text-xs text-gray-400">{new Date(activeMemo.updatedAt).toLocaleString()}</p>
+                            </div>
+                            <SafeHtmlViewer content={activeMemo.content} className="text-[17px] leading-relaxed" />
+                        </div>
+                    </div>
+                )}
+
+                {/* Clean Editor Modal (Reused) */}
+                <WritePostModal
+                    isOpen={isEditing}
+                    onClose={() => setIsEditing(false)}
+                    onSubmit={handleSave}
+                    initialType="post"
+                    initialContent={activeMemoId ? activeMemo?.content : ''}
+                />
+            </div>
+        );
+    }
+
+    // --- DESKTOP VIEW (Original) ---
     return (
         <div className="flex h-full bg-white dark:bg-gray-900 overflow-hidden">
+            <style>{editorStyles}</style>
             {/* Sidebar List */}
             <div className="w-80 border-r border-gray-200 dark:border-gray-800 flex flex-col bg-gray-50/30 dark:bg-gray-900/50">
                 <div className="p-4 border-b border-gray-200 dark:border-gray-800 space-y-3">
@@ -212,16 +398,6 @@ export const MyMemo: React.FC = () => {
                             </div>
                         </div>
 
-                        {/* Editor Modal reused */}
-                        <WritePostModal
-                            isOpen={isEditing}
-                            onClose={() => setIsEditing(false)}
-                            onSubmit={handleSave}
-                        // We need to pass initial content if editing
-                        // But WritePostModal doesn't accept initialContent prop in previous read? 
-                        // Wait, RichEditor accept it, but WritePostModal?
-                        />
-                        {/* I need to check WritePostModal props */}
                     </>
                 ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
@@ -237,15 +413,12 @@ export const MyMemo: React.FC = () => {
                 )}
             </div>
 
-            {/* Hack: Pass content to editor via a ref assignment or similar if Modal doesn't support it yet. 
-                I need to modify WritePostModal to accept initialContent. 
-            */}
+            {/* Editor Modal reused - Always render to allow "New Memo" to work */}
             <WritePostModal
                 isOpen={isEditing}
                 onClose={() => setIsEditing(false)}
                 onSubmit={handleSave}
                 initialType="post"
-                // @ts-ignore - Planning to add this prop
                 initialContent={activeMemoId ? activeMemo?.content : ''}
             />
         </div>
