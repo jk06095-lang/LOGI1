@@ -390,8 +390,27 @@ const RichEditorImplementation: React.FC<RichEditorProps> = ({ initialContent = 
             setHasContent(textContent.trim().length > 0 || hasElements);
             onChange(html);
 
-            // Auto-Markdown Triggers
+            // Mobile-compatible slash detection (keydown doesn't fire reliably on mobile keyboards)
+            // Check if the user just typed a slash at the cursor position
             const selection = window.getSelection();
+            if (selection && selection.rangeCount > 0 && selection.isCollapsed && !slashMenu) {
+                const range = selection.getRangeAt(0);
+                const node = range.startContainer;
+
+                if (node.nodeType === Node.TEXT_NODE && node.textContent) {
+                    const cursorPos = range.startOffset;
+                    const textBeforeCursor = node.textContent.slice(0, cursorPos);
+
+                    // If text before cursor ends with "/" and it's at the start of a line or after whitespace
+                    if (textBeforeCursor.endsWith('/') &&
+                        (textBeforeCursor.length === 1 || /[\s\n]/.test(textBeforeCursor.charAt(textBeforeCursor.length - 2)))) {
+                        // Trigger slash menu (same as keydown handler)
+                        setTimeout(checkSlashCommand, 10);
+                    }
+                }
+            }
+
+            // Auto-Markdown Triggers (reuse selection from above if available)
             if (selection && selection.rangeCount > 0 && selection.isCollapsed) {
                 const range = selection.getRangeAt(0);
                 const node = range.startContainer;
