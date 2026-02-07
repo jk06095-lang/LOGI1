@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 're
 import { BLData, VesselJob, AppSettings, ChatMessage, ChatUser, BLChecklist, BackgroundTask, Language } from '../types';
 import {
     Search, FileText, MessageCircle, LogOut, X, ArrowLeft, User as UserIcon,
-    Check, List as ListIcon, Box, ExternalLink, ChevronDown, LayoutGrid, Globe, Ship, Anchor, FileSpreadsheet, Scale, Package, Briefcase
+    Check, List as ListIcon, Box, ExternalLink, ChevronDown, LayoutGrid, Globe, Ship, Anchor, FileSpreadsheet, Scale, Package, Briefcase, Plus
 } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { chatService } from '../services/chatService';
@@ -1123,8 +1123,14 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
         }
     };
 
+    // Determine if dock should slide left (memo or teamboard active in toolbox)
+    const shouldSlideDockLeft = currentView === 'toolbox' && (toolboxTab === 'memo' || toolboxTab === 'board');
+
     return (
-        <div className="fixed inset-0 flex flex-col bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 overflow-hidden z-[100]">
+        <div
+            className="fixed inset-0 flex flex-col bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 overflow-hidden z-[100]"
+            style={{ height: 'var(--mobile-vh, 100vh)' }}
+        >
             <div className="flex-1 overflow-hidden relative w-full">
                 {renderContent()}
             </div>
@@ -1141,72 +1147,103 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
             </AnimatePresence>
 
             {!(currentView === 'chat' && chatView === 'room') && !selectedBLId && (
-                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-[320px] z-50 px-4 mb-[env(safe-area-inset-bottom)]">
-                    <div className="
-                    relative flex items-center justify-around px-2 py-3.5
-                    bg-white/30 dark:bg-black/40
-                    backdrop-blur-2xl backdrop-saturate-150
-                    rounded-full
-                    shadow-lg shadow-blue-900/5
-                    border border-white/40 dark:border-white/20
-                ">
-                        <button
-                            onClick={() => setCurrentView('cargo')}
-                            className={`flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all duration-300 relative group ${currentView === 'cargo' ? 'scale-110' : 'hover:bg-white/20 dark:hover:bg-white/10'}`}
-                        >
-                            <div className={`absolute inset-0 bg-blue-500/10 dark:bg-blue-500/20 rounded-full blur-md transition-opacity duration-300 ${currentView === 'cargo' ? 'opacity-100' : 'opacity-0'}`} />
-                            <ListIcon
-                                size={24}
-                                strokeWidth={currentView === 'cargo' ? 2.5 : 2}
-                                className={`relative z-10 transition-colors duration-300 ${currentView === 'cargo' ? 'text-blue-600 dark:text-blue-400 fill-blue-600/10' : 'text-slate-500 dark:text-slate-400'}`}
-                            />
-                        </button>
-
-                        <button
-                            onClick={() => {
-                                setCurrentView('chat');
-                                if (onCheckMessages) onCheckMessages();
-                            }}
-                            className={`flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all duration-300 relative group ${currentView === 'chat' ? 'scale-110' : 'hover:bg-white/20 dark:hover:bg-white/10'}`}
-                        >
-                            <div className={`absolute inset-0 bg-blue-500/10 dark:bg-blue-500/20 rounded-full blur-md transition-opacity duration-300 ${currentView === 'chat' ? 'opacity-100' : 'opacity-0'}`} />
-                            <div className="relative z-10">
-                                <MessageCircle
+                <>
+                    {/* Navigation Dock with inline FAB */}
+                    <div
+                        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 mb-[env(safe-area-inset-bottom)] flex items-center gap-3"
+                    >
+                        <div className="
+                            relative flex items-center justify-around px-2 py-3.5
+                            bg-white/30 dark:bg-black/40
+                            backdrop-blur-2xl backdrop-saturate-150
+                            rounded-full
+                            shadow-lg shadow-blue-900/5
+                            border border-white/40 dark:border-white/20
+                        ">
+                            <button
+                                onClick={() => setCurrentView('cargo')}
+                                className={`flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all duration-300 relative group ${currentView === 'cargo' ? 'scale-110' : 'hover:bg-white/20 dark:hover:bg-white/10'}`}
+                            >
+                                <div className={`absolute inset-0 bg-blue-500/10 dark:bg-blue-500/20 rounded-full blur-md transition-opacity duration-300 ${currentView === 'cargo' ? 'opacity-100' : 'opacity-0'}`} />
+                                <ListIcon
                                     size={24}
-                                    strokeWidth={currentView === 'chat' ? 2.5 : 2}
-                                    className={`transition-colors duration-300 ${currentView === 'chat' ? 'text-blue-600 dark:text-blue-400 fill-blue-600/10' : 'text-slate-500 dark:text-slate-400'}`}
+                                    strokeWidth={currentView === 'cargo' ? 2.5 : 2}
+                                    className={`relative z-10 transition-colors duration-300 ${currentView === 'cargo' ? 'text-blue-600 dark:text-blue-400 fill-blue-600/10' : 'text-slate-500 dark:text-slate-400'}`}
                                 />
-                                {hasUnreadMessages && currentView !== 'chat' && (
-                                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-[#FF3B30] rounded-full border border-white dark:border-black shadow-sm animate-pulse"></span>
-                                )}
-                            </div>
-                        </button>
+                            </button>
 
-                        <button
-                            onClick={() => setCurrentView('toolbox')}
-                            className={`flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all duration-300 relative group ${currentView === 'toolbox' ? 'scale-110' : 'hover:bg-white/20 dark:hover:bg-white/10'}`}
-                        >
-                            <div className={`absolute inset-0 bg-blue-500/10 dark:bg-blue-500/20 rounded-full blur-md transition-opacity duration-300 ${currentView === 'toolbox' ? 'opacity-100' : 'opacity-0'}`} />
-                            <Briefcase
-                                size={24}
-                                strokeWidth={currentView === 'toolbox' ? 2.5 : 2}
-                                className={`relative z-10 transition-colors duration-300 ${currentView === 'toolbox' ? 'text-blue-600 dark:text-blue-400 fill-blue-600/10' : 'text-slate-500 dark:text-slate-400'}`}
-                            />
-                        </button>
+                            <button
+                                onClick={() => {
+                                    setCurrentView('chat');
+                                    if (onCheckMessages) onCheckMessages();
+                                }}
+                                className={`flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all duration-300 relative group ${currentView === 'chat' ? 'scale-110' : 'hover:bg-white/20 dark:hover:bg-white/10'}`}
+                            >
+                                <div className={`absolute inset-0 bg-blue-500/10 dark:bg-blue-500/20 rounded-full blur-md transition-opacity duration-300 ${currentView === 'chat' ? 'opacity-100' : 'opacity-0'}`} />
+                                <div className="relative z-10">
+                                    <MessageCircle
+                                        size={24}
+                                        strokeWidth={currentView === 'chat' ? 2.5 : 2}
+                                        className={`transition-colors duration-300 ${currentView === 'chat' ? 'text-blue-600 dark:text-blue-400 fill-blue-600/10' : 'text-slate-500 dark:text-slate-400'}`}
+                                    />
+                                    {hasUnreadMessages && currentView !== 'chat' && (
+                                        <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-[#FF3B30] rounded-full border border-white dark:border-black shadow-sm animate-pulse"></span>
+                                    )}
+                                </div>
+                            </button>
 
-                        <button
-                            onClick={() => setCurrentView('settings')}
-                            className={`flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all duration-300 relative group ${currentView === 'settings' ? 'scale-110' : 'hover:bg-white/20 dark:hover:bg-white/10'}`}
-                        >
-                            <div className={`absolute inset-0 bg-blue-500/10 dark:bg-blue-500/20 rounded-full blur-md transition-opacity duration-300 ${currentView === 'settings' ? 'opacity-100' : 'opacity-0'}`} />
-                            <LayoutGrid
-                                size={24}
-                                strokeWidth={currentView === 'settings' ? 2.5 : 2}
-                                className={`relative z-10 transition-colors duration-300 ${currentView === 'settings' ? 'text-blue-600 dark:text-blue-400 fill-blue-600/10' : 'text-slate-500 dark:text-slate-400'}`}
-                            />
-                        </button>
+                            <button
+                                onClick={() => setCurrentView('toolbox')}
+                                className={`flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all duration-300 relative group ${currentView === 'toolbox' ? 'scale-110' : 'hover:bg-white/20 dark:hover:bg-white/10'}`}
+                            >
+                                <div className={`absolute inset-0 bg-blue-500/10 dark:bg-blue-500/20 rounded-full blur-md transition-opacity duration-300 ${currentView === 'toolbox' ? 'opacity-100' : 'opacity-0'}`} />
+                                <Briefcase
+                                    size={24}
+                                    strokeWidth={currentView === 'toolbox' ? 2.5 : 2}
+                                    className={`relative z-10 transition-colors duration-300 ${currentView === 'toolbox' ? 'text-blue-600 dark:text-blue-400 fill-blue-600/10' : 'text-slate-500 dark:text-slate-400'}`}
+                                />
+                            </button>
+
+                            <button
+                                onClick={() => setCurrentView('settings')}
+                                className={`flex flex-col items-center justify-center w-12 h-12 rounded-full transition-all duration-300 relative group ${currentView === 'settings' ? 'scale-110' : 'hover:bg-white/20 dark:hover:bg-white/10'}`}
+                            >
+                                <div className={`absolute inset-0 bg-blue-500/10 dark:bg-blue-500/20 rounded-full blur-md transition-opacity duration-300 ${currentView === 'settings' ? 'opacity-100' : 'opacity-0'}`} />
+                                <LayoutGrid
+                                    size={24}
+                                    strokeWidth={currentView === 'settings' ? 2.5 : 2}
+                                    className={`relative z-10 transition-colors duration-300 ${currentView === 'settings' ? 'text-blue-600 dark:text-blue-400 fill-blue-600/10' : 'text-slate-500 dark:text-slate-400'}`}
+                                />
+                            </button>
+                        </div>
+
+                        {/* Glass-effect floating button for new memo - inline with dock */}
+                        <AnimatePresence>
+                            {shouldSlideDockLeft && (
+                                <motion.button
+                                    initial={{ opacity: 0, scale: 0.8, width: 0 }}
+                                    animate={{ opacity: 1, scale: 1, width: 56 }}
+                                    exit={{ opacity: 0, scale: 0.8, width: 0 }}
+                                    transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+                                    onClick={() => {
+                                        window.dispatchEvent(new CustomEvent('mobile-create-new-memo'));
+                                    }}
+                                    className="w-14 h-14 shrink-0
+                                        bg-white/40 dark:bg-black/50
+                                        backdrop-blur-2xl backdrop-saturate-150
+                                        rounded-full
+                                        shadow-lg shadow-amber-500/20
+                                        border border-white/50 dark:border-white/20
+                                        flex items-center justify-center
+                                        active:scale-95 transition-transform overflow-hidden
+                                    "
+                                >
+                                    <Plus size={28} className="text-amber-500" strokeWidth={2.5} />
+                                </motion.button>
+                            )}
+                        </AnimatePresence>
                     </div>
-                </div>
+                </>
             )}
         </div>
     );

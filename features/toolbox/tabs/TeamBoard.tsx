@@ -83,6 +83,16 @@ export const TeamBoard: React.FC = () => {
         };
     }, []);
 
+    // Listen for external trigger from floating button in MobileLayout
+    useEffect(() => {
+        const handleExternalCreate = () => {
+            openNewPostModal();
+        };
+
+        window.addEventListener('mobile-create-new-memo', handleExternalCreate);
+        return () => window.removeEventListener('mobile-create-new-memo', handleExternalCreate);
+    }, []);
+
     const toggleComments = (postId: string) => {
         if (activeCommentPostId === postId) {
             setActiveCommentPostId(null);
@@ -248,9 +258,10 @@ export const TeamBoard: React.FC = () => {
                 initialType={editingPost?.type}
             />
 
+            {/* FAB button for desktop - hidden on mobile where MobileLayout handles it */}
             <button
                 onClick={openNewPostModal}
-                className="absolute bottom-6 right-6 z-20 w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg hover:shadow-blue-500/40 flex items-center justify-center transition-all transform hover:scale-105"
+                className="hidden md:flex absolute bottom-6 right-6 z-20 w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg hover:shadow-blue-500/40 items-center justify-center transition-all transform hover:scale-105"
                 title={t.writePost}
             >
                 <PenSquare size={24} />

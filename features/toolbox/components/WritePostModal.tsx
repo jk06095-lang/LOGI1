@@ -49,8 +49,8 @@ export const WritePostModal: React.FC<WritePostModalProps> = ({ isOpen, onClose,
                     >
                         {/* Header */}
                         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/50">
-                            <div className="flex items-center space-x-4">
-                                <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100">Write New {type.charAt(0).toUpperCase() + type.slice(1)}</h2>
+                            <div className="flex items-center">
+                                {/* Type selector buttons - no longer preceded by title */}
                                 <div className="flex bg-gray-200 dark:bg-gray-700 rounded-lg p-0.5">
                                     {(['post', 'task', 'notice'] as const).map((t) => (
                                         <button

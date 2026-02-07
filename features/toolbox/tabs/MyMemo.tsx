@@ -52,6 +52,18 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
         return () => unsubscribeAuth();
     }, []);
 
+    // Listen for external trigger from floating button in MobileLayout
+    useEffect(() => {
+        if (!isMobile) return;
+
+        const handleExternalCreate = () => {
+            handleCreateNew();
+        };
+
+        window.addEventListener('mobile-create-new-memo', handleExternalCreate);
+        return () => window.removeEventListener('mobile-create-new-memo', handleExternalCreate);
+    }, [isMobile]);
+
     useEffect(() => {
         if (!user) {
             setMemos([]);
@@ -200,7 +212,7 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
                         </div>
 
                         {/* List */}
-                        <div className="flex-1 overflow-y-auto px-4 pb-20 custom-scrollbar">
+                        <div className="flex-1 overflow-y-auto px-4 pb-4 custom-scrollbar">
                             <div className="bg-white dark:bg-gray-900 rounded-xl overflow-hidden shadow-sm border border-gray-100 dark:border-gray-800 mt-2">
                                 <div className="divide-y divide-gray-100 dark:divide-gray-800 ml-4">
                                     {filteredMemos.length === 0 ? (
@@ -229,19 +241,11 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
                                     )}
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Mobile Bottom Toolbar - positioned above nav bar */}
-                        <div className="absolute bottom-20 left-0 right-0 bg-slate-50/90 dark:bg-black/90 backdrop-blur-xl border-t border-gray-200 dark:border-gray-800 flex items-center justify-between px-6 py-3 z-10">
-                            <div className="text-[12px] font-medium text-gray-500">
-                                {memos.length} {t.myMemos?.includes('메모') ? '개' : 'Memos'}
+                            {/* Memo Count - subtle footer, no longer a fixed bar */}
+                            <div className="text-center text-[12px] font-medium text-gray-400 mt-4 pb-2">
+                                {memos.length} {t.myMemos?.includes('메모') ? '개의 메모' : 'Memos'}
                             </div>
-                            <button
-                                onClick={handleCreateNew}
-                                className="text-amber-500 hover:opacity-70 transition-opacity p-2"
-                            >
-                                <PenSquare size={26} strokeWidth={2} />
-                            </button>
                         </div>
                     </div>
                 )}

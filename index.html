@@ -44,6 +44,24 @@
         overflow: hidden;
         -webkit-font-smoothing: antialiased;
       }
+
+      /* Mobile viewport height fix for various phone ratios */
+      :root {
+        --mobile-vh: 100vh;
+      }
+      
+      @supports (height: 100dvh) {
+        :root {
+          --mobile-vh: 100dvh;
+        }
+      }
+      
+      @supports (-webkit-touch-callout: none) {
+        :root {
+          --mobile-vh: -webkit-fill-available;
+        }
+      }
+
       
       /* Universal font adjustment for breaking layout */
       .font-serif { letter-spacing: -0.01em; }
