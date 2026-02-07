@@ -73,7 +73,8 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
         const q = query(
             collection(db, 'toolbox_memos'),
             where('authorUid', '==', user.uid),
-            orderBy('updatedAt', 'desc')
+            where('authorUid', '==', user.uid)
+            // orderBy removed to prevent index error
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -82,6 +83,8 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
                 ...doc.data(),
                 updatedAt: doc.data().updatedAt?.toMillis ? doc.data().updatedAt.toMillis() : Date.now()
             })) as Memo[];
+            // Client-side sort
+            loadedMemos.sort((a, b) => b.updatedAt - a.updatedAt);
             setMemos(loadedMemos);
         });
 
@@ -212,7 +215,7 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
                         </div>
 
                         {/* List */}
-                        <div className="flex-1 overflow-y-auto px-4 pb-4 custom-scrollbar">
+                        <div className="flex-1 overflow-y-auto px-4 pb-32 custom-scrollbar">
                             <div className="bg-white dark:bg-gray-900 rounded-xl overflow-hidden shadow-sm border border-gray-100 dark:border-gray-800 mt-2">
                                 <div className="divide-y divide-gray-100 dark:divide-gray-800 ml-4">
                                     {filteredMemos.length === 0 ? (
@@ -281,7 +284,7 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
 
                         {/* Editor Content Area */}
                         <div
-                            className="flex-1 overflow-y-auto p-5 custom-scrollbar"
+                            className="flex-1 overflow-y-auto p-5 pb-32 custom-scrollbar"
                             onClick={handleEditCurrent} // Clicking body also triggers edit
                         >
                             <div className="mb-4">

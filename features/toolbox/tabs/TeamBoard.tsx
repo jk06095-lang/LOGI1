@@ -29,9 +29,11 @@ interface Post {
 }
 
 // Mock User (In real app, get from Context)
+// Real User from Auth
+import { auth } from '../../../lib/firebase';
 const CURRENT_USER = {
-    uid: 'mock-user-123', // Replace with real auth user
-    name: 'User'
+    get uid() { return auth.currentUser?.uid || 'anonymous'; },
+    get name() { return auth.currentUser?.displayName || 'User'; }
 };
 
 // Safe HTML Viewer
@@ -44,7 +46,7 @@ const SafeHtmlViewer: React.FC<{ content: string; className?: string }> = ({ con
     );
 };
 
-export const TeamBoard: React.FC = () => {
+export const TeamBoard: React.FC<{ isMobile?: boolean }> = ({ isMobile }) => {
     // Localization
     const language = useUIStore((state) => state.settings.language);
     const t = getToolboxStrings(language);
@@ -65,12 +67,18 @@ export const TeamBoard: React.FC = () => {
     const commentUnsubscribesRef = useRef<Record<string, () => void>>({});
 
     useEffect(() => {
-        const q = query(collection(db, 'toolbox_posts'), orderBy('createdAt', 'desc'));
+        const q = query(collection(db, 'toolbox_posts')); // Removed orderBy to prevent index error
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const loadedPosts = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
             })) as Post[];
+            // Client-side sort
+            loadedPosts.sort((a, b) => {
+                const timeA = a.createdAt?.seconds || 0;
+                const timeB = b.createdAt?.seconds || 0;
+                return timeB - timeA;
+            });
             setPosts(loadedPosts);
         });
         return () => {
@@ -259,13 +267,16 @@ export const TeamBoard: React.FC = () => {
             />
 
             {/* FAB button for desktop - hidden on mobile where MobileLayout handles it */}
-            <button
-                onClick={openNewPostModal}
-                className="hidden md:flex absolute bottom-6 right-6 z-20 w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg hover:shadow-blue-500/40 items-center justify-center transition-all transform hover:scale-105"
-                title={t.writePost}
-            >
-                <PenSquare size={24} />
-            </button>
+            {/* FAB button for desktop - hidden on mobile where MobileLayout handles it */}
+            {!isMobile && (
+                <button
+                    onClick={openNewPostModal}
+                    className="hidden md:flex absolute bottom-6 right-6 z-20 w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg hover:shadow-blue-500/40 items-center justify-center transition-all transform hover:scale-105"
+                    title={t.writePost}
+                >
+                    <PenSquare size={24} />
+                </button>
+            )}
 
 
 
@@ -296,7 +307,7 @@ export const TeamBoard: React.FC = () => {
 
             <div className="flex-1 flex overflow-hidden">
                 {/* Main Feed */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-24">
+                <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-32">
                     {generalPosts.map(post => {
                         const comments = commentsByPost[post.id] || [];
                         const isOwner = post.authorUid === CURRENT_USER.uid;

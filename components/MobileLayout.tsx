@@ -1087,7 +1087,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                 );
             case 'toolbox':
                 // Pass isMobile prop specifically to MyMemo
-                const ActiveTool = toolboxTab === 'hscode' ? HSCodeSearch : toolboxTab === 'memo' ? () => <MyMemo isMobile={true} /> : TeamBoard;
+                const ActiveTool = toolboxTab === 'hscode' ? HSCodeSearch : toolboxTab === 'memo' ? () => <MyMemo isMobile={true} /> : () => <TeamBoard isMobile={true} />;
                 return (
                     <div className="flex flex-col h-full bg-slate-50 dark:bg-black pt-safe-top">
                         {/* Apple-style Mobile Header (Segmented Control) */}
@@ -1115,7 +1115,7 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                         </div>
 
                         {/* Content */}
-                        <div className="flex-1 overflow-hidden relative pb-20">
+                        <div className="flex-1 overflow-hidden relative">
                             <ActiveTool />
                         </div>
                     </div>

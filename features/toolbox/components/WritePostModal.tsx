@@ -37,7 +37,6 @@ export const WritePostModal: React.FC<WritePostModalProps> = ({ isOpen, onClose,
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-                        onClick={onClose}
                     />
 
                     <motion.div

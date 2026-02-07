@@ -220,7 +220,7 @@ export const HSCodeSearch: React.FC = () => {
             </div>
 
             {/* Results List */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto pb-32">
                 <table className="w-full text-left border-collapse">
                     <thead className="bg-gray-50 dark:bg-gray-800/50 sticky top-0 z-10 text-xs uppercase text-gray-500 font-semibold tracking-wider">
                         <tr>
