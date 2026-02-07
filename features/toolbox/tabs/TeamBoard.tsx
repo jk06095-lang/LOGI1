@@ -13,7 +13,8 @@ interface Comment {
     id: string;
     content: string;
     author: string;
-    authorUid?: string; // Add Uid
+    authorUid?: string;
+    authorPhotoURL?: string;
     createdAt: any;
 }
 
@@ -22,7 +23,8 @@ interface Post {
     type: 'notice' | 'task' | 'post';
     content: string;
     author: string;
-    authorUid?: string; // Add Uid
+    authorUid?: string;
+    authorPhotoURL?: string;
     createdAt: any;
     completed?: boolean;
     commentCount?: number;
@@ -33,7 +35,8 @@ interface Post {
 import { auth } from '../../../lib/firebase';
 const CURRENT_USER = {
     get uid() { return auth.currentUser?.uid || 'anonymous'; },
-    get name() { return auth.currentUser?.displayName || 'User'; }
+    get name() { return auth.currentUser?.displayName || 'User'; },
+    get photoURL() { return auth.currentUser?.photoURL || null; }
 };
 
 // Safe HTML Viewer
@@ -135,6 +138,7 @@ export const TeamBoard: React.FC<{ isMobile?: boolean }> = ({ isMobile }) => {
                 content, // Now HTML
                 author: CURRENT_USER.name,
                 authorUid: CURRENT_USER.uid,
+                authorPhotoURL: CURRENT_USER.photoURL,
                 createdAt: serverTimestamp(),
                 completed: false
             });
@@ -161,6 +165,7 @@ export const TeamBoard: React.FC<{ isMobile?: boolean }> = ({ isMobile }) => {
             content: commentText,
             author: CURRENT_USER.name,
             authorUid: CURRENT_USER.uid,
+            authorPhotoURL: CURRENT_USER.photoURL,
             createdAt: serverTimestamp()
         };
 
@@ -316,9 +321,18 @@ export const TeamBoard: React.FC<{ isMobile?: boolean }> = ({ isMobile }) => {
                             <div key={post.id} className="group bg-white dark:bg-gray-800/50 rounded-xl p-4 border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-all">
                                 <div className="flex items-start justify-between mb-3">
                                     <div className="flex items-center space-x-2">
-                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${isOwner ? 'bg-blue-500' : 'bg-gray-400'}`}>
-                                            {post.author[0]}
-                                        </div>
+                                        {post.authorPhotoURL ? (
+                                            <img
+                                                src={post.authorPhotoURL}
+                                                alt={post.author}
+                                                className="w-8 h-8 rounded-full object-cover"
+                                                referrerPolicy="no-referrer"
+                                            />
+                                        ) : (
+                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${isOwner ? 'bg-blue-500' : 'bg-gray-400'}`}>
+                                                {post.author[0]}
+                                            </div>
+                                        )}
                                         <div>
                                             <p className="text-sm font-bold text-gray-800 dark:text-gray-100">{post.author} {isOwner && <span className="text-[10px] text-blue-500 bg-blue-50 px-1 rounded ml-1">{t.you}</span>}</p>
                                             <p className="text-[10px] text-gray-400">

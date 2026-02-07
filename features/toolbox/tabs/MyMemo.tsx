@@ -236,7 +236,11 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
                                                 <div className="flex items-center gap-2 text-[14px] leading-snug">
                                                     <span className="text-gray-400 whitespace-nowrap">{getFormattedDate(memo.updatedAt)}</span>
                                                     <span className="text-gray-500 dark:text-gray-400 truncate opacity-90">
-                                                        {memo.content.replace(/<[^>]*>/g, '').slice(0, 50)}
+                                                        {(() => {
+                                                            const text = memo.content.replace(/<[^>]*>/g, '');
+                                                            const lines = text.split('\n').filter(l => l.trim());
+                                                            return lines.slice(1).join(' ').slice(0, 50) || '';
+                                                        })()}
                                                     </span>
                                                 </div>
                                             </div>
@@ -266,20 +270,12 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
                                 <span className="text-[17px] font-medium -ml-1">Memos</span>
                             </button>
 
-                            <div className="flex items-center gap-1">
-                                <button
-                                    onClick={() => handleDelete(activeMemo.id)}
-                                    className="p-2 text-gray-400 hover:text-red-500 transition-colors"
-                                >
-                                    <Trash2 size={20} />
-                                </button>
-                                <button
-                                    onClick={handleEditCurrent}
-                                    className="p-2 text-amber-500 hover:opacity-70 transition-opacity font-bold text-[17px]"
-                                >
-                                    Done
-                                </button>
-                            </div>
+                            <button
+                                onClick={() => handleDelete(activeMemo.id)}
+                                className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+                            >
+                                <Trash2 size={20} />
+                            </button>
                         </div>
 
                         {/* Editor Content Area */}
@@ -357,7 +353,11 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
                                         {new Date(memo.updatedAt).toLocaleDateString()}
                                     </p>
                                     <div className="text-xs text-gray-500 truncate opacity-70 h-4">
-                                        {memo.content.replace(/<[^>]*>/g, '')}
+                                        {(() => {
+                                            const text = memo.content.replace(/<[^>]*>/g, '');
+                                            const lines = text.split('\n').filter(l => l.trim());
+                                            return lines.slice(1).join(' ') || '';
+                                        })()}
                                     </div>
 
                                     <button
