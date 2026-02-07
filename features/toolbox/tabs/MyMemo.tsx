@@ -16,9 +16,9 @@ interface Memo {
     authorUid: string;
 }
 
-// Reuse Renderer
+// Simplified Renderer: Just displays the content as is
 const SafeHtmlViewer: React.FC<{ content: string; emptyText?: string; className?: string }> = ({ content, emptyText, className }) => {
-    if (!content) return <div className="text-gray-400 italic">{emptyText || 'Empty memo...'}</div>;
+    if (!content || content.trim() === '<br>' || content.trim() === '') return <div className="text-gray-400 italic">{emptyText || 'Empty memo...'}</div>;
 
     return (
         <div
@@ -104,15 +104,48 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
     };
 
 
-    const handleSave = async (content: string, type: string) => {
+    const handleSave = async (htmlContent: string, type: string) => {
         if (!user) return;
 
-        // Extract title from content
+        // Strict "First Line is Title" Logic
         const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = content;
-        const text = tempDiv.innerText || tempDiv.textContent || '';
-        const lines = text.split('\n').filter(line => line.trim().length > 0);
-        const title = lines.length > 0 ? lines[0].slice(0, 30) : t.untitledMemo;
+        tempDiv.innerHTML = htmlContent;
+
+        let title = t.untitledMemo;
+        let bodyContent = htmlContent;
+
+        // Try to identify the first block/line
+        const firstChild = tempDiv.firstElementChild;
+
+        if (firstChild) {
+            // Case 1: HTML content with tags (e.g. <h1>Title</h1>...)
+            const firstLineText = firstChild.textContent?.trim();
+            if (firstLineText) {
+                title = firstLineText.substring(0, 50); // Limit title length
+
+                // Check if the next sibling is an HR (separator) and remove it too
+                const nextSibling = firstChild.nextElementSibling;
+                if (nextSibling && nextSibling.tagName.toLowerCase() === 'hr') {
+                    nextSibling.remove();
+                }
+
+                // Remove the first block (Title) from the content
+                firstChild.remove();
+                bodyContent = tempDiv.innerHTML;
+            }
+        } else {
+            // Case 2: Text-only content (fallback)
+            const text = tempDiv.textContent || '';
+            const lines = text.split('\n');
+            if (lines.length > 0) {
+                title = lines[0].trim().substring(0, 50);
+                if (!title) title = t.untitledMemo;
+                // For text mode, we just take the rest.
+                bodyContent = lines.slice(1).join('<br>');
+            }
+        }
+
+        if (!title || title.trim() === '') title = t.untitledMemo;
 
         try {
             if (activeMemoId) {
@@ -120,14 +153,14 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
                 const memoRef = doc(db, 'toolbox_memos', activeMemoId);
                 await updateDoc(memoRef, {
                     title,
-                    content,
+                    content: bodyContent,
                     updatedAt: serverTimestamp()
                 });
             } else {
                 // Create New
                 const docRef = await addDoc(collection(db, 'toolbox_memos'), {
                     title,
-                    content,
+                    content: bodyContent,
                     authorUid: user.uid,
                     updatedAt: serverTimestamp(),
                     createdAt: serverTimestamp()
@@ -181,6 +214,14 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
         m.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         m.content.toLowerCase().includes(searchQuery.toLowerCase())
     );
+
+    // Helper to get preview text (Content no longer contains title)
+    const getPreviewText = (memo: Memo) => {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = memo.content;
+        let text = tempDiv.innerText || tempDiv.textContent || '';
+        return text.slice(0, 50);
+    };
 
     if (!user) {
         return (
@@ -236,11 +277,7 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
                                                 <div className="flex items-center gap-2 text-[14px] leading-snug">
                                                     <span className="text-gray-400 whitespace-nowrap">{getFormattedDate(memo.updatedAt)}</span>
                                                     <span className="text-gray-500 dark:text-gray-400 truncate opacity-90">
-                                                        {(() => {
-                                                            const text = memo.content.replace(/<[^>]*>/g, '');
-                                                            const lines = text.split('\n').filter(l => l.trim());
-                                                            return lines.slice(1).join(' ').slice(0, 50) || '';
-                                                        })()}
+                                                        {getPreviewText(memo)}
                                                     </span>
                                                 </div>
                                             </div>
@@ -283,9 +320,12 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
                             className="flex-1 overflow-y-auto p-5 pb-32 custom-scrollbar"
                             onClick={handleEditCurrent} // Clicking body also triggers edit
                         >
-                            <div className="mb-4">
-                                <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{activeMemo.title}</h1>
-                                <p className="text-xs text-gray-400">{new Date(activeMemo.updatedAt).toLocaleString()}</p>
+                            <div className="mb-6">
+                                <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-3 leading-tight">{activeMemo.title}</h1>
+                                <div className="flex items-center justify-between text-xs text-gray-400 mb-4">
+                                    <span>{new Date(activeMemo.updatedAt).toLocaleString()}</span>
+                                </div>
+                                <hr className="border-gray-100 dark:border-gray-800" />
                             </div>
                             <SafeHtmlViewer content={activeMemo.content} className="text-[17px] leading-relaxed" />
                         </div>
@@ -298,7 +338,7 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
                     onClose={() => setIsEditing(false)}
                     onSubmit={handleSave}
                     initialType="post"
-                    initialContent={activeMemoId ? activeMemo?.content : ''}
+                    initialContent={activeMemoId ? (activeMemo ? `<h1>${activeMemo.title}</h1><hr /><p></p>${activeMemo.content}` : '') : ''}
                 />
             </div>
         );
@@ -353,11 +393,7 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
                                         {new Date(memo.updatedAt).toLocaleDateString()}
                                     </p>
                                     <div className="text-xs text-gray-500 truncate opacity-70 h-4">
-                                        {(() => {
-                                            const text = memo.content.replace(/<[^>]*>/g, '');
-                                            const lines = text.split('\n').filter(l => l.trim());
-                                            return lines.slice(1).join(' ') || '';
-                                        })()}
+                                        {getPreviewText(memo)}
                                     </div>
 
                                     <button
@@ -379,7 +415,7 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
                     <>
                         <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
                             <div>
-                                <h1 className="text-lg font-bold text-gray-800 dark:text-gray-100 line-clamp-1">{activeMemo.title}</h1>
+                                <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100 line-clamp-1">{activeMemo.title}</h1>
                                 <p className="text-xs text-gray-400">{t.lastEdited} {new Date(activeMemo.updatedAt).toLocaleString()}</p>
                             </div>
                             <div className="flex space-x-2">
@@ -401,7 +437,11 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
                         </div>
                         <div className="flex-1 overflow-y-auto p-8">
                             <div className="max-w-3xl mx-auto">
-                                <SafeHtmlViewer content={activeMemo.content} emptyText={t.emptyMemo} className="text-base" />
+                                <section className="mb-8 border-b border-gray-100 dark:border-gray-800 pb-4">
+                                    <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4 leading-tight">{activeMemo.title}</h1>
+                                    <p className="text-sm text-gray-400">{new Date(activeMemo.updatedAt).toLocaleString()}</p>
+                                </section>
+                                <SafeHtmlViewer content={activeMemo.content} emptyText={t.emptyMemo} className="text-lg" />
                             </div>
                         </div>
 
@@ -426,7 +466,7 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
                 onClose={() => setIsEditing(false)}
                 onSubmit={handleSave}
                 initialType="post"
-                initialContent={activeMemoId ? activeMemo?.content : ''}
+                initialContent={activeMemoId ? (activeMemo ? `<h1>${activeMemo.title}</h1><hr /><p></p>${activeMemo.content}` : '') : ''}
             />
         </div>
     );
