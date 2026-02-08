@@ -413,11 +413,7 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
             <div className="flex-1 flex flex-col h-full overflow-hidden bg-white dark:bg-gray-900">
                 {activeMemo ? (
                     <>
-                        <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
-                            <div>
-                                <h1 className="text-xl font-bold text-gray-800 dark:text-gray-100 line-clamp-1">{activeMemo.title}</h1>
-                                <p className="text-xs text-gray-400">{t.lastEdited} {new Date(activeMemo.updatedAt).toLocaleString()}</p>
-                            </div>
+                        <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-end items-center h-16">
                             <div className="flex space-x-2">
                                 <button
                                     onClick={() => handleDelete(activeMemo.id)}
