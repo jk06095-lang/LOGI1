@@ -370,7 +370,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
                 )}
             </div>
 
-            <AnimatePresence>{showScrollDown && <motion.button initial={{ opacity: 0, scale: 0.8, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.8, y: 10 }} onClick={() => scrollToBottom('smooth')} className="absolute bottom-24 left-1/2 -translate-x-1/2 w-8 h-8 bg-white/70 dark:bg-black/70 backdrop-blur-md rounded-full shadow-lg border border-white/20 flex items-center justify-center text-blue-600 dark:text-blue-400 z-30 hover:bg-white/90 transition-colors"><ChevronDown size={16} /></motion.button>}</AnimatePresence>
+            <AnimatePresence>{showScrollDown && <motion.button initial={{ opacity: 0, scale: 0.8, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.8, y: 10 }} onClick={() => scrollToBottom('smooth')} className="absolute bottom-28 left-1/2 -translate-x-1/2 w-10 h-10 bg-white/70 dark:bg-black/70 backdrop-blur-md rounded-full shadow-lg border border-white/20 flex items-center justify-center text-blue-600 dark:text-blue-400 z-40 hover:bg-white/90 transition-colors"><ChevronDown size={20} /></motion.button>}</AnimatePresence>
 
             {(activeTab === 'global' || selectedUser) && (
                 <MessageInput

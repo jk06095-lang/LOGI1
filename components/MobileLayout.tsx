@@ -765,6 +765,21 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
     const [isVesselSelectorOpen, setIsVesselSelectorOpen] = useState(false);
     const [vesselSearchTerm, setVesselSearchTerm] = useState('');
 
+    // TeamBoard Mobile State Tracking
+    const [showMobileTasks, setShowMobileTasks] = useState(false);
+    const [openTaskCount, setOpenTaskCount] = useState(0);
+
+    useEffect(() => {
+        const handleStateUpdate = (e: any) => {
+            const { showMobileTasks: newShowTasks, openTaskCount: newCount } = e.detail;
+            if (newShowTasks !== undefined) setShowMobileTasks(newShowTasks);
+            if (newCount !== undefined) setOpenTaskCount(newCount);
+        };
+
+        window.addEventListener('mobile-teamboard-state-update', handleStateUpdate);
+        return () => window.removeEventListener('mobile-teamboard-state-update', handleStateUpdate);
+    }, []);
+
     useEffect(() => {
         if (activeChannel.type === 'global') {
             setActiveChannel(prev => ({ ...prev, name: t.globalChat }));
@@ -1086,8 +1101,6 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                     </div>
                 );
             case 'toolbox':
-                // Pass isMobile prop specifically to MyMemo
-                const ActiveTool = toolboxTab === 'hscode' ? HSCodeSearch : toolboxTab === 'memo' ? () => <MyMemo isMobile={true} /> : () => <TeamBoard isMobile={true} />;
                 return (
                     <div className="flex flex-col h-full bg-slate-50 dark:bg-black pt-safe-top">
                         {/* Apple-style Mobile Header (Segmented Control) */}
@@ -1100,10 +1113,17 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                                     {t.myMemo}
                                 </button>
                                 <button
-                                    onClick={() => setToolboxTab('board')}
+                                    onClick={() => {
+                                        if (toolboxTab === 'board') {
+                                            // Toggle to show Team Tasks when pressing tab again
+                                            window.dispatchEvent(new CustomEvent('mobile-toggle-team-tasks'));
+                                        } else {
+                                            setToolboxTab('board');
+                                        }
+                                    }}
                                     className={`flex-1 py-1.5 rounded-[6px] text-center transition-all ${toolboxTab === 'board' ? 'bg-white dark:bg-gray-600 text-black dark:text-white shadow-sm font-semibold' : 'text-gray-500 dark:text-gray-400'}`}
                                 >
-                                    {t.teamBoard}
+                                    {toolboxTab === 'board' && showMobileTasks ? '팀 할일' : t.teamBoard}
                                 </button>
                                 <button
                                     onClick={() => setToolboxTab('hscode')}
@@ -1112,11 +1132,22 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                                     {t.hsCode}
                                 </button>
                             </div>
+                            {/* Open Task Count Badge for Mobile - Centrally located below toggle */}
+                            {toolboxTab === 'board' && showMobileTasks && (
+                                <div className="flex justify-center mt-2 animate-in fade-in slide-in-from-top-1">
+                                    <div className="bg-blue-600/10 dark:bg-blue-400/20 text-blue-600 dark:text-blue-400 px-3 py-1 rounded-full text-[11px] font-bold flex items-center gap-1.5">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></div>
+                                        {openTaskCount} Open Tasks
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Content */}
                         <div className="flex-1 overflow-hidden relative">
-                            <ActiveTool />
+                            {toolboxTab === 'hscode' && <HSCodeSearch />}
+                            {toolboxTab === 'memo' && <MyMemo isMobile={true} />}
+                            {toolboxTab === 'board' && <TeamBoard isMobile={true} />}
                         </div>
                     </div>
                 );

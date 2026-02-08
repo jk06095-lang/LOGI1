@@ -94,6 +94,8 @@ interface ToolboxStrings {
     collapseTasks: string;
     uploading: string;
     uploadFailed: string;
+    editPermissionDenied: string;
+    deletePermissionDenied: string;
 }
 
 const translations: Record<SupportedLanguage, ToolboxStrings> = {
@@ -190,6 +192,8 @@ const translations: Record<SupportedLanguage, ToolboxStrings> = {
         collapseTasks: '할 일 접기',
         uploading: '업로드 중...',
         uploadFailed: '업로드 실패',
+        editPermissionDenied: '작성자만 수정할 수 있습니다.',
+        deletePermissionDenied: '작성자만 삭제할 수 있습니다.',
     },
     en: {
         // Window Title
@@ -284,6 +288,8 @@ const translations: Record<SupportedLanguage, ToolboxStrings> = {
         collapseTasks: 'Collapse Tasks',
         uploading: 'Uploading...',
         uploadFailed: 'Upload failed',
+        editPermissionDenied: 'Only the author can edit this post.',
+        deletePermissionDenied: 'Only the author can delete this post.',
     }
 };
 

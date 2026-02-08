@@ -339,6 +339,7 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
                     onSubmit={handleSave}
                     initialType="post"
                     initialContent={activeMemoId ? (activeMemo ? `<h1>${activeMemo.title}</h1><hr /><p></p>${activeMemo.content}` : '') : ''}
+                    hideTypeSelector={true}
                 />
             </div>
         );
@@ -463,6 +464,7 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
                 onSubmit={handleSave}
                 initialType="post"
                 initialContent={activeMemoId ? (activeMemo ? `<h1>${activeMemo.title}</h1><hr /><p></p>${activeMemo.content}` : '') : ''}
+                hideTypeSelector={true}
             />
         </div>
     );

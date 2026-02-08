@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../../../lib/firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, deleteDoc, where, getDocs, increment } from 'firebase/firestore';
-import { Pin, Trash2, CheckCircle2, Circle, MessageSquare, Plus, PenSquare, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Pin, Trash2, CheckCircle2, Circle, MessageSquare, Plus, PenSquare, ChevronRight, ChevronLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import { WritePostModal } from '../components/WritePostModal';
 import { useUIStore } from '../../../store/uiStore';
 import { getToolboxStrings } from '../i18n';
@@ -59,6 +59,9 @@ export const TeamBoard: React.FC<{ isMobile?: boolean }> = ({ isMobile }) => {
     const [editingPost, setEditingPost] = useState<Post | null>(null);
     const [tasksCollapsed, setTasksCollapsed] = useState(false); // New state for collapsible sidebar
 
+    // Mobile Task View State
+    const [showMobileTasks, setShowMobileTasks] = useState(false);
+
     // Comment UI State
     const [activeCommentPostId, setActiveCommentPostId] = useState<string | null>(null);
     const [commentText, setCommentText] = useState('');
@@ -83,6 +86,12 @@ export const TeamBoard: React.FC<{ isMobile?: boolean }> = ({ isMobile }) => {
                 return timeB - timeA;
             });
             setPosts(loadedPosts);
+
+            // Notify mobile layout about the count of open tasks
+            const openCount = loadedPosts.filter(p => p.type === 'task' && !p.completed).length;
+            window.dispatchEvent(new CustomEvent('mobile-teamboard-state-update', {
+                detail: { openTaskCount: openCount }
+            }));
         });
         return () => {
             unsubscribe();
@@ -94,15 +103,34 @@ export const TeamBoard: React.FC<{ isMobile?: boolean }> = ({ isMobile }) => {
         };
     }, []);
 
-    // Listen for external trigger from floating button in MobileLayout
+    // Effect to notify MobileLayout when showMobileTasks changes
+    useEffect(() => {
+        if (!isMobile) return;
+        window.dispatchEvent(new CustomEvent('mobile-teamboard-state-update', {
+            detail: { showMobileTasks }
+        }));
+    }, [showMobileTasks, isMobile]);
+
+    // Listen for external triggers
     useEffect(() => {
         const handleExternalCreate = () => {
             openNewPostModal();
         };
 
+        const handleMobileToggleTasks = () => {
+            setShowMobileTasks(prev => !prev);
+        };
+
         window.addEventListener('mobile-create-new-memo', handleExternalCreate);
-        return () => window.removeEventListener('mobile-create-new-memo', handleExternalCreate);
+        window.addEventListener('mobile-toggle-team-tasks', handleMobileToggleTasks);
+
+        return () => {
+            window.removeEventListener('mobile-create-new-memo', handleExternalCreate);
+            window.removeEventListener('mobile-toggle-team-tasks', handleMobileToggleTasks);
+        };
     }, []);
+
+    const [showNotices, setShowNotices] = useState(true); // [NEW] State for hiding notices
 
     const toggleComments = (postId: string) => {
         if (activeCommentPostId === postId) {
@@ -148,6 +176,11 @@ export const TeamBoard: React.FC<{ isMobile?: boolean }> = ({ isMobile }) => {
     };
 
     const openEditModal = (post: Post) => {
+        // [NEW] Permission Check: Standard 'post' is owner-only. Task/Notice is open.
+        if (post.type === 'post' && post.authorUid !== CURRENT_USER.uid) {
+            alert(t.editPermissionDenied || "Only the author can edit this post.");
+            return;
+        }
         setEditingPost(post);
         setIsWriteModalOpen(true);
     };
@@ -229,7 +262,13 @@ export const TeamBoard: React.FC<{ isMobile?: boolean }> = ({ isMobile }) => {
         await updateDoc(postRef, { completed: !currentStatus });
     };
 
-    const deletePost = async (id: string, authorUid?: string) => {
+    const deletePost = async (id: string, authorUid?: string, type?: string) => {
+        // [NEW] Permission Check: Standard 'post' is owner-only. Task/Notice is open.
+        if (type === 'post' && authorUid !== CURRENT_USER.uid) {
+            alert(t.deletePermissionDenied || "Only the author can delete this post.");
+            return;
+        }
+
         if (!confirm(t.deletePostConfirm)) return;
 
         try {
@@ -286,144 +325,190 @@ export const TeamBoard: React.FC<{ isMobile?: boolean }> = ({ isMobile }) => {
 
 
             {/* Notices */}
-            {notices.length > 0 && (
-                <div className="bg-amber-50 dark:bg-amber-900/10 border-b border-amber-100 dark:border-amber-900/30 p-4 shrink-0">
-                    <div className="flex items-center space-x-2 mb-2 text-amber-700 dark:text-amber-500 font-bold text-xs uppercase tracking-wide">
-                        <Pin size={12} className="fill-current" />
-                        <span>{t.pinnedNotices}</span>
+            {notices.length > 0 && !showMobileTasks && (
+                <div className="bg-amber-50 dark:bg-amber-900/10 border-b border-amber-100 dark:border-amber-900/30 shrink-0 transition-all duration-300">
+                    {/* [NEW] Header with Toggle */}
+                    <div className="flex items-center justify-between p-2 px-4 bg-amber-100/50 dark:bg-amber-900/20 cursor-pointer" onClick={() => setShowNotices(!showNotices)}>
+                        <div className="flex items-center space-x-2 text-amber-700 dark:text-amber-500 font-bold text-xs uppercase tracking-wide">
+                            <Pin size={12} className="fill-current" />
+                            <span>{t.pinnedNotices} ({notices.length})</span>
+                        </div>
+                        <button className="text-amber-600 dark:text-amber-500 hover:text-amber-800 focus:outline-none">
+                            {showNotices ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </button>
                     </div>
-                    <div className="space-y-2">
-                        {notices.map(notice => (
-                            <div key={notice.id} className="relative group pl-3 border-l-2 border-amber-300 dark:border-amber-600">
-                                <SafeHtmlViewer content={notice.content} />
-                                <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 flex items-center bg-white dark:bg-gray-800 rounded shadow-sm">
-                                    <button onClick={() => openEditModal(notice)} className="p-1 text-gray-400 hover:text-blue-500">
-                                        <PenSquare size={12} />
-                                    </button>
-                                    <button onClick={() => deletePost(notice.id, notice.authorUid)} className="p-1 text-gray-400 hover:text-red-500">
-                                        <Trash2 size={12} />
-                                    </button>
+
+                    {showNotices && (
+                        <div className="p-4 pt-2 space-y-2">
+                            {notices.map(notice => (
+                                <div key={notice.id} className="relative group pl-3 border-l-2 border-amber-300 dark:border-amber-600">
+                                    <SafeHtmlViewer content={notice.content} />
+                                    {/* Edit/Delete: Task/Notice open to everyone */}
+                                    <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 flex items-center bg-white dark:bg-gray-800 rounded shadow-sm">
+                                        <button onClick={() => openEditModal(notice)} className="p-1 text-gray-400 hover:text-blue-500">
+                                            <PenSquare size={12} />
+                                        </button>
+                                        <button onClick={() => deletePost(notice.id, notice.authorUid, notice.type)} className="p-1 text-gray-400 hover:text-red-500">
+                                            <Trash2 size={12} />
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
 
             <div className="flex-1 flex overflow-hidden">
-                {/* Main Feed */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-32">
-                    {generalPosts.map(post => {
-                        const comments = commentsByPost[post.id] || [];
-                        const isOwner = post.authorUid === CURRENT_USER.uid;
+                {/* Main Feed - Hidden if showing mobile tasks */}
+                {!showMobileTasks && (
+                    <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-32">
+                        {generalPosts.map(post => {
+                            const comments = commentsByPost[post.id] || [];
+                            const isOwner = post.authorUid === CURRENT_USER.uid;
 
-                        return (
-                            <div key={post.id} className="group bg-white dark:bg-gray-800/50 rounded-xl p-4 border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-all">
-                                <div className="flex items-start justify-between mb-3">
-                                    <div className="flex items-center space-x-2">
-                                        {post.authorPhotoURL ? (
-                                            <img
-                                                src={post.authorPhotoURL}
-                                                alt={post.author}
-                                                className="w-8 h-8 rounded-full object-cover"
-                                                referrerPolicy="no-referrer"
-                                            />
-                                        ) : (
-                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${isOwner ? 'bg-blue-500' : 'bg-gray-400'}`}>
-                                                {post.author[0]}
+                            return (
+                                <div key={post.id} className="group bg-white dark:bg-gray-800/50 rounded-xl p-4 border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-all">
+                                    <div className="flex items-start justify-between mb-3">
+                                        <div className="flex items-center space-x-2">
+                                            {post.authorPhotoURL ? (
+                                                <img
+                                                    src={post.authorPhotoURL}
+                                                    alt={post.author}
+                                                    className="w-8 h-8 rounded-full object-cover"
+                                                    referrerPolicy="no-referrer"
+                                                />
+                                            ) : (
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${isOwner ? 'bg-blue-500' : 'bg-gray-400'}`}>
+                                                    {post.author[0]}
+                                                </div>
+                                            )}
+                                            <div>
+                                                <p className="text-sm font-bold text-gray-800 dark:text-gray-100">{post.author} {isOwner && <span className="text-[10px] text-blue-500 bg-blue-50 px-1 rounded ml-1">{t.you}</span>}</p>
+                                                <p className="text-[10px] text-gray-400">
+                                                    {post.createdAt?.seconds ? new Date(post.createdAt.seconds * 1000).toLocaleString() : t.justNow}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        {/* [NEW] Permission Logic for Edit/Delete Buttons in Feed */}
+                                        {(isOwner || post.type !== 'post') && (
+                                            <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button onClick={() => openEditModal(post)} className="p-1.5 text-gray-400 hover:text-blue-500 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+                                                    <PenSquare size={14} />
+                                                </button>
+                                                <button onClick={() => deletePost(post.id, post.authorUid, post.type)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20">
+                                                    <Trash2 size={14} />
+                                                </button>
                                             </div>
                                         )}
-                                        <div>
-                                            <p className="text-sm font-bold text-gray-800 dark:text-gray-100">{post.author} {isOwner && <span className="text-[10px] text-blue-500 bg-blue-50 px-1 rounded ml-1">{t.you}</span>}</p>
-                                            <p className="text-[10px] text-gray-400">
-                                                {post.createdAt?.seconds ? new Date(post.createdAt.seconds * 1000).toLocaleString() : t.justNow}
-                                            </p>
-                                        </div>
                                     </div>
-                                    <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button onClick={() => openEditModal(post)} className="p-1.5 text-gray-400 hover:text-blue-500 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                                            <PenSquare size={14} />
-                                        </button>
-                                        <button onClick={() => deletePost(post.id, post.authorUid)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20">
-                                            <Trash2 size={14} />
+
+                                    <div className="ml-1 mb-4">
+                                        <SafeHtmlViewer content={post.content} />
+                                    </div>
+
+                                    <div className="border-t border-gray-100 dark:border-gray-700 pt-2 flex items-center justify-between">
+                                        <button
+                                            onClick={() => toggleComments(post.id)}
+                                            className="text-xs text-gray-500 hover:text-blue-600 flex items-center space-x-1"
+                                        >
+                                            <MessageSquare size={14} />
+                                            <span>{(post.commentCount || 0) > 0 ? `${post.commentCount} ${t.comments}` : t.comment}</span>
                                         </button>
                                     </div>
-                                </div>
 
-                                <div className="ml-1 mb-4">
-                                    <SafeHtmlViewer content={post.content} />
-                                </div>
-
-                                <div className="border-t border-gray-100 dark:border-gray-700 pt-2 flex items-center justify-between">
-                                    <button
-                                        onClick={() => toggleComments(post.id)}
-                                        className="text-xs text-gray-500 hover:text-blue-600 flex items-center space-x-1"
-                                    >
-                                        <MessageSquare size={14} />
-                                        <span>{(post.commentCount || 0) > 0 ? `${post.commentCount} ${t.comments}` : t.comment}</span>
-                                    </button>
-                                </div>
-
-                                {/* Comments Section */}
-                                {activeCommentPostId === post.id && (
-                                    <div className="mt-3 pl-4 border-l-2 border-gray-100 dark:border-gray-700 space-y-3 animate-in slide-in-from-top-2">
-                                        {comments.map(comment => (
-                                            <div key={comment.id} className="text-xs group/comment flex justify-between items-start mb-2">
-                                                <div className="flex-1">
-                                                    <span className="font-bold text-gray-700 dark:text-gray-300 mr-2">{comment.author}</span>
-                                                    {editingCommentId === comment.id ? (
-                                                        <div className="flex items-center space-x-2 mt-1">
-                                                            <input
-                                                                type="text"
-                                                                className="flex-1 border rounded px-2 py-1 text-xs"
-                                                                value={editingCommentText}
-                                                                onChange={(e) => setEditingCommentText(e.target.value)}
-                                                                autoFocus
-                                                            />
-                                                            <button onClick={() => handleUpdateComment(post.id, comment.id)} className="text-blue-500 text-[10px] hover:underline">Save</button>
-                                                            <button onClick={() => setEditingCommentId(null)} className="text-gray-500 text-[10px] hover:underline">Cancel</button>
+                                    {/* Comments Section */}
+                                    {activeCommentPostId === post.id && (
+                                        <div className="mt-3 pl-4 border-l-2 border-gray-100 dark:border-gray-700 space-y-3 animate-in slide-in-from-top-2">
+                                            {comments.map(comment => (
+                                                <div key={comment.id} className="text-xs group/comment flex justify-between items-start mb-2">
+                                                    <div className="flex-1">
+                                                        <span className="font-bold text-gray-700 dark:text-gray-300 mr-2">{comment.author}</span>
+                                                        {editingCommentId === comment.id ? (
+                                                            <div className="flex items-center space-x-2 mt-1">
+                                                                <input
+                                                                    type="text"
+                                                                    className="flex-1 border rounded px-2 py-1 text-xs"
+                                                                    value={editingCommentText}
+                                                                    onChange={(e) => setEditingCommentText(e.target.value)}
+                                                                    autoFocus
+                                                                />
+                                                                <button onClick={() => handleUpdateComment(post.id, comment.id)} className="text-blue-500 text-[10px] hover:underline">Save</button>
+                                                                <button onClick={() => setEditingCommentId(null)} className="text-gray-500 text-[10px] hover:underline">Cancel</button>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-gray-600 dark:text-gray-400">{comment.content}</span>
+                                                        )}
+                                                    </div>
+                                                    {/* Edit/Delete Actions for Owner */}
+                                                    {comment.authorUid === CURRENT_USER.uid && !editingCommentId && (
+                                                        <div className="flex items-center space-x-1 opacity-0 group-hover/comment:opacity-100 transition-opacity">
+                                                            <button onClick={() => startEditingComment(comment)} className="p-1 hover:text-blue-500 text-gray-400">
+                                                                <PenSquare size={10} />
+                                                            </button>
+                                                            <button onClick={() => handleDeleteComment(post.id, comment.id)} className="p-1 hover:text-red-500 text-gray-400">
+                                                                <Trash2 size={10} />
+                                                            </button>
                                                         </div>
-                                                    ) : (
-                                                        <span className="text-gray-600 dark:text-gray-400">{comment.content}</span>
                                                     )}
                                                 </div>
-                                                {/* Edit/Delete Actions for Owner */}
-                                                {comment.authorUid === CURRENT_USER.uid && !editingCommentId && (
-                                                    <div className="flex items-center space-x-1 opacity-0 group-hover/comment:opacity-100 transition-opacity">
-                                                        <button onClick={() => startEditingComment(comment)} className="p-1 hover:text-blue-500 text-gray-400">
-                                                            <PenSquare size={10} />
-                                                        </button>
-                                                        <button onClick={() => handleDeleteComment(post.id, comment.id)} className="p-1 hover:text-red-500 text-gray-400">
-                                                            <Trash2 size={10} />
-                                                        </button>
-                                                    </div>
-                                                )}
+                                            ))}
+                                            <div className="flex items-center space-x-2 mt-2">
+                                                <input
+                                                    type="text"
+                                                    placeholder={t.writeComment}
+                                                    className="flex-1 text-xs bg-gray-50 dark:bg-gray-800 border-none rounded-lg py-1.5 focus:ring-1 focus:ring-blue-500"
+                                                    value={commentText}
+                                                    onChange={(e) => setCommentText(e.target.value)}
+                                                    onKeyDown={(e) => e.key === 'Enter' && handleAddComment(post.id)}
+                                                    autoFocus
+                                                />
                                             </div>
-                                        ))}
-                                        <div className="flex items-center space-x-2 mt-2">
-                                            <input
-                                                type="text"
-                                                placeholder={t.writeComment}
-                                                className="flex-1 text-xs bg-gray-50 dark:bg-gray-800 border-none rounded-lg py-1.5 focus:ring-1 focus:ring-blue-500"
-                                                value={commentText}
-                                                onChange={(e) => setCommentText(e.target.value)}
-                                                onKeyDown={(e) => e.key === 'Enter' && handleAddComment(post.id)}
-                                                autoFocus
-                                            />
                                         </div>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
+                            );
+                        })}
+                        {generalPosts.length === 0 && (
+                            <div className="text-center py-10 text-gray-400">
+                                <p>{t.noPostsYet}</p>
                             </div>
-                        );
-                    })}
-                    {generalPosts.length === 0 && (
-                        <div className="text-center py-10 text-gray-400">
-                            <p>{t.noPostsYet}</p>
-                        </div>
-                    )}
-                </div>
+                        )}
+                    </div>
+                )}
 
-                {/* Tasks Sidebar (Right) */}
+                {/* Mobile Tasks View - Only shown when toggled on mobile */}
+                {showMobileTasks && (
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-32 bg-gray-50/50 dark:bg-gray-800/20">
+                        {/* Title and count moved to MobileLayout header per request */}
+                        {tasks.map(task => (
+                            <div key={task.id} className="group p-4 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+                                <div className="flex items-start space-x-3">
+                                    <button
+                                        onClick={() => toggleTask(task.id, !!task.completed)}
+                                        className={`mt-0.5 ${task.completed ? 'text-emerald-500' : 'text-gray-300 hover:text-blue-500'}`}
+                                    >
+                                        {task.completed ? <CheckCircle2 size={20} /> : <Circle size={20} />}
+                                    </button>
+                                    <div className="flex-1">
+                                        <SafeHtmlViewer content={task.content} className={task.completed ? 'opacity-50 line-through' : ''} />
+                                    </div>
+                                </div>
+                                <div className="w-full text-right mt-2 flex justify-end gap-3 border-t border-gray-100 dark:border-gray-700 pt-2">
+                                    <button onClick={() => openEditModal(task)} className="text-xs text-blue-500 hover:text-blue-600 font-medium">{t.edit}</button>
+                                    <button onClick={() => deletePost(task.id, task.authorUid, task.type)} className="text-xs text-red-500 hover:text-red-600 font-medium">{t.remove}</button>
+                                </div>
+                            </div>
+                        ))}
+                        {tasks.length === 0 && (
+                            <div className="text-center py-10 text-gray-400 font-medium">
+                                <p>No tasks found.</p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Tasks Sidebar (Right) - Desktop Only */}
                 <div
                     className={`${tasksCollapsed ? 'w-14 items-center' : 'w-72'} bg-gray-50/50 dark:bg-gray-800/30 border-l border-gray-200 dark:border-gray-800 hidden lg:flex flex-col transition-all duration-300 relative`}
                 >
@@ -468,9 +553,10 @@ export const TeamBoard: React.FC<{ isMobile?: boolean }> = ({ isMobile }) => {
                                         <SafeHtmlViewer content={task.content} className={task.completed ? 'opacity-50 line-through' : ''} />
                                     </div>
                                 </div>
+                                {/* [NEW] Edit/Delete allowed for everyone for tasks */}
                                 <div className="w-full text-right mt-1 opacity-0 group-hover:opacity-100 flex justify-end gap-2">
                                     <button onClick={() => openEditModal(task)} className="text-[10px] text-blue-400 hover:text-blue-500">{t.edit}</button>
-                                    <button onClick={() => deletePost(task.id, task.authorUid)} className="text-[10px] text-red-400 hover:text-red-500">{t.remove}</button>
+                                    <button onClick={() => deletePost(task.id, task.authorUid, task.type)} className="text-[10px] text-red-400 hover:text-red-500">{t.remove}</button>
                                 </div>
                             </div>
                         ))}

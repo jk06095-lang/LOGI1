@@ -25,6 +25,16 @@ type TabId = 'hscode' | 'memo' | 'todo' | 'board';
 export const ToolboxWindow: React.FC<ToolboxWindowProps> = (props) => {
     const [activeTab, setActiveTab] = useState<TabId>('hscode');
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [showMobileTasks, setShowMobileTasks] = useState(false);
+    const [isMobile, setIsMobile] = useState(false);
+
+    // Monitor Screen Size for isMobile prop
+    React.useEffect(() => {
+        const checkMobile = () => setIsMobile(window.innerWidth < 768);
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     // Localization
     const language = useUIStore((state) => state.settings.language);
@@ -54,7 +64,14 @@ export const ToolboxWindow: React.FC<ToolboxWindowProps> = (props) => {
                         {tabs.map((tab) => (
                             <button
                                 key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
+                                onClick={() => {
+                                    if (activeTab === 'board' && tab.id === 'board') {
+                                        setShowMobileTasks(prev => !prev);
+                                    } else {
+                                        setActiveTab(tab.id);
+                                        setShowMobileTasks(false); // Reset when switching tabs
+                                    }
+                                }}
                                 className={`flex items-center space-x-1 px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${activeTab === tab.id
                                     ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
                                     : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
@@ -85,7 +102,10 @@ export const ToolboxWindow: React.FC<ToolboxWindowProps> = (props) => {
                             {tabs.map((tab) => (
                                 <button
                                     key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
+                                    onClick={() => {
+                                        setActiveTab(tab.id);
+                                        setShowMobileTasks(false);
+                                    }}
                                     className={`flex items-center rounded-lg transition-all duration-200 ${isSidebarCollapsed ? 'justify-center w-10 h-10 p-0' : 'w-full space-x-3 px-3 py-2'} ${activeTab === tab.id
                                         ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-sm'
                                         : 'text-gray-600 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5'
@@ -108,7 +128,7 @@ export const ToolboxWindow: React.FC<ToolboxWindowProps> = (props) => {
                 {/* Content Area */}
                 <div className="flex-1 overflow-hidden bg-white dark:bg-gray-900 relative">
                     <main className="h-full overflow-y-auto no-scrollbar">
-                        <ActiveComponent />
+                        <ActiveComponent isMobile={isMobile} showMobileTasks={showMobileTasks} />
                     </main>
                 </div>
             </div>

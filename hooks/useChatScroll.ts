@@ -120,7 +120,21 @@ export const useChatScroll = (
 
     const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
         if (scrollRef.current) {
-            scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior });
+            const container = scrollRef.current;
+            container.scrollTo({ top: container.scrollHeight, behavior });
+
+            // Robust fallback for mobile/dynamic content
+            setTimeout(() => {
+                if (scrollRef.current) {
+                    const { scrollTop, scrollHeight, clientHeight } = scrollRef.current;
+                    const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+
+                    // If smooth scroll didn't finish or failed, force jump to bottom
+                    if (!isAtBottom) {
+                        scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'auto' });
+                    }
+                }
+            }, 100);
         }
     }, []);
 
