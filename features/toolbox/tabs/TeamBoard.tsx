@@ -510,7 +510,7 @@ export const TeamBoard: React.FC<{ isMobile?: boolean }> = ({ isMobile }) => {
 
                 {/* Tasks Sidebar (Right) - Desktop Only */}
                 <div
-                    className={`${tasksCollapsed ? 'w-14 items-center' : 'w-72'} bg-gray-50/50 dark:bg-gray-800/30 border-l border-gray-200 dark:border-gray-800 hidden lg:flex flex-col transition-all duration-300 relative`}
+                    className={`${tasksCollapsed ? 'w-14 items-center' : 'w-72'} bg-gray-50/50 dark:bg-gray-800/30 border-l border-gray-200 dark:border-gray-800 hidden lg:flex flex-col transition-all duration-300 relative overflow-hidden`}
                 >
                     {/* Sidebar Header: Toggle + Title/Count */}
                     <div className={`w-full flex shrink-0 ${tasksCollapsed ? 'flex-col items-center py-4 gap-2' : 'flex-row items-center p-4 border-b border-gray-100 dark:border-gray-800'}`}>
@@ -539,28 +539,31 @@ export const TeamBoard: React.FC<{ isMobile?: boolean }> = ({ isMobile }) => {
                         )}
                     </div>
 
-                    <div className="space-y-2">
-                        {tasks.map(task => (
-                            <div key={task.id} className="group p-3 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-transparent hover:border-blue-200 transition-all">
-                                <div className="flex items-start space-x-3">
-                                    <button
-                                        onClick={() => toggleTask(task.id, !!task.completed)}
-                                        className={`mt-0.5 ${task.completed ? 'text-emerald-500' : 'text-gray-300 hover:text-blue-500'}`}
-                                    >
-                                        {task.completed ? <CheckCircle2 size={18} /> : <Circle size={18} />}
-                                    </button>
-                                    <div className="flex-1">
-                                        <SafeHtmlViewer content={task.content} className={task.completed ? 'opacity-50 line-through' : ''} />
+
+                    {!tasksCollapsed && (
+                        <div className="space-y-2">
+                            {tasks.map(task => (
+                                <div key={task.id} className="group p-3 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-transparent hover:border-blue-200 transition-all">
+                                    <div className="flex items-start space-x-3">
+                                        <button
+                                            onClick={() => toggleTask(task.id, !!task.completed)}
+                                            className={`mt-0.5 ${task.completed ? 'text-emerald-500' : 'text-gray-300 hover:text-blue-500'}`}
+                                        >
+                                            {task.completed ? <CheckCircle2 size={18} /> : <Circle size={18} />}
+                                        </button>
+                                        <div className="flex-1">
+                                            <SafeHtmlViewer content={task.content} className={task.completed ? 'opacity-50 line-through' : ''} />
+                                        </div>
+                                    </div>
+                                    {/* [NEW] Edit/Delete allowed for everyone for tasks */}
+                                    <div className="w-full text-right mt-1 opacity-0 group-hover:opacity-100 flex justify-end gap-2">
+                                        <button onClick={() => openEditModal(task)} className="text-[10px] text-blue-400 hover:text-blue-500">{t.edit}</button>
+                                        <button onClick={() => deletePost(task.id, task.authorUid, task.type)} className="text-[10px] text-red-400 hover:text-red-500">{t.remove}</button>
                                     </div>
                                 </div>
-                                {/* [NEW] Edit/Delete allowed for everyone for tasks */}
-                                <div className="w-full text-right mt-1 opacity-0 group-hover:opacity-100 flex justify-end gap-2">
-                                    <button onClick={() => openEditModal(task)} className="text-[10px] text-blue-400 hover:text-blue-500">{t.edit}</button>
-                                    <button onClick={() => deletePost(task.id, task.authorUid, task.type)} className="text-[10px] text-red-400 hover:text-red-500">{t.remove}</button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
