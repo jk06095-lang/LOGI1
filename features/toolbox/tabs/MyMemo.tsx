@@ -34,7 +34,7 @@ interface MyMemoProps {
 
 
 
-const INITIAL_MEMO_TEMPLATE = `<h1>Untitled Memo</h1><hr /><p><br/></p>`;
+const INITIAL_MEMO_TEMPLATE = `<h1>Untitled Memo</h1><hr class="title-divider" /><p><br/></p>`;
 
 export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
     // Localization
@@ -342,7 +342,7 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
                     onClose={() => setIsEditing(false)}
                     onSubmit={handleSave}
                     initialType="post"
-                    initialContent={activeMemoId ? (activeMemo ? `<h1>${activeMemo.title}</h1><hr /><p></p>${activeMemo.content}` : '') : ''}
+                    initialContent={activeMemoId ? (activeMemo ? `<h1>${activeMemo.title}</h1><hr class="title-divider" /><p></p>${activeMemo.content}` : '') : ''}
                     hideTypeSelector={true}
                 />
             </div>
@@ -467,7 +467,7 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
                 onClose={() => setIsEditing(false)}
                 onSubmit={handleSave}
                 initialType="post"
-                initialContent={activeMemoId ? (activeMemo ? `<h1>${activeMemo.title}</h1><hr /><p></p>${activeMemo.content}` : '') : INITIAL_MEMO_TEMPLATE}
+                initialContent={activeMemoId ? (activeMemo ? `<h1>${activeMemo.title}</h1><hr class="title-divider" /><p></p>${activeMemo.content}` : '') : INITIAL_MEMO_TEMPLATE}
                 hideTypeSelector={true}
             />
         </div>

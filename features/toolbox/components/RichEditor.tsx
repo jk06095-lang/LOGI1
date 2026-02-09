@@ -137,7 +137,7 @@ const SlashMenu: React.FC<SlashMenuProps & { t: ToolboxStrings }> = ({ position,
                     {menuItems.map((item, index) => (
                         <button
                             key={item.id}
-                            ref={el => itemRefs.current[index] = el}
+                            ref={el => { itemRefs.current[index] = el; }}
                             onClick={() => onSelect(item.id)}
                             className={`w-full text-left px-3 py-2 flex items-center space-x-3 transition-colors ${index === selectedIndex ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-blue-50 dark:hover:bg-blue-900/20'}`}
                         >
@@ -384,6 +384,41 @@ const RichEditorImplementation: React.FC<RichEditorProps> = ({ initialContent = 
 
     const handleInput = () => {
         if (contentRef.current) {
+            // 1. MANDATORY H1 PROTECTION (ensure it's the first element)
+            let firstChild = contentRef.current.firstElementChild;
+            if (!firstChild || firstChild.tagName !== 'H1') {
+                // If it's missing or not first, we need to restore it.
+                // If there's an H1 elsewhere, we could move it, but prepending is safer for simplicity.
+                const h1 = document.createElement('h1');
+                h1.innerHTML = '<br/>';
+                contentRef.current.prepend(h1);
+                firstChild = h1;
+            }
+
+            // 2. Ensure Title Divider protection & cleanup duplicates
+            const allDividers = contentRef.current.querySelectorAll('.title-divider');
+            const correctDivider = firstChild.nextElementSibling;
+
+            // Remove any dividers that are not in the correct position (immediately after H1) or are duplicates.
+            allDividers.forEach((div) => {
+                if (div !== correctDivider) {
+                    div.remove();
+                }
+            });
+
+            // If it's missing from the correct position, restore it
+            if (!correctDivider || !correctDivider.classList.contains('title-divider')) {
+                const hr = document.createElement('hr');
+                hr.className = 'title-divider';
+                firstChild.insertAdjacentElement('afterend', hr);
+                // Add an empty paragraph after HR if it's the last element to allow typing
+                if (!hr.nextElementSibling) {
+                    const p = document.createElement('p');
+                    p.innerHTML = '<br/>';
+                    hr.insertAdjacentElement('afterend', p);
+                }
+            }
+
             const html = contentRef.current.innerHTML;
             const textContent = contentRef.current.textContent || '';
             const hasElements = contentRef.current.querySelector('h1, h2, h3, ul, ol, table, hr, img, blockquote, input[type="checkbox"]') !== null;
@@ -574,6 +609,63 @@ const RichEditorImplementation: React.FC<RichEditorProps> = ({ initialContent = 
             e.preventDefault();
             document.execCommand('redo');
             return;
+        }
+
+        if (e.key === 'Backspace' || e.key === 'Delete') {
+            const selection = window.getSelection();
+            if (selection && selection.rangeCount > 0 && selection.isCollapsed) {
+                const range = selection.getRangeAt(0);
+                const container = range.startContainer;
+                const offset = range.startOffset;
+
+                // Find the top-level block inside the editor
+                let currentBlock = container as any;
+                while (currentBlock && currentBlock.parentElement !== contentRef.current) {
+                    currentBlock = currentBlock.parentElement;
+                }
+
+                if (currentBlock) {
+                    if (e.key === 'Backspace') {
+                        if (offset === 0) {
+                            const prev = currentBlock.previousElementSibling;
+                            // Block backspace if it would merge with or delete the divider
+                            if (prev && prev.classList.contains('title-divider')) {
+                                e.preventDefault();
+                                return;
+                            }
+                            // Block backspace at the very beginning of the H1 to prevent tag deletion
+                            if (currentBlock.tagName === 'H1') {
+                                e.preventDefault();
+                                return;
+                            }
+                        }
+                        // Block backspace if the current block IS the divider
+                        if (currentBlock.classList.contains('title-divider')) {
+                            e.preventDefault();
+                            return;
+                        }
+                    } else if (e.key === 'Delete') {
+                        // Check if cursor is at the end of the content within the H1
+                        if (currentBlock.tagName === 'H1') {
+                            // Check if there is any visible content after the current position in this block
+                            const isAtEnd = (container.nodeType === Node.TEXT_NODE && offset === container.textContent?.length) ||
+                                (container.nodeType === Node.ELEMENT_NODE && offset >= container.childNodes.length);
+
+                            // If H1 is effectively empty (no text, at most one BR), treat even "at start" as "at end" 
+                            // to prevent pull-up of the divider or tag deletion
+                            const hasNoText = currentBlock.textContent.trim().length === 0;
+
+                            if (isAtEnd || hasNoText) {
+                                e.preventDefault();
+                                return;
+                            }
+                        } else if (currentBlock.classList.contains('title-divider')) {
+                            e.preventDefault();
+                            return;
+                        }
+                    }
+                }
+            }
         }
 
         if (e.key === '/') {
