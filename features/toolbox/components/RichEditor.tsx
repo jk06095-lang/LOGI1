@@ -425,15 +425,68 @@ const RichEditorImplementation: React.FC<RichEditorProps> = ({ initialContent = 
             setHasContent(textContent.trim().length > 0 || hasElements);
             onChange(html);
 
-            // 3. List Continuity: Merge adjacent lists of the same type
-            const lists = contentRef.current.querySelectorAll('ul, ol');
-            lists.forEach((list) => {
-                const next = list.nextElementSibling;
-                if (next && next.tagName === list.tagName) {
+            // 3. IMPROVED List Continuity: Merge adjacent lists or nest them
+            const children = Array.from(contentRef.current.children);
+            let lastOLCount = 0;
+            let lastOLParent: Element | null = null;
+
+            for (let i = 0; i < children.length - 1; i++) {
+                const curr = children[i];
+                const next = children[i + 1];
+
+                // Case A: Adjacent lists of the SAME type -> Merge
+                if ((curr.tagName === 'OL' || curr.tagName === 'UL') && curr.tagName === next.tagName) {
                     while (next.firstChild) {
-                        list.appendChild(next.firstChild);
+                        curr.appendChild(next.firstChild);
                     }
                     next.remove();
+                    children.splice(i + 1, 1);
+                    i--;
+                    continue;
+                }
+
+                // Case B: List followed by DIFFERENT list type -> Nest into last LI
+                if ((curr.tagName === 'OL' || curr.tagName === 'UL') && (next.tagName === 'OL' || next.tagName === 'UL')) {
+                    const lastLi = curr.lastElementChild;
+                    if (lastLi && lastLi.tagName === 'LI') {
+                        lastLi.appendChild(next);
+                        children.splice(i + 1, 1);
+                        i--;
+                        continue;
+                    }
+                }
+
+                // Case C: List followed by empty paragraph -> Merge across it or remove it
+                if ((curr.tagName === 'OL' || curr.tagName === 'UL') && next.tagName === 'P' && (next.textContent?.trim() === '' || next.innerHTML === '<br>')) {
+                    const nextAfterP = children[i + 2];
+                    if (nextAfterP && (nextAfterP.tagName === 'OL' || nextAfterP.tagName === 'UL')) {
+                        next.remove();
+                        children.splice(i + 1, 1);
+                        i--; // Re-check current list with the new next element
+                        continue;
+                    }
+                }
+            }
+
+            // Sync 'start' attribute for separated OLs at the root level
+            const topLevelBlocks = Array.from(contentRef.current.children);
+            let currentOLSequenceStart = 1;
+            topLevelBlocks.forEach((block) => {
+                if (block.tagName === 'OL') {
+                    const ol = block as HTMLOListElement;
+                    // If the OL doesn't have a manual 'start' attribute set by user N. trigger 
+                    // or if we want to force continuity:
+                    if (!ol.hasAttribute('data-manual-start')) {
+                        ol.start = currentOLSequenceStart;
+                    }
+                    currentOLSequenceStart += ol.children.length;
+                } else {
+                    // Reset numbering if interrupted by a major block (H1, H2, Table, HR, etc.)
+                    // We allow P, UL, and Checklist items to be "transparent" to OL numbering sequences.
+                    const isTransparent = ['P', 'UL'].includes(block.tagName) || block.classList.contains('checklist-item');
+                    if (!isTransparent) {
+                        currentOLSequenceStart = 1;
+                    }
                 }
             });
 
@@ -494,27 +547,29 @@ const RichEditorImplementation: React.FC<RichEditorProps> = ({ initialContent = 
                             if (ol && ol.tagName === 'OL') {
                                 if (parentLi === ol.firstElementChild) {
                                     (ol as HTMLOListElement).start = startNum;
+                                    ol.setAttribute('data-manual-start', 'true');
                                 } else {
                                     (parentLi as HTMLLIElement).value = startNum;
                                 }
                             }
                         } else {
                             document.execCommand('insertOrderedList');
-                            if (startNum > 1) {
-                                setTimeout(() => {
-                                    const selection = window.getSelection();
-                                    if (selection && selection.rangeCount > 0) {
-                                        let curr = selection.anchorNode;
-                                        while (curr && curr !== contentRef.current) {
-                                            if (curr.nodeName === 'OL') {
-                                                (curr as HTMLOListElement).start = startNum;
-                                                break;
-                                            }
-                                            curr = curr.parentNode;
+                            setTimeout(() => {
+                                const selection = window.getSelection();
+                                if (selection && selection.rangeCount > 0) {
+                                    let curr = selection.anchorNode;
+                                    while (curr && curr !== contentRef.current) {
+                                        if (curr.nodeName === 'OL') {
+                                            const ol = curr as HTMLOListElement;
+                                            ol.start = startNum;
+                                            // Mark as manual start if N != 1 OR if it was explicitly typed to potentially restart
+                                            ol.setAttribute('data-manual-start', 'true');
+                                            break;
                                         }
+                                        curr = curr.parentNode;
                                     }
-                                }, 0);
-                            }
+                                }
+                            }, 0);
                         }
                     }
                     // Pattern 5: Task "[] "
