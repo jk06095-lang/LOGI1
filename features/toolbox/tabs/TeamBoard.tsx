@@ -49,6 +49,8 @@ const SafeHtmlViewer: React.FC<{ content: string; className?: string }> = ({ con
     );
 };
 
+const INITIAL_POST_TEMPLATE = `<h1>Untitled Post</h1><hr class="title-divider" /><p><br/></p>`;
+
 export const TeamBoard: React.FC<{ isMobile?: boolean }> = ({ isMobile }) => {
     // Localization
     const language = useUIStore((state) => state.settings.language);
@@ -306,7 +308,7 @@ export const TeamBoard: React.FC<{ isMobile?: boolean }> = ({ isMobile }) => {
                 isOpen={isWriteModalOpen}
                 onClose={() => { setIsWriteModalOpen(false); setEditingPost(null); }}
                 onSubmit={handleSubmit}
-                initialContent={editingPost?.content}
+                initialContent={editingPost ? editingPost.content : INITIAL_POST_TEMPLATE}
                 initialType={editingPost?.type}
             />
 
