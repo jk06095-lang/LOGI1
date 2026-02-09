@@ -36,6 +36,8 @@ interface ToolboxStrings {
     image: string;
     insertTable: string;
     useArrowKeys: string;
+    indent: string;
+    outdent: string;
 
     // Slash Menu
     basicBlocks: string;
@@ -134,6 +136,8 @@ const translations: Record<SupportedLanguage, ToolboxStrings> = {
         image: '이미지',
         insertTable: '표 삽입',
         useArrowKeys: '방향키 또는 마우스로 크기 선택',
+        indent: '들여쓰기',
+        outdent: '내어쓰기',
 
         // Slash Menu
         basicBlocks: '기본 블록',
@@ -230,6 +234,8 @@ const translations: Record<SupportedLanguage, ToolboxStrings> = {
         image: 'Image',
         insertTable: 'Insert Table',
         useArrowKeys: 'Use arrow keys or mouse to select size',
+        indent: 'Indent',
+        outdent: 'Outdent',
 
         // Slash Menu
         basicBlocks: 'Basic Blocks',

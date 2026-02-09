@@ -32,6 +32,10 @@ interface MyMemoProps {
     isMobile?: boolean;
 }
 
+
+
+const INITIAL_MEMO_TEMPLATE = `<h1>Untitled Memo</h1><hr /><p><br/></p>`;
+
 export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
     // Localization
     const language = useUIStore((state) => state.settings.language);
@@ -463,7 +467,7 @@ export const MyMemo: React.FC<MyMemoProps> = ({ isMobile = false }) => {
                 onClose={() => setIsEditing(false)}
                 onSubmit={handleSave}
                 initialType="post"
-                initialContent={activeMemoId ? (activeMemo ? `<h1>${activeMemo.title}</h1><hr /><p></p>${activeMemo.content}` : '') : ''}
+                initialContent={activeMemoId ? (activeMemo ? `<h1>${activeMemo.title}</h1><hr /><p></p>${activeMemo.content}` : '') : INITIAL_MEMO_TEMPLATE}
                 hideTypeSelector={true}
             />
         </div>

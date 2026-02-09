@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Bold, Italic, Type, List, ListOrdered, Image as ImageIcon, Link as LinkIcon, Paperclip, CheckSquare, MoreHorizontal, Table as TableIcon, Plus, Minus, X, ArrowRight, ArrowDown, Trash2 } from 'lucide-react';
+import { Bold, Italic, Type, List, ListOrdered, Image as ImageIcon, Link as LinkIcon, Paperclip, CheckSquare, MoreHorizontal, Table as TableIcon, Plus, Minus, X, ArrowRight, ArrowDown, Trash2, Indent, Outdent } from 'lucide-react';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../../../lib/firebase';
 
@@ -582,6 +582,15 @@ const RichEditorImplementation: React.FC<RichEditorProps> = ({ initialContent = 
             return;
         }
 
+        // Tab Handling for Indent/Outdent
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            const command = e.shiftKey ? 'outdent' : 'indent';
+            document.execCommand(command, false, undefined);
+            handleInput();
+            return;
+        }
+
         if (slashMenu) {
             // KEYBOARD NAVIGATION - Prevent these from closing the menu
             const navKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Escape'];
@@ -877,14 +886,21 @@ const RichEditorImplementation: React.FC<RichEditorProps> = ({ initialContent = 
         <div className="flex flex-col h-full bg-white dark:bg-slate-900 overflow-hidden relative group">
             <style>{editorStyles}</style>
             <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
-            <div className="flex items-center space-x-1 p-2 border-b border-gray-100 dark:border-slate-800 bg-white dark:bg-slate-900 z-10">
+            <div className="flex items-center gap-1 p-2 border-b border-gray-100 dark:border-slate-800 bg-white dark:bg-slate-900 z-10 overflow-x-auto scrollbar-hide shrink-0">
                 <ToolbarButton icon={Bold} onClick={() => execCommand('bold')} tooltip={t.bold} />
                 <ToolbarButton icon={Italic} onClick={() => execCommand('italic')} tooltip={t.italic} />
                 <div className="w-px h-4 bg-gray-200 mx-1" />
                 <ToolbarButton icon={Type} onClick={() => execCommand('formatBlock', '<H2>')} tooltip={t.heading} />
                 <ToolbarButton icon={List} onClick={() => execCommand('insertUnorderedList')} tooltip={t.list} />
                 <ToolbarButton icon={CheckSquare} onClick={() => handleSlashSelect('checklist')} tooltip={t.task} />
-                <div className="w-px h-4 bg-gray-200 mx-1" />
+
+                <div className="w-px h-6 bg-gray-200 mx-1 shrink-0" />
+
+                <ToolbarButton icon={Outdent} onClick={() => execCommand('outdent')} tooltip={t.outdent || "Outdent"} />
+                <ToolbarButton icon={Indent} onClick={() => execCommand('indent')} tooltip={t.indent || "Indent"} />
+
+                <div className="w-px h-6 bg-gray-200 mx-1 shrink-0" />
+
                 <div className="relative">
                     <ToolbarButton icon={TableIcon} onClick={() => setShowTablePicker(!showTablePicker)} tooltip={t.table} active={showTablePicker} />
                     {showTablePicker && (
