@@ -49,6 +49,31 @@ const SafeHtmlViewer: React.FC<{ content: string; className?: string }> = ({ con
     );
 };
 
+// Helper to truncate HTML to first N block elements
+const truncateHtml = (html: string, limit: number = 5) => {
+    if (!html) return { content: '', isTruncated: false };
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const body = doc.body;
+
+    // Get only top-level block elements
+    const elements = Array.from(body.children);
+
+    if (elements.length <= limit) {
+        return { content: html, isTruncated: false };
+    }
+
+    const truncatedElements = elements.slice(0, limit);
+    const container = doc.createElement('div');
+    truncatedElements.forEach(el => container.appendChild(el.cloneNode(true)));
+
+    return {
+        content: container.innerHTML,
+        isTruncated: true
+    };
+};
+
 const INITIAL_POST_TEMPLATE = `<h1>Untitled Post</h1><hr class="title-divider" /><p><br/></p>`;
 
 export const TeamBoard: React.FC<{ isMobile?: boolean }> = ({ isMobile }) => {
@@ -70,6 +95,21 @@ export const TeamBoard: React.FC<{ isMobile?: boolean }> = ({ isMobile }) => {
     const [editingCommentId, setEditingCommentId] = useState<string | null>(null); // Track which comment is being edited
     const [editingCommentText, setEditingCommentText] = useState('');
     const [commentsByPost, setCommentsByPost] = useState<Record<string, Comment[]>>({});
+
+    // Post Expansion State
+    const [expandedPostIds, setExpandedPostIds] = useState<Set<string>>(new Set());
+
+    const togglePostExpansion = (postId: string) => {
+        setExpandedPostIds(prev => {
+            const next = new Set(prev);
+            if (next.has(postId)) {
+                next.delete(postId);
+            } else {
+                next.add(postId);
+            }
+            return next;
+        });
+    };
 
     // Track comment subscriptions
     const commentUnsubscribesRef = useRef<Record<string, () => void>>({});
@@ -368,6 +408,11 @@ export const TeamBoard: React.FC<{ isMobile?: boolean }> = ({ isMobile }) => {
                         {generalPosts.map(post => {
                             const comments = commentsByPost[post.id] || [];
                             const isOwner = post.authorUid === CURRENT_USER.uid;
+                            const isExpanded = expandedPostIds.has(post.id);
+                            const originalTruncation = truncateHtml(post.content);
+                            const { content: displayContent, isTruncated: currentIsTruncated } = isExpanded
+                                ? { content: post.content, isTruncated: false }
+                                : originalTruncation;
 
                             return (
                                 <div key={post.id} className="group bg-white dark:bg-gray-800/50 rounded-xl p-4 border border-gray-100 dark:border-gray-800 shadow-sm hover:shadow-md transition-all">
@@ -406,8 +451,24 @@ export const TeamBoard: React.FC<{ isMobile?: boolean }> = ({ isMobile }) => {
                                     </div>
 
                                     <div className="ml-1 mb-4">
-                                        <SafeHtmlViewer content={post.content} />
+                                        <SafeHtmlViewer content={displayContent} />
                                     </div>
+
+                                    {/* Expand/Collapse Button */}
+                                    {originalTruncation.isTruncated && (
+                                        <div className="flex justify-end mb-2">
+                                            <button
+                                                onClick={() => togglePostExpansion(post.id)}
+                                                className="flex items-center space-x-1 text-[11px] font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-3 py-1.5 rounded-lg transition-colors"
+                                            >
+                                                {isExpanded ? (
+                                                    <><span>{t.showLess}</span><ChevronUp size={14} /></>
+                                                ) : (
+                                                    <><span>{t.showMore}</span><ChevronDown size={14} /></>
+                                                )}
+                                            </button>
+                                        </div>
+                                    )}
 
                                     <div className="border-t border-gray-100 dark:border-gray-700 pt-2 flex items-center justify-between">
                                         <button

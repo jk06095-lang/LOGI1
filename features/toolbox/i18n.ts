@@ -98,6 +98,8 @@ interface ToolboxStrings {
     uploadFailed: string;
     editPermissionDenied: string;
     deletePermissionDenied: string;
+    showMore: string;
+    showLess: string;
 }
 
 const translations: Record<SupportedLanguage, ToolboxStrings> = {
@@ -198,6 +200,8 @@ const translations: Record<SupportedLanguage, ToolboxStrings> = {
         uploadFailed: '업로드 실패',
         editPermissionDenied: '작성자만 수정할 수 있습니다.',
         deletePermissionDenied: '작성자만 삭제할 수 있습니다.',
+        showMore: '펼치기',
+        showLess: '접기',
     },
     en: {
         // Window Title
@@ -296,6 +300,8 @@ const translations: Record<SupportedLanguage, ToolboxStrings> = {
         uploadFailed: 'Upload failed',
         editPermissionDenied: 'Only the author can edit this post.',
         deletePermissionDenied: 'Only the author can delete this post.',
+        showMore: 'Show More',
+        showLess: 'Show Less',
     }
 };
 
