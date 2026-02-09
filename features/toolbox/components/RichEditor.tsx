@@ -425,8 +425,18 @@ const RichEditorImplementation: React.FC<RichEditorProps> = ({ initialContent = 
             setHasContent(textContent.trim().length > 0 || hasElements);
             onChange(html);
 
-            // Mobile-compatible slash detection (keydown doesn't fire reliably on mobile keyboards)
-            // Check if the user just typed a slash at the cursor position
+            // 3. List Continuity: Merge adjacent lists of the same type
+            const lists = contentRef.current.querySelectorAll('ul, ol');
+            lists.forEach((list) => {
+                const next = list.nextElementSibling;
+                if (next && next.tagName === list.tagName) {
+                    while (next.firstChild) {
+                        list.appendChild(next.firstChild);
+                    }
+                    next.remove();
+                }
+            });
+
             const selection = window.getSelection();
             if (selection && selection.rangeCount > 0 && selection.isCollapsed && !slashMenu) {
                 const range = selection.getRangeAt(0);
@@ -436,16 +446,14 @@ const RichEditorImplementation: React.FC<RichEditorProps> = ({ initialContent = 
                     const cursorPos = range.startOffset;
                     const textBeforeCursor = node.textContent.slice(0, cursorPos);
 
-                    // If text before cursor ends with "/" and it's at the start of a line or after whitespace
                     if (textBeforeCursor.endsWith('/') &&
                         (textBeforeCursor.length === 1 || /[\s\n]/.test(textBeforeCursor.charAt(textBeforeCursor.length - 2)))) {
-                        // Trigger slash menu (same as keydown handler)
                         setTimeout(checkSlashCommand, 10);
                     }
                 }
             }
 
-            // Auto-Markdown Triggers (reuse selection from above if available)
+            // Auto-Markdown Triggers
             if (selection && selection.rangeCount > 0 && selection.isCollapsed) {
                 const range = selection.getRangeAt(0);
                 const node = range.startContainer;
@@ -469,10 +477,45 @@ const RichEditorImplementation: React.FC<RichEditorProps> = ({ initialContent = 
                         node.textContent = '';
                         document.execCommand('insertUnorderedList');
                     }
-                    // Pattern 4: Numbered "1. "
-                    else if (text === '1. ' || text === '1.\u00A0') {
+                    // Pattern 4: Numbered "N. "
+                    const numberedMatch = text.match(/^(\d+)\.(?:\s|\u00A0)/);
+                    if (numberedMatch) {
+                        const startNum = parseInt(numberedMatch[1], 10);
                         node.textContent = '';
-                        document.execCommand('insertOrderedList');
+
+                        // Check if we are already in an LI
+                        let parentLi = node.parentElement;
+                        while (parentLi && parentLi.tagName !== 'LI' && parentLi !== contentRef.current) {
+                            parentLi = parentLi.parentElement;
+                        }
+
+                        if (parentLi && parentLi.tagName === 'LI') {
+                            const ol = parentLi.parentElement;
+                            if (ol && ol.tagName === 'OL') {
+                                if (parentLi === ol.firstElementChild) {
+                                    (ol as HTMLOListElement).start = startNum;
+                                } else {
+                                    (parentLi as HTMLLIElement).value = startNum;
+                                }
+                            }
+                        } else {
+                            document.execCommand('insertOrderedList');
+                            if (startNum > 1) {
+                                setTimeout(() => {
+                                    const selection = window.getSelection();
+                                    if (selection && selection.rangeCount > 0) {
+                                        let curr = selection.anchorNode;
+                                        while (curr && curr !== contentRef.current) {
+                                            if (curr.nodeName === 'OL') {
+                                                (curr as HTMLOListElement).start = startNum;
+                                                break;
+                                            }
+                                            curr = curr.parentNode;
+                                        }
+                                    }
+                                }, 0);
+                            }
+                        }
                     }
                     // Pattern 5: Task "[] "
                     else if (text === '[] ' || text === '[]\u00A0') {
