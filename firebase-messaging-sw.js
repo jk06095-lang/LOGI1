@@ -4,13 +4,13 @@ importScripts('https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging-comp
 // Initialize the Firebase app in the service worker by passing in the
 // messagingSenderId.
 firebase.initializeApp({
-  apiKey: "AIzaSyBLnVbFSz2jpXIVCG0D_P57S4qlzDCKi0E",
-  authDomain: "fisco2.firebaseapp.com",
-  projectId: "fisco2",
-  storageBucket: "fisco2.firebasestorage.app",
-  messagingSenderId: "902148266352",
-  appId: "1:902148266352:web:761ae1544fc94ec69c17b5",
-  measurementId: "G-T9QV3S5DQX"
+  apiKey: "VITE_FIREBASE_API_KEY",
+  authDomain: "VITE_FIREBASE_AUTH_DOMAIN",
+  projectId: "VITE_FIREBASE_PROJECT_ID",
+  storageBucket: "VITE_FIREBASE_STORAGE_BUCKET",
+  messagingSenderId: "VITE_FIREBASE_MESSAGING_SENDER_ID",
+  appId: "VITE_FIREBASE_APP_ID",
+  measurementId: "VITE_FIREBASE_MEASUREMENT_ID"
 });
 
 // Retrieve an instance of Firebase Messaging so that it can handle background
@@ -19,7 +19,7 @@ const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message ', payload);
-  
+
   // Enforce fixed text and icon regardless of payload content
   const notificationTitle = "LOGI1";
   const notificationOptions = {
@@ -34,7 +34,7 @@ messaging.onBackgroundMessage((payload) => {
 });
 
 // Handle Notification Click
-self.addEventListener('notificationclick', function(event) {
+self.addEventListener('notificationclick', function (event) {
   console.log('[Service Worker] Notification click Received.');
 
   event.notification.close(); // Close the notification
@@ -43,7 +43,7 @@ self.addEventListener('notificationclick', function(event) {
 
   // Focus existing tab or open new one
   event.waitUntil(
-    clients.matchAll({type: 'window'}).then(function(windowClients) {
+    clients.matchAll({ type: 'window' }).then(function (windowClients) {
       // 1. Check if LOGI1 tab is already open
       for (var i = 0; i < windowClients.length; i++) {
         var client = windowClients[i];

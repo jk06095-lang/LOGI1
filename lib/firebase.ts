@@ -7,13 +7,13 @@ import { getMessaging, Messaging } from "firebase/messaging";
 import { getFunctions, Functions } from "firebase/functions";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBLnVbFSz2jpXIVCG0D_P57S4qlzDCKi0E",
-  authDomain: "fisco2.firebaseapp.com",
-  projectId: "fisco2",
-  storageBucket: "fisco2.firebasestorage.app",
-  messagingSenderId: "902148266352",
-  appId: "1:902148266352:web:761ae1544fc94ec69c17b5",
-  measurementId: "G-T9QV3S5DQX"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase
