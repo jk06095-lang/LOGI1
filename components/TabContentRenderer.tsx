@@ -68,7 +68,7 @@ export const TabContentRenderer: React.FC<TabContentRendererProps> = (props) => 
     let title = bl.blNumber;
     if (bl.vesselJobId) {
       const job = jobs.find(j => j.id === bl.vesselJobId);
-      if (job) title = `${job.vesselName.substring(0, 4)}: ${bl.blNumber}`;
+      if (job) title = `${job.vesselName.slice(-4)}: ${bl.blNumber}`;
     }
     addTab({ id: `shipment-${blId}`, type: 'shipment-detail', title, data: { blId } });
   };

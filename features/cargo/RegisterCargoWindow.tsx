@@ -179,7 +179,8 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
     const handleUploadSubmit = (files: File[]) => {
         const { sourceType, cargoClass } = getCargoDataFromMode(activeMode);
         onUploadBLs(files, sourceType, cargoClass, selectedJobId);
-        onClose();
+        onUploadBLs(files, sourceType, cargoClass, selectedJobId);
+        // onClose(); // Keep window open per request
     };
 
     const handleManualSubmit = async () => {
@@ -212,7 +213,8 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
         };
 
         await onCreateManualBL(newBL);
-        onClose();
+        await onCreateManualBL(newBL);
+        // onClose(); // Keep window open per request
         resetForm();
     };
 
@@ -241,12 +243,8 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
             triggerRect={triggerRect}
             initialWidth={950}
             initialHeight={650}
-            title={
-                <div className="flex items-center gap-2 justify-center">
-                    <Layers size={14} className="text-blue-500" />
-                    {t.title}
-                </div>
-            }
+            title={t.title}
+            icon={Layers}
             align="right"
         >
             <div className="flex-1 flex overflow-hidden">

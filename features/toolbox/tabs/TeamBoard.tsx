@@ -16,6 +16,7 @@ interface Comment {
     authorUid?: string;
     authorPhotoURL?: string;
     createdAt: any;
+    postAuthorUid?: string; // New: For filtering "comments on my posts"
 }
 
 interface Post {
@@ -241,7 +242,8 @@ export const TeamBoard: React.FC<{ isMobile?: boolean }> = ({ isMobile }) => {
             author: CURRENT_USER.name,
             authorUid: CURRENT_USER.uid,
             authorPhotoURL: CURRENT_USER.photoURL,
-            createdAt: serverTimestamp()
+            createdAt: serverTimestamp(),
+            postAuthorUid: posts.find(p => p.id === postId)?.authorUid // New: Save post author UID
         };
 
         const docRef = await addDoc(collection(db, `toolbox_posts/${postId}/comments`), commentData);

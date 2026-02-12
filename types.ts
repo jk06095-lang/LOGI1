@@ -33,11 +33,12 @@ export interface BackgroundTask {
 }
 
 export interface NotificationLog {
-    id: string;
-    title: string;
-    message: string;
-    type: 'info' | 'success' | 'error' | 'warning';
-    timestamp: string;
+  id: string;
+  title: string;
+  message: string;
+  type: 'info' | 'success' | 'error' | 'warning' | 'social' | 'document';
+  timestamp: string;
+  link?: string;
 }
 
 // Concurrency Locking
@@ -94,18 +95,18 @@ export interface BLData {
   vesselJobId?: string; // Link to a specific vessel job
   fileName: string;
   fileUrl?: string; // Firebase Storage URL (Main B/L)
-  
+
   // Core Identifiers
   blNumber: string;
   blType?: BLType; // New: Master or House
   shipper: string;
   consignee: string;
   notifyParty: string;
-  
+
   // New: Agency & Transport
   koreanForwarder?: string; // 한국 포워딩 업체
   transporterName?: string; // 운송사
-  
+
   // Logistics Info
   vesselName: string;
   carrierCompany?: string; // New: Carrier (e.g., Maersk, KMTC)
@@ -113,7 +114,7 @@ export interface BLData {
   portOfLoading: string;
   portOfDischarge: string;
   date: string;
-  
+
   // New: Storage Info
   storageLocation?: string; // 보관 장소 (Warehouse Name)
   storagePeriod?: string; // 보관 기간
@@ -121,21 +122,21 @@ export interface BLData {
   // Cargo Data
   cargoItems: CargoItem[];
   rawText?: string;
-  
+
   // System Fields
   status: 'processing' | 'completed' | 'error';
   uploadDate: string;
   thumbnailUrl?: string;
-  sourceType: CargoSourceType; 
+  sourceType: CargoSourceType;
   cargoType?: CargoType; // LCL or FCL
-  
+
   // New Classification Fields
   cargoClass?: CargoClass; // I (Import) or T (Transhipment)
   importSubClass?: ImportSubClass; // Return Export, Ship Stores, etc.
   cargoCategory?: CargoCategory; // New: Detailed Category (Bait, Net, etc.)
 
   supplierName?: string;
-  
+
   // New: Extended Documents & Data
   commercialInvoice?: CommercialInvoiceData;
   packingList?: PackingListData;
@@ -143,7 +144,7 @@ export interface BLData {
   manifest?: ManifestData;
   arrivalNotice?: ArrivalNoticeData; // New: A/N Data
   attachments?: Attachment[]; // New: Generic Cloud Files
-  
+
   // Global Remarks
   remarks?: string; // Used for Main Detail Remarks
   reportRemarks?: string; // Legacy: Used for Report Remarks if needed, but mapped to Main Remarks now
@@ -152,6 +153,10 @@ export interface BLData {
   reportStorageLocation?: string; // New: Report Override for Storage/Location
   note?: string; // New: Additional Note column (비고)
   reportSortOrder?: number; // New: For persisting manual order in reports
+  createdBy?: string; // New: User UID of the uploader
+
+
+
 
   // Report Overrides (Manually edited values in Briefing Report)
   quantity?: number;
