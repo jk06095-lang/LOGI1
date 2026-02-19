@@ -1,5 +1,5 @@
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, forwardRef, useImperativeHandle } from 'react';
 import { Upload, FileText, X, Loader2, CheckCircle } from 'lucide-react';
 
 interface FileUploadProps {
@@ -8,9 +8,17 @@ interface FileUploadProps {
   progressMessage?: string;
 }
 
-export const FileUpload: React.FC<FileUploadProps> = ({ onFilesSelected, isProcessing, progressMessage }) => {
+export interface FileUploadRef {
+  reset: () => void;
+}
+
+export const FileUpload = forwardRef<FileUploadRef, FileUploadProps>(({ onFilesSelected, isProcessing, progressMessage }, ref) => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [dragActive, setDragActive] = useState(false);
+
+  useImperativeHandle(ref, () => ({
+    reset: () => setSelectedFiles([])
+  }));
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -54,9 +62,8 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFilesSelected, isProce
     <div className="w-full h-full flex flex-col items-center justify-center">
       <div className="w-full h-full flex flex-col">
         <div
-          className={`flex-1 relative rounded-2xl p-8 text-center transition-all duration-300 flex flex-col items-center justify-center border-2 border-dashed ${
-            dragActive ? 'border-blue-500 bg-blue-50/50' : 'border-slate-300/0 hover:border-blue-400/50'
-          }`}
+          className={`flex-1 relative rounded-2xl p-8 text-center transition-all duration-300 flex flex-col items-center justify-center border-2 border-dashed ${dragActive ? 'border-blue-500 bg-blue-50/50' : 'border-slate-300/0 hover:border-blue-400/50'
+            }`}
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}
           onDragOver={handleDrag}
@@ -76,10 +83,10 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFilesSelected, isProce
               {isProcessing ? <Loader2 className="animate-spin" size={36} /> : <Upload size={36} />}
             </div>
             {isProcessing ? (
-               <div className="space-y-2">
-                 <h3 className="text-xl font-bold text-slate-800 dark:text-white">Processing...</h3>
-                 <p className="text-slate-500 dark:text-slate-300 text-sm font-medium">{progressMessage}</p>
-               </div>
+              <div className="space-y-2">
+                <h3 className="text-xl font-bold text-slate-800 dark:text-white">Processing...</h3>
+                <p className="text-slate-500 dark:text-slate-300 text-sm font-medium">{progressMessage}</p>
+              </div>
             ) : (
               <>
                 <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-2">Drag & Drop or Click</h3>
@@ -92,10 +99,10 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFilesSelected, isProce
         {selectedFiles.length > 0 && !isProcessing && (
           <div className="mt-6 animate-fade-in-up">
             <div className="flex items-center justify-between mb-3 px-1">
-               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Selected ({selectedFiles.length})</span>
-               <button onClick={() => setSelectedFiles([])} className="text-xs text-red-500 hover:text-red-600 font-bold">Clear All</button>
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Selected ({selectedFiles.length})</span>
+              <button onClick={() => setSelectedFiles([])} className="text-xs text-red-500 hover:text-red-600 font-bold">Clear All</button>
             </div>
-            
+
             <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar mb-6">
               {selectedFiles.map((file, idx) => (
                 <div key={idx} className="flex items-center justify-between bg-white/60 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200/50 dark:border-slate-700/50 shadow-sm backdrop-blur-sm">
@@ -123,4 +130,4 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFilesSelected, isProce
       </div>
     </div>
   );
-};
+});

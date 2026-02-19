@@ -86,6 +86,10 @@ export const useActionRegistry = (
 
     setProcessing(false, '');
     addToHistory('Bulk Upload Completed', `Processed ${files.length} files.`, 'success');
+
+    // Show toast notification
+    const toastId = `bl-upload-${Date.now()}`;
+    addTask({ id: toastId, title: '📦 B/L Upload Complete', status: 'success', message: `${files.length} file(s) analyzed successfully.` });
   };
 
   const uploadCloudFiles = async (blId: string, files: File[]) => {

@@ -1,10 +1,10 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Layers, Upload, Keyboard, Container, Anchor, Box, Ship, ArrowDownCircle, Check, FileText } from 'lucide-react';
+import { Layers, Upload, Keyboard, Container, Anchor, Box, Ship, ArrowDownCircle, Check, FileText, CheckCircle } from 'lucide-react';
 import { VesselJob, BLData, CargoSourceType, Language, CargoItem, CargoClass, BaseWindowProps } from '../../types';
-import { FileUpload } from '../../components/FileUpload';
+import { FileUpload, FileUploadRef } from '../../components/FileUpload';
 import { WindowFrame } from '../../components/ui/WindowFrame';
 
 interface RegisterCargoWindowProps extends BaseWindowProps {
@@ -139,11 +139,14 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
     isOpen, isMinimized, onClose, onMinimize, zIndex, onFocus, targetJobId, jobs, onUploadBLs, onCreateManualBL, isProcessing, progressMessage, language, triggerRect, id
 }) => {
     const t = translations[language];
+    const fileUploadRef = useRef<FileUploadRef>(null);
 
     // UI State
     const [activeMode, setActiveMode] = useState<CargoMode>('TRANSIT');
     const [inputMode, setInputMode] = useState<'upload' | 'manual'>('upload');
     const [selectedJobId, setSelectedJobId] = useState<string>(targetJobId || '');
+    const [uploadComplete, setUploadComplete] = useState(false);
+    const wasProcessingRef = useRef(false);
 
     // Manual Form State
     const [manualForm, setManualForm] = useState({
@@ -154,6 +157,22 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
     useEffect(() => {
         if (targetJobId) setSelectedJobId(targetJobId);
     }, [targetJobId, isOpen]);
+
+    // Detect processing complete → trigger success animation
+    useEffect(() => {
+        if (isProcessing) {
+            wasProcessingRef.current = true;
+        } else if (wasProcessingRef.current && !isProcessing) {
+            wasProcessingRef.current = false;
+            setUploadComplete(true);
+            // Auto-reset after animation
+            const timer = setTimeout(() => {
+                setUploadComplete(false);
+                fileUploadRef.current?.reset();
+            }, 2500);
+            return () => clearTimeout(timer);
+        }
+    }, [isProcessing]);
 
     // Helper to convert UI mode to data fields
     const getCargoDataFromMode = (mode: CargoMode) => {
@@ -179,8 +198,6 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
     const handleUploadSubmit = (files: File[]) => {
         const { sourceType, cargoClass } = getCargoDataFromMode(activeMode);
         onUploadBLs(files, sourceType, cargoClass, selectedJobId);
-        onUploadBLs(files, sourceType, cargoClass, selectedJobId);
-        // onClose(); // Keep window open per request
     };
 
     const handleManualSubmit = async () => {
@@ -213,9 +230,11 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
         };
 
         await onCreateManualBL(newBL);
-        await onCreateManualBL(newBL);
-        // onClose(); // Keep window open per request
-        resetForm();
+        setUploadComplete(true);
+        setTimeout(() => {
+            setUploadComplete(false);
+            resetForm();
+        }, 2500);
     };
 
     const resetForm = () => {
@@ -305,6 +324,72 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
 
                 {/* Main Content (Action Area) */}
                 <div className="flex-1 p-6 relative flex flex-col scrollbar-hide">
+                    {/* Success Overlay Animation */}
+                    <AnimatePresence>
+                        {uploadComplete && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0, transition: { duration: 0.4 } }}
+                                className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/80 dark:bg-slate-900/80 backdrop-blur-md rounded-2xl"
+                            >
+                                {/* Animated Check Circle */}
+                                <motion.div
+                                    initial={{ scale: 0, rotate: -180 }}
+                                    animate={{ scale: 1, rotate: 0 }}
+                                    transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.1 }}
+                                    className="relative mb-6"
+                                >
+                                    {/* Ripple rings */}
+                                    <motion.div
+                                        initial={{ scale: 0.8, opacity: 0.6 }}
+                                        animate={{ scale: 2.5, opacity: 0 }}
+                                        transition={{ duration: 1.2, ease: 'easeOut', delay: 0.3 }}
+                                        className="absolute inset-0 rounded-full bg-emerald-400/30"
+                                    />
+                                    <motion.div
+                                        initial={{ scale: 0.8, opacity: 0.4 }}
+                                        animate={{ scale: 2, opacity: 0 }}
+                                        transition={{ duration: 1, ease: 'easeOut', delay: 0.5 }}
+                                        className="absolute inset-0 rounded-full bg-emerald-400/20"
+                                    />
+                                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-2xl shadow-emerald-500/40">
+                                        <motion.div
+                                            initial={{ pathLength: 0, opacity: 0 }}
+                                            animate={{ pathLength: 1, opacity: 1 }}
+                                            transition={{ duration: 0.4, delay: 0.4 }}
+                                        >
+                                            <Check size={48} className="text-white" strokeWidth={3} />
+                                        </motion.div>
+                                    </div>
+                                </motion.div>
+
+                                {/* Success Text */}
+                                <motion.div
+                                    initial={{ opacity: 0, y: 20 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: 0.5, duration: 0.4 }}
+                                    className="text-center"
+                                >
+                                    <h3 className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mb-2">
+                                        {language === 'ko' ? '업로드 완료!' : language === 'cn' ? '上传完成!' : 'Upload Complete!'}
+                                    </h3>
+                                    <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">
+                                        {language === 'ko' ? 'B/L 분석이 성공적으로 완료되었습니다.' : language === 'cn' ? '提单分析已成功完成。' : 'B/L analysis has been completed successfully.'}
+                                    </p>
+                                </motion.div>
+
+                                {/* Progress bar auto-dismiss */}
+                                <motion.div
+                                    initial={{ width: '100%' }}
+                                    animate={{ width: '0%' }}
+                                    transition={{ duration: 2.5, ease: 'linear' }}
+                                    className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-full"
+                                />
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
                     {inputMode === 'upload' ? (
                         <div className="h-full flex flex-col items-center justify-center animate-fade-in">
                             <div className="text-center mb-8">
@@ -316,6 +401,7 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
                                 <div className="absolute inset-0 border-2 border-dashed border-blue-300 dark:border-blue-700/50 rounded-3xl bg-blue-50/20 dark:bg-blue-900/10 transition-all duration-300 group-hover:bg-blue-100/40 dark:group-hover:bg-blue-800/20 group-hover:border-blue-500 group-hover:scale-[1.01] group-hover:shadow-xl pointer-events-none"></div>
                                 <div className="w-full h-full relative z-10">
                                     <FileUpload
+                                        ref={fileUploadRef}
                                         onFilesSelected={handleUploadSubmit}
                                         isProcessing={isProcessing}
                                         progressMessage={progressMessage}
