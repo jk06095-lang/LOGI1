@@ -15,6 +15,7 @@ export interface FileUploadRef {
 export const FileUpload = forwardRef<FileUploadRef, FileUploadProps>(({ onFilesSelected, isProcessing, progressMessage }, ref) => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [dragActive, setDragActive] = useState(false);
+  const inputRef = React.useRef<HTMLInputElement>(null);
 
   useImperativeHandle(ref, () => ({
     reset: () => setSelectedFiles([])
@@ -45,6 +46,7 @@ export const FileUpload = forwardRef<FileUploadRef, FileUploadProps>(({ onFilesS
     if (e.target.files && e.target.files.length > 0) {
       const newFiles = Array.from(e.target.files);
       setSelectedFiles(prev => [...prev, ...newFiles]);
+      e.target.value = '';
     }
   };
 
@@ -60,24 +62,26 @@ export const FileUpload = forwardRef<FileUploadRef, FileUploadProps>(({ onFilesS
 
   return (
     <div className="w-full h-full flex flex-col items-center justify-center">
+      {/* Hidden file input — click-to-browse only, NOT for drag-drop */}
+      <input
+        ref={inputRef}
+        type="file"
+        multiple
+        className="hidden"
+        onChange={handleChange}
+        accept="image/*,application/pdf"
+        disabled={isProcessing}
+      />
       <div className="w-full h-full flex flex-col">
         <div
-          className={`flex-1 relative rounded-2xl p-8 text-center transition-all duration-300 flex flex-col items-center justify-center border-2 border-dashed ${dragActive ? 'border-blue-500 bg-blue-50/50' : 'border-slate-300/0 hover:border-blue-400/50'
+          className={`flex-1 relative rounded-2xl p-8 text-center transition-all duration-300 flex flex-col items-center justify-center border-2 border-dashed cursor-pointer ${dragActive ? 'border-blue-500 bg-blue-50/50' : 'border-slate-300/0 hover:border-blue-400/50'
             }`}
           onDragEnter={handleDrag}
           onDragLeave={handleDrag}
           onDragOver={handleDrag}
           onDrop={handleDrop}
+          onClick={() => !isProcessing && inputRef.current?.click()}
         >
-          <input
-            type="file"
-            multiple
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            onChange={handleChange}
-            accept="image/*,application/pdf"
-            disabled={isProcessing}
-          />
-
           <div className="flex flex-col items-center pointer-events-none transform transition-transform duration-300 hover:scale-105">
             <div className="w-20 h-20 bg-blue-100/50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-blue-500/10 backdrop-blur-md">
               {isProcessing ? <Loader2 className="animate-spin" size={36} /> : <Upload size={36} />}
