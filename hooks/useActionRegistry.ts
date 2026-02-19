@@ -37,59 +37,63 @@ export const useActionRegistry = (
 
   const uploadBL = async (files: File[], sourceType: CargoSourceType = 'TRANSIT', cargoClass: CargoClass = 'TRANSHIPMENT', targetJobId?: string) => {
     setProcessing(true, 'Initializing upload...');
-    let contextJobName = '';
-    if (targetJobId) {
-      const j = vesselJobs.find(x => x.id === targetJobId);
-      if (j) contextJobName = j.vesselName;
-    }
-
-    addToHistory('Bulk Upload Started', `Uploading ${files.length} files...`, 'info');
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      try {
-        setProcessing(true, `${i + 1}/${files.length} Analyzing ${file.name}...`);
-        const downloadUrl = await uploadFileToStorage(file);
-        const rawData = await parseBLImage(file, sourceType);
-
-        let matchedJobId = targetJobId;
-        if (!matchedJobId && rawData.vesselName) {
-          const job = vesselJobs.find(j => j.vesselName.toLowerCase().includes((rawData.vesselName || '').toLowerCase()));
-          if (job) matchedJobId = job.id;
-        }
-
-        await dataService.addBL({
-          id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-          vesselJobId: matchedJobId,
-          fileName: file.name,
-          fileUrl: downloadUrl,
-          uploadDate: new Date().toISOString(),
-          status: 'completed',
-          blNumber: rawData.blNumber || 'UNKNOWN',
-          shipper: rawData.shipper || '',
-          consignee: rawData.consignee || '',
-          notifyParty: rawData.notifyParty || '',
-          vesselName: contextJobName || rawData.vesselName || '',
-          voyageNo: rawData.voyageNo || '',
-          portOfLoading: rawData.portOfLoading || '',
-          portOfDischarge: rawData.portOfDischarge || '',
-          date: rawData.date || '',
-          sourceType: sourceType,
-          cargoClass: cargoClass,
-          cargoItems: rawData.cargoItems || [],
-          createdBy: auth.currentUser?.uid
-        });
-      } catch (error: any) {
-        addToHistory('Upload Error', `${file.name}: ${error.message}`, 'error');
+    try {
+      let contextJobName = '';
+      if (targetJobId) {
+        const j = vesselJobs.find(x => x.id === targetJobId);
+        if (j) contextJobName = j.vesselName;
       }
+
+      addToHistory('Bulk Upload Started', `Uploading ${files.length} files...`, 'info');
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        try {
+          setProcessing(true, `${i + 1}/${files.length} Analyzing ${file.name}...`);
+          const downloadUrl = await uploadFileToStorage(file);
+          const rawData = await parseBLImage(file, sourceType);
+
+          let matchedJobId = targetJobId;
+          if (!matchedJobId && rawData.vesselName) {
+            const job = vesselJobs.find(j => j.vesselName.toLowerCase().includes((rawData.vesselName || '').toLowerCase()));
+            if (job) matchedJobId = job.id;
+          }
+
+          await dataService.addBL({
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+            vesselJobId: matchedJobId,
+            fileName: file.name,
+            fileUrl: downloadUrl,
+            uploadDate: new Date().toISOString(),
+            status: 'completed',
+            blNumber: rawData.blNumber || 'UNKNOWN',
+            shipper: rawData.shipper || '',
+            consignee: rawData.consignee || '',
+            notifyParty: rawData.notifyParty || '',
+            vesselName: contextJobName || rawData.vesselName || '',
+            voyageNo: rawData.voyageNo || '',
+            portOfLoading: rawData.portOfLoading || '',
+            portOfDischarge: rawData.portOfDischarge || '',
+            date: rawData.date || '',
+            sourceType: sourceType,
+            cargoClass: cargoClass,
+            cargoItems: rawData.cargoItems || [],
+            createdBy: auth.currentUser?.uid
+          });
+        } catch (error: any) {
+          addToHistory('Upload Error', `${file.name}: ${error.message}`, 'error');
+        }
+      }
+
+      addToHistory('Bulk Upload Completed', `Processed ${files.length} files.`, 'success');
+
+      // Show toast notification
+      const toastId = `bl-upload-${Date.now()}`;
+      addTask({ id: toastId, title: '📦 B/L Upload Complete', status: 'success', message: `${files.length} file(s) analyzed successfully.` });
+    } finally {
+      // ALWAYS clear processing state, even if something unexpected fails
+      setProcessing(false, '');
     }
-
-    setProcessing(false, '');
-    addToHistory('Bulk Upload Completed', `Processed ${files.length} files.`, 'success');
-
-    // Show toast notification
-    const toastId = `bl-upload-${Date.now()}`;
-    addTask({ id: toastId, title: '📦 B/L Upload Complete', status: 'success', message: `${files.length} file(s) analyzed successfully.` });
   };
 
   const uploadCloudFiles = async (blId: string, files: File[]) => {

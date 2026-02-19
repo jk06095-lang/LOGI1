@@ -162,6 +162,8 @@ export const RegisterCargoWindow: React.FC<RegisterCargoWindowProps> = ({
     useEffect(() => {
         if (isProcessing) {
             wasProcessingRef.current = true;
+            // Dismiss any lingering success overlay when new upload starts
+            setUploadComplete(false);
         } else if (wasProcessingRef.current && !isProcessing) {
             wasProcessingRef.current = false;
             setUploadComplete(true);
