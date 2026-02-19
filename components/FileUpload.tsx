@@ -16,6 +16,7 @@ export const FileUpload = forwardRef<FileUploadRef, FileUploadProps>(({ onFilesS
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const justDroppedRef = React.useRef(false);
 
   useImperativeHandle(ref, () => ({
     reset: () => setSelectedFiles([])
@@ -35,6 +36,9 @@ export const FileUpload = forwardRef<FileUploadRef, FileUploadProps>(({ onFilesS
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
+    // Prevent the onClick from also firing after a drop
+    justDroppedRef.current = true;
+    setTimeout(() => { justDroppedRef.current = false; }, 500);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const newFiles = Array.from(e.dataTransfer.files);
       setSelectedFiles(prev => [...prev, ...newFiles]);
@@ -48,6 +52,12 @@ export const FileUpload = forwardRef<FileUploadRef, FileUploadProps>(({ onFilesS
       setSelectedFiles(prev => [...prev, ...newFiles]);
       e.target.value = '';
     }
+  };
+
+  const handleClick = () => {
+    // Skip if a drop just occurred (prevents file dialog from opening after drag-drop)
+    if (justDroppedRef.current || isProcessing) return;
+    inputRef.current?.click();
   };
 
   const removeFile = (index: number) => {
@@ -80,7 +90,7 @@ export const FileUpload = forwardRef<FileUploadRef, FileUploadProps>(({ onFilesS
           onDragLeave={handleDrag}
           onDragOver={handleDrag}
           onDrop={handleDrop}
-          onClick={() => !isProcessing && inputRef.current?.click()}
+          onClick={handleClick}
         >
           <div className="flex flex-col items-center pointer-events-none transform transition-transform duration-300 hover:scale-105">
             <div className="w-20 h-20 bg-blue-100/50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-blue-500/10 backdrop-blur-md">
