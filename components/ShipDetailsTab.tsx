@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { ShipRegistry, DocumentScanType, BackgroundTask } from '../types';
-import { Ship, FileText, Upload, Save, CheckCircle, BrainCircuit, X, Trash2, Edit } from 'lucide-react';
+import { Ship, FileText, Upload, Save, CheckCircle, BrainCircuit, X, Trash2, Edit, Download } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { parseDocument } from '../services/geminiService';
-import { compressImage } from '../services/storageService';
+import { compressImage, uploadFileToStorage, deleteFileFromStorage } from '../services/storageService';
 import { functions, db } from '../lib/firebase';
 import { addDoc, collection } from 'firebase/firestore';
 
@@ -67,8 +67,10 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
         showGlobalToast('AI 분석 중', '증서 데이터 추출을 시작합니다...', 'processing');
 
         try {
-            // 1. You would normally upload the file to Firebase Storage here and get the URL.
-            // For brevity, we assume the URL logic or skip it, and directly run OCR.
+            // Upload to Firebase Storage
+            const fileUrl = await uploadFileToStorage(file);
+
+            // Run OCR
             const ocrResult = await parseDocument(file, type);
 
             const updates = { ...formData };
@@ -82,7 +84,7 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
                 updates.nationality = ocrResult.nationality || updates.nationality;
                 updates.portOfRegistry = ocrResult.portOfRegistry || updates.portOfRegistry;
                 updates.mmsiNumber = ocrResult.mmsiNumber || updates.mmsiNumber;
-                updates.nationalityCertFileUrl = 'uploaded_dummy_url'; // In real app, put actual URL
+                updates.nationalityCertFileUrl = fileUrl;
             } else if (type === 'CERT_TONNAGE') {
                 updates.callSign = ocrResult.callSign || updates.callSign;
                 updates.imoNumber = ocrResult.imoNumber || updates.imoNumber;
@@ -91,7 +93,7 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
                 updates.length = ocrResult.length || updates.length;
                 updates.breadth = ocrResult.breadth || updates.breadth;
                 updates.depth = ocrResult.depth || updates.depth;
-                updates.tonnageCertFileUrl = 'uploaded_dummy_url';
+                updates.tonnageCertFileUrl = fileUrl;
             }
 
             setFormData(updates);
@@ -132,6 +134,43 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
 
         if (e.dataTransfer.files && e.dataTransfer.files[0]) {
             processFile(e.dataTransfer.files[0], type);
+        }
+    };
+
+    const handleViewFile = (e: React.MouseEvent, type: DocumentScanType) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const url = type === 'CERT_NATIONALITY' ? formData.nationalityCertFileUrl : formData.tonnageCertFileUrl;
+        if (url) window.open(url, '_blank');
+    };
+
+    const handleDeleteFile = async (e: React.MouseEvent, type: DocumentScanType) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const urlField = type === 'CERT_NATIONALITY' ? 'nationalityCertFileUrl' : 'tonnageCertFileUrl';
+        const url = formData[urlField];
+        if (!url) return;
+
+        if (!window.confirm("업로드된 파일을 완전히 삭제하시겠습니까? 추출된 데이터는 유지됩니다.")) return;
+
+        showGlobalToast('삭제 중', '파일을 삭제하고 있습니다...', 'processing');
+        try {
+            await deleteFileFromStorage(url); // Remove from Firebase Storage
+
+            const updates = { [urlField]: null };
+            const id = getSafeId(vesselName);
+
+            // If the registry already exists in Firestore, update it online too
+            if (registry) {
+                await dataService.updateShipRegistry(id, updates);
+                setRegistry({ ...registry, ...updates } as ShipRegistry);
+            }
+
+            setFormData(prev => ({ ...prev, ...updates }));
+
+            showGlobalToast('삭제 완료', '파일이 정상적으로 삭제되었습니다.', 'success');
+        } catch (err: any) {
+            showGlobalToast('삭제 오류', err.message, 'error');
         }
     };
 
@@ -194,49 +233,93 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
                         {isOcrProcessing && <span className="text-xs text-indigo-500 animate-pulse ml-2">분석 중...</span>}
                     </h3>
                     <div className="flex gap-4">
-                        <label
-                            className="relative cursor-pointer group flex-1"
-                            onDragOver={(e) => onDragOver(e, 'CERT_NATIONALITY')}
-                            onDragLeave={(e) => onDragLeave(e, 'CERT_NATIONALITY')}
-                            onDrop={(e) => onDrop(e, 'CERT_NATIONALITY')}
-                        >
-                            <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => handleFileUpload(e, 'CERT_NATIONALITY')} disabled={isOcrProcessing} />
-                            <div className={`p-4 rounded-xl border-2 border-dashed transition-all flex items-center justify-between
-                   ${dragActiveNat ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' : formData.nationalityCertFileUrl ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20' : 'border-slate-300 dark:border-slate-600 hover:border-indigo-400 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-900/10'}`}>
+                        {formData.nationalityCertFileUrl ? (
+                            <div className="p-4 flex-1 rounded-xl border-2 border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20 flex items-center justify-between shadow-sm transition-all hover:shadow-md">
                                 <div className="flex items-center gap-3">
-                                    <div className={`p-2 rounded-lg ${formData.nationalityCertFileUrl ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-800 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
+                                    <div className="p-2 rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-800 dark:text-emerald-300">
                                         <FileText size={20} />
                                     </div>
                                     <div>
-                                        <p className={`font-bold text-sm ${formData.nationalityCertFileUrl ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'}`}>국적증서 (Nationality Cert)</p>
-                                        <p className="text-xs text-slate-500 mt-0.5">{dragActiveNat ? '여기에 드롭하세요' : formData.nationalityCertFileUrl ? '업로드 완료' : '파일 업로드 또는 드래그'}</p>
+                                        <p className="font-bold text-sm text-emerald-700 dark:text-emerald-400">국적증서 (Nationality Cert)</p>
+                                        <p className="text-xs text-emerald-600/80 mt-0.5">업로드 완료</p>
                                     </div>
                                 </div>
-                                {formData.nationalityCertFileUrl ? <CheckCircle className="text-emerald-500" /> : <Upload className="text-slate-400" size={18} />}
+                                <div className="flex items-center gap-2">
+                                    <button onClick={(e) => handleViewFile(e, 'CERT_NATIONALITY')} className="p-2 rounded-full hover:bg-emerald-100 text-emerald-600 dark:hover:bg-emerald-800/50 dark:text-emerald-400 transition-colors" title="다운로드/조회">
+                                        <Download size={18} />
+                                    </button>
+                                    <button onClick={(e) => handleDeleteFile(e, 'CERT_NATIONALITY')} className="p-2 rounded-full hover:bg-red-100 text-red-500 dark:hover:bg-red-900/50 dark:text-red-400 transition-colors" title="파일 삭제">
+                                        <Trash2 size={18} />
+                                    </button>
+                                </div>
                             </div>
-                        </label>
+                        ) : (
+                            <label
+                                className="relative cursor-pointer group flex-1"
+                                onDragOver={(e) => onDragOver(e, 'CERT_NATIONALITY')}
+                                onDragLeave={(e) => onDragLeave(e, 'CERT_NATIONALITY')}
+                                onDrop={(e) => onDrop(e, 'CERT_NATIONALITY')}
+                            >
+                                <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => handleFileUpload(e, 'CERT_NATIONALITY')} disabled={isOcrProcessing} />
+                                <div className={`p-4 rounded-xl border-2 border-dashed transition-all flex items-center justify-between
+                       ${dragActiveNat ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'border-slate-300 dark:border-slate-600 hover:border-indigo-400 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-900/10'}`}>
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 rounded-lg bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400">
+                                            <FileText size={20} />
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-sm text-slate-700 dark:text-slate-300">국적증서 (Nationality Cert)</p>
+                                            <p className="text-xs text-slate-500 mt-0.5">{dragActiveNat ? '여기에 드롭하세요' : '파일 업로드 또는 드래그'}</p>
+                                        </div>
+                                    </div>
+                                    <Upload className="text-slate-400" size={18} />
+                                </div>
+                            </label>
+                        )}
 
-                        <label
-                            className="relative cursor-pointer group flex-1"
-                            onDragOver={(e) => onDragOver(e, 'CERT_TONNAGE')}
-                            onDragLeave={(e) => onDragLeave(e, 'CERT_TONNAGE')}
-                            onDrop={(e) => onDrop(e, 'CERT_TONNAGE')}
-                        >
-                            <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => handleFileUpload(e, 'CERT_TONNAGE')} disabled={isOcrProcessing} />
-                            <div className={`p-4 rounded-xl border-2 border-dashed transition-all flex items-center justify-between
-                   ${dragActiveTon ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' : formData.tonnageCertFileUrl ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20' : 'border-slate-300 dark:border-slate-600 hover:border-indigo-400 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-900/10'}`}>
+                        {formData.tonnageCertFileUrl ? (
+                            <div className="p-4 flex-1 rounded-xl border-2 border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20 flex items-center justify-between shadow-sm transition-all hover:shadow-md">
                                 <div className="flex items-center gap-3">
-                                    <div className={`p-2 rounded-lg ${formData.tonnageCertFileUrl ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-800 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
+                                    <div className="p-2 rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-800 dark:text-emerald-300">
                                         <FileText size={20} />
                                     </div>
                                     <div>
-                                        <p className={`font-bold text-sm ${formData.tonnageCertFileUrl ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'}`}>국제톤수증서 (Tonnage Cert)</p>
-                                        <p className="text-xs text-slate-500 mt-0.5">{dragActiveTon ? '여기에 드롭하세요' : formData.tonnageCertFileUrl ? '업로드 완료' : '파일 업로드 또는 드래그'}</p>
+                                        <p className="font-bold text-sm text-emerald-700 dark:text-emerald-400">국제톤수증서 (Tonnage Cert)</p>
+                                        <p className="text-xs text-emerald-600/80 mt-0.5">업로드 완료</p>
                                     </div>
                                 </div>
-                                {formData.tonnageCertFileUrl ? <CheckCircle className="text-emerald-500" /> : <Upload className="text-slate-400" size={18} />}
+                                <div className="flex items-center gap-2">
+                                    <button onClick={(e) => handleViewFile(e, 'CERT_TONNAGE')} className="p-2 rounded-full hover:bg-emerald-100 text-emerald-600 dark:hover:bg-emerald-800/50 dark:text-emerald-400 transition-colors" title="다운로드/조회">
+                                        <Download size={18} />
+                                    </button>
+                                    <button onClick={(e) => handleDeleteFile(e, 'CERT_TONNAGE')} className="p-2 rounded-full hover:bg-red-100 text-red-500 dark:hover:bg-red-900/50 dark:text-red-400 transition-colors" title="파일 삭제">
+                                        <Trash2 size={18} />
+                                    </button>
+                                </div>
                             </div>
-                        </label>
+                        ) : (
+                            <label
+                                className="relative cursor-pointer group flex-1"
+                                onDragOver={(e) => onDragOver(e, 'CERT_TONNAGE')}
+                                onDragLeave={(e) => onDragLeave(e, 'CERT_TONNAGE')}
+                                onDrop={(e) => onDrop(e, 'CERT_TONNAGE')}
+                            >
+                                <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => handleFileUpload(e, 'CERT_TONNAGE')} disabled={isOcrProcessing} />
+                                <div className={`p-4 rounded-xl border-2 border-dashed transition-all flex items-center justify-between
+                       ${dragActiveTon ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' : 'border-slate-300 dark:border-slate-600 hover:border-indigo-400 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-900/10'}`}>
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 rounded-lg bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400">
+                                            <FileText size={20} />
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-sm text-slate-700 dark:text-slate-300">국제톤수증서 (Tonnage Cert)</p>
+                                            <p className="text-xs text-slate-500 mt-0.5">{dragActiveTon ? '여기에 드롭하세요' : '파일 업로드 또는 드래그'}</p>
+                                        </div>
+                                    </div>
+                                    <Upload className="text-slate-400" size={18} />
+                                </div>
+                            </label>
+                        )}
                     </div>
                 </div>
 

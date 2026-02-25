@@ -465,7 +465,8 @@ export const VesselList: React.FC<VesselListProps> = ({
                     {shipRegistries
                       .filter(r =>
                         r.vesselName.toLowerCase().includes(newJobForm.name.toLowerCase()) ||
-                        (r.callSign && r.callSign.toLowerCase().includes(newJobForm.name.toLowerCase()))
+                        (r.callSign && r.callSign.toLowerCase().includes(newJobForm.name.toLowerCase())) ||
+                        (r.imoNumber && r.imoNumber.toLowerCase().includes(newJobForm.name.toLowerCase()))
                       )
                       .slice(0, 5)
                       .map(r => (
@@ -485,11 +486,15 @@ export const VesselList: React.FC<VesselListProps> = ({
                           <CheckCircle size={16} className="text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </button>
                       ))}
-                    {shipRegistries.filter(r => r.vesselName.toLowerCase().includes(newJobForm.name.toLowerCase()) || (r.callSign && r.callSign.toLowerCase().includes(newJobForm.name.toLowerCase()))).length === 0 && (
-                      <div className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 text-center italic">
-                        등록된 선박이 없습니다. 새로운 선박명으로 입력합니다.
-                      </div>
-                    )}
+                    {shipRegistries.filter(r =>
+                      r.vesselName.toLowerCase().includes(newJobForm.name.toLowerCase()) ||
+                      (r.callSign && r.callSign.toLowerCase().includes(newJobForm.name.toLowerCase())) ||
+                      (r.imoNumber && r.imoNumber.toLowerCase().includes(newJobForm.name.toLowerCase()))
+                    ).length === 0 && (
+                        <div className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 text-center italic">
+                          등록된 선박이 없습니다. 새로운 선박명으로 입력합니다.
+                        </div>
+                      )}
                   </div>
                 )}
               </div>

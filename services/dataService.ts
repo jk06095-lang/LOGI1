@@ -129,7 +129,7 @@ export const dataService = {
             dbJobs = dbJobs.filter(j => j.id !== jobId);
             notifyJobs(); // Notify UI immediately for responsiveness
 
-            await deleteDoc(doc(db, "vessel_jobs", jobId)); // Changed collection name to vessel_jobs
+            await deleteDoc(doc(db, "jobs", jobId));
         } catch (error) {
             console.error("Error deleting job:", error);
             throw error; // Re-throw to allow calling component to handle

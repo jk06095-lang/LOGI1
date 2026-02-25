@@ -89,8 +89,9 @@ export const useChatScroll = (
                 if (!el) el = container.querySelector(`[data-msg-id="${savedLastReadId}"]`) as HTMLDivElement;
 
                 if (el) {
-                    // Position element's bottom at viewport's bottom
-                    const offset = el.offsetTop + el.offsetHeight - container.clientHeight;
+                    // Position element's bottom + extra space at viewport's bottom
+                    // This creates a natural scroll position where the "New Messages" divider is slightly visible at the very bottom
+                    const offset = el.offsetTop + el.offsetHeight + 60 - container.clientHeight;
                     scrollInstant(Math.max(0, offset));
                     return;
                 }
