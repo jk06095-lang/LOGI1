@@ -44,6 +44,7 @@ const translations = {
     workingJobs: '작업 진행 중 선박',
     incomingJobs: '입항 예정 선박',
     blCount: '전체 문서 건수',
+    completedVesselsThisYear: '{year}년 작업완료 선박',
     calendarTitle: '월별 화물 캘린더',
     calendarSubtitle: '입항(ETA) 및 출항(ETD) 예정 선박을 확인하세요.',
     days: ['일', '월', '화', '수', '목', '금', '토'],
@@ -98,6 +99,7 @@ const translations = {
     workingJobs: 'Active Vessels',
     incomingJobs: 'Incoming Vessels',
     blCount: 'Total Documents',
+    completedVesselsThisYear: 'Completed in {year}',
     calendarTitle: 'Monthly Cargo Calendar',
     calendarSubtitle: 'Check incoming (ETA) and outgoing (ETD) vessels.',
     days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
@@ -152,6 +154,7 @@ const translations = {
     workingJobs: '作业中船舶',
     incomingJobs: '预计抵港船舶',
     blCount: '文档总数',
+    completedVesselsThisYear: '{year}年完成作业船舶',
     calendarTitle: '每月货物日历',
     calendarSubtitle: '按月查看船舶抵港(ETA)及离港(ETD)计划。',
     days: ['日', '一', '二', '三', '四', '五', '六'],
@@ -245,6 +248,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
   const { days, firstDay } = getDaysInMonth(currentDate);
   const workingJobs = jobs.filter(j => j.status === 'working');
   const incomingJobs = jobs.filter(j => j.status === 'incoming');
+  const systemYear = new Date().getFullYear();
+  const completedJobsThisYear = jobs.filter(j => j.status === 'completed' && j.eta?.startsWith(systemYear.toString()));
 
   const getDayJobs = (dateStr: string) => {
     const eta = jobs.filter(j => j.eta === dateStr);
@@ -379,8 +384,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ jobs, bls, onSelectJob, la
           <div><p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t.incomingJobs}</p><p className="text-2xl font-black text-slate-900 dark:text-white">{incomingJobs.length}</p></div>
         </div>
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-lg"><FileText size={24} /></div>
-          <div><p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{t.blCount}</p><p className="text-2xl font-black text-slate-900 dark:text-white">{bls.length}</p></div>
+          <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-lg"><Ship size={24} /></div>
+          <div><p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{(t as any).completedVesselsThisYear ? (t as any).completedVesselsThisYear.replace('{year}', systemYear.toString()) : `${systemYear}년 작업완료 선박`}</p><p className="text-2xl font-black text-slate-900 dark:text-white">{completedJobsThisYear.length}</p></div>
         </div>
       </div>
 
