@@ -74,7 +74,16 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
     const handleSave = async () => {
         try {
             const id = getSafeId(vesselName);
-            await dataService.updateShipRegistry(id, formData);
+
+            // Firestore rejects undefined values, so we filter them out.
+            const cleanData: Partial<ShipRegistry> = {};
+            Object.entries(formData).forEach(([key, value]) => {
+                if (value !== undefined) {
+                    (cleanData as any)[key] = value;
+                }
+            });
+
+            await dataService.updateShipRegistry(id, cleanData);
             setRegistry({ id, ...formData } as ShipRegistry);
             setIsEditing(false);
             showGlobalToast('저장 완료', '선박 제원이 성공적으로 저장되었습니다.', 'success');
@@ -84,16 +93,62 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
         }
     };
 
-    const processFile = async (file: File, type: DocumentScanType) => {
+    const handleFileUploadCore = async (file: File, type: DocumentScanType) => {
+        setIsOcrProcessing(true);
+        showGlobalToast('업로드 중', '파일을 업로드하고 있습니다...', 'processing');
+
+        try {
+            const fileUrl = await uploadFileToStorage(file);
+            const updates = { ...formData };
+            if (type === 'CERT_NATIONALITY') {
+                updates.nationalityCertFileUrl = fileUrl;
+            } else if (type === 'CERT_TONNAGE') {
+                updates.tonnageCertFileUrl = fileUrl;
+            }
+
+            setFormData(updates);
+
+            // Auto-save the URL so it doesn't get lost if user closes tab
+            const id = getSafeId(vesselName);
+            if (registry) {
+                await dataService.updateShipRegistry(id, { [type === 'CERT_NATIONALITY' ? 'nationalityCertFileUrl' : 'tonnageCertFileUrl']: fileUrl });
+                setRegistry(prev => prev ? { ...prev, ...updates } : updates as ShipRegistry);
+            }
+
+            showGlobalToast('업로드 완료', '파일이 업로드 되었습니다. OCR 분석을 진행해 보세요.', 'success');
+        } catch (err: any) {
+            showGlobalToast('업로드 오류', err.message, 'error');
+        } finally {
+            setIsOcrProcessing(false);
+        }
+    };
+
+    const handleAnalyzeOcr = async (e: React.MouseEvent, type: DocumentScanType) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const url = type === 'CERT_NATIONALITY' ? formData.nationalityCertFileUrl : formData.tonnageCertFileUrl;
+        if (!url) {
+            showGlobalToast('오류', '업로드된 파일이 없습니다.', 'error');
+            return;
+        }
+
         setIsOcrProcessing(true);
         showGlobalToast('AI 분석 중', '증서 데이터 추출을 시작합니다...', 'processing');
 
         try {
-            // Upload to Firebase Storage
-            const fileUrl = await uploadFileToStorage(file);
+            // Download the file from Firebase Storage URL
+            let fileToAnalyze: File;
+            try {
+                const response = await fetch(url);
+                const blob = await response.blob();
+                fileToAnalyze = new File([blob], `document-${Date.now()}`, { type: blob.type || 'application/pdf' });
+            } catch (err) {
+                throw new Error("저장된 파일을 불러오지 못했습니다. 파일을 다시 업로드해주세요.");
+            }
 
             // Run OCR
-            const ocrResult = await parseDocument(file, type);
+            const ocrResult = await parseDocument(fileToAnalyze, type);
 
             const updates = { ...formData };
 
@@ -107,7 +162,6 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
                 updates.nationality = ocrResult.nationality || updates.nationality;
                 updates.portOfRegistry = ocrResult.portOfRegistry || updates.portOfRegistry;
                 updates.mmsiNumber = ocrResult.mmsiNumber || updates.mmsiNumber;
-                updates.nationalityCertFileUrl = fileUrl;
             } else if (type === 'CERT_TONNAGE') {
                 updates.callSign = ocrResult.callSign || updates.callSign;
                 updates.imoNumber = ocrResult.imoNumber || updates.imoNumber;
@@ -116,12 +170,11 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
                 updates.length = ocrResult.length || updates.length;
                 updates.breadth = ocrResult.breadth || updates.breadth;
                 updates.depth = ocrResult.depth || updates.depth;
-                updates.tonnageCertFileUrl = fileUrl;
             }
 
             setFormData(updates);
             setIsEditing(true);
-            showGlobalToast('OCR 분석 완료', '내용을 확인 후 저장해주세요.', 'success');
+            showGlobalToast('OCR 분석 완료', '추출된 내용을 확인 후 저장해주세요.', 'success');
         } catch (err: any) {
             showGlobalToast('OCR 오류', err.message, 'error');
         } finally {
@@ -131,7 +184,7 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: DocumentScanType) => {
         const file = e.target.files?.[0];
-        if (file) processFile(file, type);
+        if (file) handleFileUploadCore(file, type);
         e.target.value = '';
     };
 
@@ -156,7 +209,7 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
         if (type === 'CERT_TONNAGE') setDragActiveTon(false);
 
         if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-            processFile(e.dataTransfer.files[0], type);
+            handleFileUploadCore(e.dataTransfer.files[0], type);
         }
     };
 
@@ -287,6 +340,9 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
+                                    <button onClick={(e) => handleAnalyzeOcr(e, 'CERT_NATIONALITY')} className="p-2 mr-1 flex items-center gap-1.5 px-3 rounded-xl hover:bg-emerald-100 text-emerald-700 font-bold text-xs dark:hover:bg-emerald-800/50 dark:text-emerald-300 transition-colors border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-slate-800 shadow-sm" disabled={isOcrProcessing} title="AI 분석 시작">
+                                        <BrainCircuit size={14} className="text-indigo-500" /> AI 분석
+                                    </button>
                                     <button onClick={(e) => handleViewFile(e, 'CERT_NATIONALITY')} className="p-2 rounded-full hover:bg-emerald-100 text-emerald-600 dark:hover:bg-emerald-800/50 dark:text-emerald-400 transition-colors" title="다운로드/조회">
                                         <Download size={18} />
                                     </button>
@@ -331,6 +387,9 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
+                                    <button onClick={(e) => handleAnalyzeOcr(e, 'CERT_TONNAGE')} className="p-2 mr-1 flex items-center gap-1.5 px-3 rounded-xl hover:bg-emerald-100 text-emerald-700 font-bold text-xs dark:hover:bg-emerald-800/50 dark:text-emerald-300 transition-colors border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-slate-800 shadow-sm" disabled={isOcrProcessing} title="AI 분석 시작">
+                                        <BrainCircuit size={14} className="text-indigo-500" /> AI 분석
+                                    </button>
                                     <button onClick={(e) => handleViewFile(e, 'CERT_TONNAGE')} className="p-2 rounded-full hover:bg-emerald-100 text-emerald-600 dark:hover:bg-emerald-800/50 dark:text-emerald-400 transition-colors" title="다운로드/조회">
                                         <Download size={18} />
                                     </button>
@@ -392,7 +451,7 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
                         {renderInputField("선주 주소 (Ship Owner Address)", "shipOwnerAddress", "text", true)}
                     </div>
                 </div>
-            </div>
-        </div>
+            </div >
+        </div >
     );
 };
