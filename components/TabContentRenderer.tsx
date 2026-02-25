@@ -6,7 +6,7 @@ import { VesselDetail } from './VesselDetail';
 import { Settings } from './Settings';
 import { BLManagement } from './BLManagement';
 import { ShipmentDetail } from './ShipmentDetail';
-import { Tab, VesselJob, BLData, BLChecklist, BackgroundTask } from '../types';
+import { Tab, VesselJob, BLData, BLChecklist, BackgroundTask, ShipRegistry } from '../types';
 import { User } from 'firebase/auth';
 import { useUIStore } from '../store/uiStore';
 import { AppActions } from '../hooks/useActionRegistry';
@@ -38,13 +38,14 @@ interface TabContentRendererProps {
   checklists: Record<string, BLChecklist>;
   user: User | null;
   reportLogoUrl: string | null;
+  shipRegistries: ShipRegistry[];
   logic: AppActions;
   dataActions: DataActions;
   tasks: TaskActions;
 }
 
 export const TabContentRenderer: React.FC<TabContentRendererProps> = (props) => {
-  const { activeTabId, tabs, jobs, bls, checklists, user, reportLogoUrl, logic, dataActions, tasks } = props;
+  const { activeTabId, tabs, jobs, bls, checklists, user, reportLogoUrl, shipRegistries, logic, dataActions, tasks } = props;
   const { openWindow, addTab, closeTab, settings, processing, updateSettings } = useUIStore();
 
   const tab = tabs.find(t => t.id === activeTabId);
@@ -85,7 +86,7 @@ export const TabContentRenderer: React.FC<TabContentRendererProps> = (props) => 
       return <BriefingReport jobs={jobs} bls={bls} initialDate={tab.data?.date || new Date()} language={settings.language} logoUrl={settings.logoUrl} reportLogoUrl={reportLogoUrl} onUpdateBL={dataActions.updateBL} onUpdateLogo={logic.settings.updateLogo} onUpdateReportLogo={logic.settings.updateReportLogo} onResetReportLogo={() => dataActions.updateReportLogo(null)} />;
 
     case 'vessel-list':
-      return <VesselList jobs={jobs} allBLs={bls} onSelectJob={openVesselTab} onCreateJob={dataActions.addJob} onUpdateJob={dataActions.updateJob} onDeleteJob={dataActions.deleteJob} getBLCount={(id) => bls.filter(b => b.vesselJobId === id).length} getTotalWeight={(id) => 0} language={settings.language} />;
+      return <VesselList jobs={jobs} allBLs={bls} shipRegistries={shipRegistries} onSelectJob={openVesselTab} onCreateJob={dataActions.addJob} onUpdateJob={dataActions.updateJob} onDeleteJob={dataActions.deleteJob} getBLCount={(id) => bls.filter(b => b.vesselJobId === id).length} getTotalWeight={(id) => 0} language={settings.language} />;
 
     case 'bl-list':
       return <BLManagement bls={bls} jobs={jobs} checklists={checklists} onUploadBLs={logic.cargo.uploadBL} onAssignBL={(blId, jobId) => dataActions.updateBL(blId, { vesselJobId: jobId })} onCreateJob={dataActions.addJob} onNavigateToBL={(id) => openShipmentDetailTab(id)} isProcessing={processing.isProcessing} progressMessage={processing.message} language={settings.language} />;

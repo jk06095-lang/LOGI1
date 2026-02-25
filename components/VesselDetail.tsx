@@ -5,6 +5,7 @@ import { ArrowLeft, Upload, FileText, CheckSquare, Download, Calendar, Ship, Map
 import { FileUpload } from './FileUpload';
 import { CargoList } from './CargoList';
 import { CheckList } from './CheckList';
+import { ShipDetailsTab } from './ShipDetailsTab';
 
 interface VesselDetailProps {
   job: VesselJob;
@@ -55,7 +56,7 @@ const translations = {
 export const VesselDetail: React.FC<VesselDetailProps> = ({
   job, bls, checklists, onClose, onUploadBLs, onCreateManualBL, onUpdateChecklist, onUpdateBL, isProcessing, progressMessage, initialTab, initialBLId, language = 'ko', lastUpdate, onOpenBLDetail, onOpenRegister
 }) => {
-  const [activeTab, setActiveTab] = useState<'cargo' | 'checklist'>(initialTab || 'cargo');
+  const [activeTab, setActiveTab] = useState<'cargo' | 'checklist' | 'shipDetails'>(initialTab || 'cargo');
   const t = translations[language];
 
   useEffect(() => {
@@ -67,6 +68,7 @@ export const VesselDetail: React.FC<VesselDetailProps> = ({
   const tabs = [
     { id: 'cargo', label: t.tabs.cargo, icon: Download },
     { id: 'checklist', label: t.tabs.checklist, icon: CheckSquare },
+    { id: 'shipDetails', label: '선박 제원', icon: Anchor },
   ];
 
   return (
@@ -139,6 +141,12 @@ export const VesselDetail: React.FC<VesselDetailProps> = ({
               initialSelectedBLId={initialBLId}
               onUpdateBL={onUpdateBL}
               onOpenBLDetail={onOpenBLDetail}
+              language={language}
+            />
+          )}
+          {activeTab === 'shipDetails' && (
+            <ShipDetailsTab
+              vesselName={job.vesselName}
               language={language}
             />
           )}

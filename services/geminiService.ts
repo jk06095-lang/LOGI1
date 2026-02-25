@@ -83,7 +83,21 @@ const createFullDocSchema = (availableCategories: string[]): Schema => {
       anEta: { type: Type.STRING, description: "ETA Date from Arrival Notice" },
       anLocation: { type: Type.STRING, description: "Location name (CY or CFS) where cargo is stored" },
       anFreightCost: { type: Type.STRING, description: "Total Freight Cost string (e.g. 500 USD)" },
-      anOtherCosts: { type: Type.STRING, description: "Other costs like Demurrage, THC" }
+      anOtherCosts: { type: Type.STRING, description: "Other costs like Demurrage, THC" },
+
+      // Ship Registry Specific
+      shipType: { type: Type.STRING, description: "Ship Type (선종, ex: General Cargo Ship)" },
+      callSign: { type: Type.STRING, description: "Call Sign (호출부호)" },
+      shipOwner: { type: Type.STRING, description: "Ship Owner (선주)" },
+      imoNumber: { type: Type.STRING, description: "IMO Number (IMO 번호)" },
+      nationality: { type: Type.STRING, description: "Nationality (선박국적)" },
+      portOfRegistry: { type: Type.STRING, description: "Port of Registry (선박등록항)" },
+      mmsiNumber: { type: Type.STRING, description: "MMSI Number (MMSI 번호)" },
+      grossTonnage: { type: Type.NUMBER, description: "Gross Tonnage (총톤수)" },
+      netTonnage: { type: Type.NUMBER, description: "Net Tonnage (순톤수)" },
+      length: { type: Type.NUMBER, description: "Length / LOA (길이)" },
+      breadth: { type: Type.NUMBER, description: "Breadth (너비)" },
+      depth: { type: Type.NUMBER, description: "Moulded Depth (깊이)" }
     },
   };
 };
@@ -139,6 +153,32 @@ export const parseDocument = async (
           3. Freight Charges (Total Cost).
           4. Other Charges (Demurrage, etc).
           `;
+          break;
+        case 'CERT_NATIONALITY':
+          promptText = `Analyze this CERTIFICATE OF NATIONALITY (선박국적증서).
+          Extract the following details exactly as written:
+          - Vessel Name (선명)
+          - Ship Type (선종)
+          - Call Sign (호출부호)
+          - Ship Owner (선주)
+          - IMO Number (IMO 번호)
+          - Nationality (선박국적)
+          - Port of Registry (선박등록항)
+          - MMSI Number (MMSI 번호)
+          Ensure you use the exact schema properties for these.`;
+          break;
+        case 'CERT_TONNAGE':
+          promptText = `Analyze this INTERNATIONAL TONNAGE CERTIFICATE (국제톤수증서).
+          Extract the following details exactly as written:
+          - Vessel Name (선명)
+          - Call Sign (호출부호)
+          - IMO Number (IMO 번호)
+          - Gross Tonnage (총톤수) 
+          - Net Tonnage (순톤수)
+          - Length / LOA (길이)
+          - Breadth (너비)
+          - Moulded Depth (깊이)
+          Ensure you use the exact schema properties for these.`;
           break;
         case 'BL':
         default:

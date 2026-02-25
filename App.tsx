@@ -19,7 +19,7 @@ import { AlertCircle, Loader2, CheckCircle, Bell, X, Inbox, Trash2 } from 'lucid
 const App: React.FC = () => {
   const [isNotificationsOpen, setIsNotificationsOpen] = React.useState(false);
   const store = useUIStore();
-  const { user, authLoading, vesselJobs, blData, checklists, reportLogoUrl, tasks, addTask, updateTask, removeTask, addToHistory, notificationHistory, clearHistory, expirationAlert, latestUnreadTs, lastReadTs, updateLastRead } = useGlobalData(store.settings);
+  const { user, authLoading, vesselJobs, blData, checklists, reportLogoUrl, shipRegistries, tasks, addTask, updateTask, removeTask, addToHistory, notificationHistory, clearHistory, expirationAlert, latestUnreadTs, lastReadTs, updateLastRead } = useGlobalData(store.settings);
 
   // Custom Hook: Action Registry (Standardized Logic)
   const actions = useActionRegistry(
@@ -186,6 +186,7 @@ const App: React.FC = () => {
                 checklists={checklists}
                 user={user}
                 reportLogoUrl={reportLogoUrl}
+                shipRegistries={shipRegistries}
                 logic={actions}
                 dataActions={dataService}
                 tasks={{ addTask, updateTask, removeTask }}

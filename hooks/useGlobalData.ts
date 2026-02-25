@@ -6,7 +6,7 @@ import { db } from '../lib/firebase';
 import { collection, query, onSnapshot, where, orderBy, limit, collectionGroup } from 'firebase/firestore';
 import { dataService } from '../services/dataService';
 import { chatService } from '../services/chatService';
-import { VesselJob, BLData, BLChecklist, BackgroundTask, NotificationLog, AppSettings } from '../types';
+import { VesselJob, BLData, BLChecklist, BackgroundTask, NotificationLog, AppSettings, ShipRegistry } from '../types';
 
 export const useGlobalData = (settings: AppSettings) => {
   const [user, setUser] = useState<User | null>(null);
@@ -18,6 +18,7 @@ export const useGlobalData = (settings: AppSettings) => {
   const [blData, setBLData] = useState<BLData[]>([]);
   const [checklists, setChecklists] = useState<Record<string, BLChecklist>>({});
   const [reportLogoUrl, setReportLogoUrl] = useState<string | null>(null);
+  const [shipRegistries, setShipRegistries] = useState<ShipRegistry[]>([]);
 
   // UI States
   const [tasks, setTasks] = useState<BackgroundTask[]>([]);
@@ -74,8 +75,9 @@ export const useGlobalData = (settings: AppSettings) => {
     const unsubChecklists = dataService.subscribeChecklists(setChecklists);
     const unsubReportLogo = dataService.subscribeReportLogo(setReportLogoUrl);
     const unsubUnread = chatService.subscribeUnreadStatus(user.uid, setLatestUnreadTs);
+    const unsubShipRegistries = dataService.subscribeShipRegistries(setShipRegistries);
 
-    return () => { unsubJobs(); unsubBLs(); unsubChecklists(); unsubUnread(); unsubReportLogo(); };
+    return () => { unsubJobs(); unsubBLs(); unsubChecklists(); unsubUnread(); unsubReportLogo(); unsubShipRegistries(); };
   }, [user, isAuthorized]);
 
   // Social & Document Notification Listeners
@@ -173,7 +175,7 @@ export const useGlobalData = (settings: AppSettings) => {
 
   return {
     user, authLoading, isAuthorized, setIsAuthorized,
-    vesselJobs, blData, checklists, reportLogoUrl,
+    vesselJobs, blData, checklists, reportLogoUrl, shipRegistries,
     tasks, notificationHistory, expirationAlert,
     latestUnreadTs, lastReadTs,
     addTask, updateTask, removeTask,

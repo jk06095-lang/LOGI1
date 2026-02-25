@@ -13,7 +13,7 @@ export interface CargoItem {
 
 export type CargoSourceType = 'TRANSIT' | 'FISCO' | 'THIRD_PARTY';
 
-export type DocumentScanType = 'BL' | 'CI' | 'PL' | 'EXPORT_DEC' | 'MANIFEST' | 'AN';
+export type DocumentScanType = 'BL' | 'CI' | 'PL' | 'EXPORT_DEC' | 'MANIFEST' | 'AN' | 'CERT_NATIONALITY' | 'CERT_TONNAGE';
 
 export type CargoType = 'LCL' | 'FCL'; // Existing
 
@@ -176,6 +176,35 @@ export interface VesselJob {
   status: JobStatus;
   notes: string;
   createdAt: string;
+}
+
+// Ship Registry - Central Document for Static Ship Properties
+export interface ShipRegistry {
+  id: string; // Typically the normalized vessel name or IMO Number
+  vesselName: string;
+  
+  // Nationality Certificate
+  shipType?: string; // 선종
+  callSign?: string; // 호출부호
+  shipOwner?: string; // 선주
+  imoNumber?: string; // IMO 번호
+  nationality?: string; // 선박국적
+  portOfRegistry?: string; // 선박등록항
+  mmsiNumber?: string; // MMSI 번호
+  
+  // Tonnage Certificate
+  grossTonnage?: number; // GROSS TONNAGE
+  netTonnage?: number; // NET TONNAGE
+  length?: number; // LENGTH (LOA)
+  breadth?: number; // BREADTH
+  depth?: number; // MOULDED DEPTH
+  
+  // Link to stored files
+  nationalityCertFileUrl?: string; // 국적증서
+  tonnageCertFileUrl?: string; // 국제톤수증서
+  otherCertUrls?: string[]; // 기타 문서
+
+  lastUpdated?: string;
 }
 
 // Checklist structure based on the screenshot
