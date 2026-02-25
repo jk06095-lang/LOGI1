@@ -132,6 +132,7 @@ export const TabContentRenderer: React.FC<TabContentRendererProps> = (props) => 
         onOpenBLDetail={(blId) => openShipmentDetailTab(blId)}
         onOpenRegister={(rect) => openWindow('cargo-register', 'cargo-register', { jobId: currentJob.id }, rect)}
         onAddTask={tasks.addTask}
+        onUpdateTask={tasks.updateTask}
         isProcessing={processing.isProcessing}
         progressMessage={processing.message}
       />;

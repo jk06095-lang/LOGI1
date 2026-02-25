@@ -11,9 +11,10 @@ interface ShipDetailsTabProps {
     vesselName: string;
     language: 'ko' | 'en' | 'cn';
     onAddTask?: (task: BackgroundTask) => void;
+    onUpdateTask?: (id: string, updates: Partial<BackgroundTask>) => void;
 }
 
-export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, language, onAddTask }) => {
+export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, language, onAddTask, onUpdateTask }) => {
     const [registry, setRegistry] = useState<ShipRegistry | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [formData, setFormData] = useState<Partial<ShipRegistry>>({});
@@ -23,14 +24,35 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
     const [dragActiveNat, setDragActiveNat] = useState(false);
     const [dragActiveTon, setDragActiveTon] = useState(false);
 
+    const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
+
     const showGlobalToast = (title: string, msg: string, status: 'success' | 'error' | 'processing') => {
-        if (onAddTask) {
+        if (status === 'processing' && onAddTask) {
+            const newTaskId = `ship-details-${Date.now()}`;
+            setCurrentTaskId(newTaskId);
+            onAddTask({
+                id: newTaskId,
+                title,
+                message: msg,
+                status,
+                progress: 50
+            });
+        } else if (onUpdateTask && currentTaskId) {
+            onUpdateTask(currentTaskId, {
+                title,
+                message: msg,
+                status,
+                progress: 100
+            });
+            setCurrentTaskId(null); // Reset task tracking after completion
+        } else if (onAddTask && !currentTaskId) {
+            // Fallback for one-off success/error without processing state
             onAddTask({
                 id: `ship-details-${Date.now()}`,
                 title,
                 message: msg,
                 status,
-                progress: status === 'processing' ? 50 : 100
+                progress: 100
             });
         }
     };

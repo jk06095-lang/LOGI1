@@ -25,6 +25,7 @@ interface VesselDetailProps {
   onOpenBLDetail?: (blId: string) => void;
   onOpenRegister?: (rect?: { x: number, y: number, width: number, height: number }) => void;
   onAddTask?: (task: BackgroundTask) => void;
+  onUpdateTask?: (id: string, updates: Partial<BackgroundTask>) => void;
 }
 
 const translations = {
@@ -55,7 +56,7 @@ const translations = {
 };
 
 export const VesselDetail: React.FC<VesselDetailProps> = ({
-  job, bls, checklists, onClose, onUploadBLs, onCreateManualBL, onUpdateChecklist, onUpdateBL, isProcessing, progressMessage, initialTab, initialBLId, language = 'ko', lastUpdate, onOpenBLDetail, onOpenRegister, onAddTask
+  job, bls, checklists, onClose, onUploadBLs, onCreateManualBL, onUpdateChecklist, onUpdateBL, isProcessing, progressMessage, initialTab, initialBLId, language = 'ko', lastUpdate, onOpenBLDetail, onOpenRegister, onAddTask, onUpdateTask
 }) => {
   const [activeTab, setActiveTab] = useState<'cargo' | 'checklist' | 'shipDetails'>(initialTab || 'cargo');
   const t = translations[language];
@@ -150,6 +151,7 @@ export const VesselDetail: React.FC<VesselDetailProps> = ({
               vesselName={job.vesselName}
               language={language}
               onAddTask={onAddTask}
+              onUpdateTask={onUpdateTask}
             />
           )}
         </div>
