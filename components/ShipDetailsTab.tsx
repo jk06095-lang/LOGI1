@@ -1,33 +1,44 @@
 import React, { useState, useEffect } from 'react';
-import { ShipRegistry, DocumentScanType } from '../types';
+import { ShipRegistry, DocumentScanType, BackgroundTask } from '../types';
 import { Ship, FileText, Upload, Save, CheckCircle, BrainCircuit, X, Trash2, Edit } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { parseDocument } from '../services/geminiService';
-import { compressImage } from '../services/storageService'; // Will need a utility to get URL if saving to storage, but for now we'll store Base64 or assume file management is handled elsewhere.
+import { compressImage } from '../services/storageService';
 import { functions, db } from '../lib/firebase';
 import { addDoc, collection } from 'firebase/firestore';
 
 interface ShipDetailsTabProps {
     vesselName: string;
     language: 'ko' | 'en' | 'cn';
+    onAddTask?: (task: BackgroundTask) => void;
 }
 
-export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, language }) => {
+export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, language, onAddTask }) => {
     const [registry, setRegistry] = useState<ShipRegistry | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [formData, setFormData] = useState<Partial<ShipRegistry>>({});
     const [isOcrProcessing, setIsOcrProcessing] = useState(false);
 
-    const [toast, setToast] = useState<{ msg: string, type: 'success' | 'error' } | null>(null);
+    // Drag and Drop States
+    const [dragActiveNat, setDragActiveNat] = useState(false);
+    const [dragActiveTon, setDragActiveTon] = useState(false);
 
-    const showToast = (msg: string, type: 'success' | 'error') => {
-        setToast({ msg, type });
-        setTimeout(() => setToast(null), 3000);
+    const showGlobalToast = (title: string, msg: string, status: 'success' | 'error' | 'processing') => {
+        if (onAddTask) {
+            onAddTask({
+                id: `ship-details-${Date.now()}`,
+                title,
+                message: msg,
+                status,
+                progress: status === 'processing' ? 50 : 100
+            });
+        }
     };
 
+    const getSafeId = (name: string) => name.trim().toUpperCase().replace(/[\s/]+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+
     useEffect(() => {
-        // Generate an ID from vessel name (simple normalization)
-        const id = vesselName.trim().toUpperCase().replace(/\s+/g, '_');
+        const id = getSafeId(vesselName);
         dataService.getShipRegistry(id).then(data => {
             if (data) {
                 setRegistry(data);
@@ -40,22 +51,20 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
 
     const handleSave = async () => {
         try {
-            const id = vesselName.trim().toUpperCase().replace(/\s+/g, '_');
+            const id = getSafeId(vesselName);
             await dataService.updateShipRegistry(id, formData);
             setRegistry({ id, ...formData } as ShipRegistry);
             setIsEditing(false);
-            showToast('선박 제원이 성공적으로 저장되었습니다.', 'success');
-        } catch (e) {
-            showToast('저장 중 오류가 발생했습니다.', 'error');
+            showGlobalToast('저장 완료', '선박 제원이 성공적으로 저장되었습니다.', 'success');
+        } catch (e: any) {
+            console.error("Save Ship Details Error:", e);
+            showGlobalToast('저장 오류', `저장 중 오류가 발생했습니다: ${e.message}`, 'error');
         }
     };
 
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: DocumentScanType) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
+    const processFile = async (file: File, type: DocumentScanType) => {
         setIsOcrProcessing(true);
-        showToast('AI 분석을 시작합니다...', 'success');
+        showGlobalToast('AI 분석 중', '증서 데이터 추출을 시작합니다...', 'processing');
 
         try {
             // 1. You would normally upload the file to Firebase Storage here and get the URL.
@@ -87,12 +96,42 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
 
             setFormData(updates);
             setIsEditing(true);
-            showToast('OCR 분석이 완료되었습니다. 내용을 확인 후 저장해주세요.', 'success');
+            showGlobalToast('OCR 분석 완료', '내용을 확인 후 저장해주세요.', 'success');
         } catch (err: any) {
-            showToast(`OCR 오류: ${err.message}`, 'error');
+            showGlobalToast('OCR 오류', err.message, 'error');
         } finally {
             setIsOcrProcessing(false);
-            e.target.value = ''; // Reset input
+        }
+    };
+
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: DocumentScanType) => {
+        const file = e.target.files?.[0];
+        if (file) processFile(file, type);
+        e.target.value = '';
+    };
+
+    const onDragOver = (e: React.DragEvent, type: DocumentScanType) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (type === 'CERT_NATIONALITY') setDragActiveNat(true);
+        if (type === 'CERT_TONNAGE') setDragActiveTon(true);
+    };
+
+    const onDragLeave = (e: React.DragEvent, type: DocumentScanType) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (type === 'CERT_NATIONALITY') setDragActiveNat(false);
+        if (type === 'CERT_TONNAGE') setDragActiveTon(false);
+    };
+
+    const onDrop = (e: React.DragEvent, type: DocumentScanType) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (type === 'CERT_NATIONALITY') setDragActiveNat(false);
+        if (type === 'CERT_TONNAGE') setDragActiveTon(false);
+
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            processFile(e.dataTransfer.files[0], type);
         }
     };
 
@@ -116,14 +155,6 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
 
     return (
         <div className="max-w-5xl mx-auto space-y-8 animate-fade-in pb-20 relative">
-
-            {/* Toast Notification */}
-            {toast && (
-                <div className={`fixed bottom-10 right-10 z-50 px-6 py-3 rounded-xl shadow-2xl font-bold flex items-center gap-2 animate-fade-in-up ${toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
-                    {toast.type === 'success' ? <CheckCircle size={18} /> : <X size={18} />}
-                    {toast.msg}
-                </div>
-            )}
 
             {/* Header Actions */}
             <div className="flex justify-between items-end">
@@ -163,34 +194,44 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
                         {isOcrProcessing && <span className="text-xs text-indigo-500 animate-pulse ml-2">분석 중...</span>}
                     </h3>
                     <div className="flex gap-4">
-                        <label className="relative cursor-pointer group flex-1">
+                        <label
+                            className="relative cursor-pointer group flex-1"
+                            onDragOver={(e) => onDragOver(e, 'CERT_NATIONALITY')}
+                            onDragLeave={(e) => onDragLeave(e, 'CERT_NATIONALITY')}
+                            onDrop={(e) => onDrop(e, 'CERT_NATIONALITY')}
+                        >
                             <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => handleFileUpload(e, 'CERT_NATIONALITY')} disabled={isOcrProcessing} />
                             <div className={`p-4 rounded-xl border-2 border-dashed transition-all flex items-center justify-between
-                   ${formData.nationalityCertFileUrl ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20' : 'border-slate-300 dark:border-slate-600 hover:border-indigo-400 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-900/10'}`}>
+                   ${dragActiveNat ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' : formData.nationalityCertFileUrl ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20' : 'border-slate-300 dark:border-slate-600 hover:border-indigo-400 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-900/10'}`}>
                                 <div className="flex items-center gap-3">
                                     <div className={`p-2 rounded-lg ${formData.nationalityCertFileUrl ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-800 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
                                         <FileText size={20} />
                                     </div>
                                     <div>
                                         <p className={`font-bold text-sm ${formData.nationalityCertFileUrl ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'}`}>국적증서 (Nationality Cert)</p>
-                                        <p className="text-xs text-slate-500 mt-0.5">{formData.nationalityCertFileUrl ? '업로드 완료' : '파일 업로드하여 추출'}</p>
+                                        <p className="text-xs text-slate-500 mt-0.5">{dragActiveNat ? '여기에 드롭하세요' : formData.nationalityCertFileUrl ? '업로드 완료' : '파일 업로드 또는 드래그'}</p>
                                     </div>
                                 </div>
                                 {formData.nationalityCertFileUrl ? <CheckCircle className="text-emerald-500" /> : <Upload className="text-slate-400" size={18} />}
                             </div>
                         </label>
 
-                        <label className="relative cursor-pointer group flex-1">
+                        <label
+                            className="relative cursor-pointer group flex-1"
+                            onDragOver={(e) => onDragOver(e, 'CERT_TONNAGE')}
+                            onDragLeave={(e) => onDragLeave(e, 'CERT_TONNAGE')}
+                            onDrop={(e) => onDrop(e, 'CERT_TONNAGE')}
+                        >
                             <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => handleFileUpload(e, 'CERT_TONNAGE')} disabled={isOcrProcessing} />
                             <div className={`p-4 rounded-xl border-2 border-dashed transition-all flex items-center justify-between
-                   ${formData.tonnageCertFileUrl ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20' : 'border-slate-300 dark:border-slate-600 hover:border-indigo-400 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-900/10'}`}>
+                   ${dragActiveTon ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20' : formData.tonnageCertFileUrl ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20' : 'border-slate-300 dark:border-slate-600 hover:border-indigo-400 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-900/10'}`}>
                                 <div className="flex items-center gap-3">
                                     <div className={`p-2 rounded-lg ${formData.tonnageCertFileUrl ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-800 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
                                         <FileText size={20} />
                                     </div>
                                     <div>
                                         <p className={`font-bold text-sm ${formData.tonnageCertFileUrl ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'}`}>국제톤수증서 (Tonnage Cert)</p>
-                                        <p className="text-xs text-slate-500 mt-0.5">{formData.tonnageCertFileUrl ? '업로드 완료' : '파일 업로드하여 추출'}</p>
+                                        <p className="text-xs text-slate-500 mt-0.5">{dragActiveTon ? '여기에 드롭하세요' : formData.tonnageCertFileUrl ? '업로드 완료' : '파일 업로드 또는 드래그'}</p>
                                     </div>
                                 </div>
                                 {formData.tonnageCertFileUrl ? <CheckCircle className="text-emerald-500" /> : <Upload className="text-slate-400" size={18} />}

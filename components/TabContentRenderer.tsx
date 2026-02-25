@@ -6,7 +6,7 @@ import { VesselDetail } from './VesselDetail';
 import { Settings } from './Settings';
 import { BLManagement } from './BLManagement';
 import { ShipmentDetail } from './ShipmentDetail';
-import { Tab, VesselJob, BLData, BLChecklist, BackgroundTask, ShipRegistry } from '../types';
+import { Tab, VesselJob, BLData, BLChecklist, BackgroundTask, ShipRegistry, CargoSourceType } from '../types';
 import { User } from 'firebase/auth';
 import { useUIStore } from '../store/uiStore';
 import { AppActions } from '../hooks/useActionRegistry';
@@ -118,21 +118,22 @@ export const TabContentRenderer: React.FC<TabContentRendererProps> = (props) => 
       return <VesselDetail
         key={tab.id}
         job={currentJob}
-        bls={bls.filter(bl => bl.vesselJobId === currentJob.id)}
+        bls={bls.filter(b => b.vesselJobId === currentJob.id)}
         checklists={checklists}
+        initialTab={tab.data?.initialTab}
+        initialBLId={tab.data?.initialBLId}
+        language={settings.language}
+        lastUpdate={tab.data?.timestamp}
         onClose={() => closeTab(tab.id)}
-        onUploadBLs={(f, type) => logic.cargo.uploadBL(f, type, undefined, currentJob.id)}
+        onUploadBLs={(files: File[], sourceType: CargoSourceType) => logic.cargo.uploadBL(files, sourceType, 'TRANSHIPMENT', currentJob.id)}
         onCreateManualBL={dataActions.addBL}
         onUpdateChecklist={dataActions.updateChecklist}
         onUpdateBL={dataActions.updateBL}
+        onOpenBLDetail={(blId) => openShipmentDetailTab(blId)}
+        onOpenRegister={(rect) => openWindow('cargo-register', 'cargo-register', { jobId: currentJob.id }, rect)}
+        onAddTask={tasks.addTask}
         isProcessing={processing.isProcessing}
         progressMessage={processing.message}
-        language={settings.language}
-        initialTab={tab.data?.initialTab}
-        initialBLId={tab.data?.initialBLId}
-        lastUpdate={tab.data?.timestamp}
-        onOpenBLDetail={(id) => openShipmentDetailTab(id)}
-        onOpenRegister={(rect) => openWindow('register', 'register', { targetJobId: currentJob.id }, rect)}
       />;
 
     default: return null;

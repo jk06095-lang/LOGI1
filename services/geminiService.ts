@@ -156,29 +156,29 @@ export const parseDocument = async (
           break;
         case 'CERT_NATIONALITY':
           promptText = `Analyze this CERTIFICATE OF NATIONALITY (선박국적증서).
-          Extract the following details exactly as written:
-          - Vessel Name (선명)
-          - Ship Type (선종)
-          - Call Sign (호출부호)
-          - Ship Owner (선주)
-          - IMO Number (IMO 번호)
-          - Nationality (선박국적)
-          - Port of Registry (선박등록항)
-          - MMSI Number (MMSI 번호)
-          Ensure you use the exact schema properties for these.`;
+          You MUST extract the following details exactly as written into the corresponding JSON properties:
+          - 'vesselName' for Vessel Name (선명)
+          - 'shipType' for Ship Type (선종)
+          - 'callSign' for Call Sign (호출부호)
+          - 'shipOwner' for Ship Owner (선명 / 선주)
+          - 'imoNumber' for IMO Number (IMO 번호)
+          - 'nationality' for Nationality (선박국적)
+          - 'portOfRegistry' for Port of Registry (선박등록항)
+          - 'mmsiNumber' for MMSI Number (MMSI 번호)
+          CRITICAL: You must extract the exact values from the document.`;
           break;
         case 'CERT_TONNAGE':
           promptText = `Analyze this INTERNATIONAL TONNAGE CERTIFICATE (국제톤수증서).
-          Extract the following details exactly as written:
-          - Vessel Name (선명)
-          - Call Sign (호출부호)
-          - IMO Number (IMO 번호)
-          - Gross Tonnage (총톤수) 
-          - Net Tonnage (순톤수)
-          - Length / LOA (길이)
-          - Breadth (너비)
-          - Moulded Depth (깊이)
-          Ensure you use the exact schema properties for these.`;
+          You MUST extract the following details exactly as written into the corresponding JSON properties:
+          - 'vesselName' for Vessel Name (선명)
+          - 'callSign' for Call Sign (호출부호)
+          - 'imoNumber' for IMO Number (IMO 번호)
+          - 'grossTonnage' for Gross Tonnage (총톤수) 
+          - 'netTonnage' for Net Tonnage (순톤수)
+          - 'length' for Length / LOA (길이)
+          - 'breadth' for Breadth (너비)
+          - 'depth' for Moulded Depth (깊이)
+          CRITICAL: You must extract the exact values from the document as numbers where appropriate.`;
           break;
         case 'BL':
         default:

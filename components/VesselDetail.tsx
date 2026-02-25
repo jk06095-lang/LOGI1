@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { VesselJob, BLData, BLChecklist, CargoSourceType, Language, CargoItem } from '../types';
+import { VesselJob, BLData, BLChecklist, CargoSourceType, Language, CargoItem, BackgroundTask } from '../types';
 import { ArrowLeft, Upload, FileText, CheckSquare, Download, Calendar, Ship, MapPin, Eye, Container, Package, Truck, Plus, Trash2, Save, Keyboard, Share2, FileImage, X, Link, Check, Anchor, Box, Layers } from 'lucide-react';
 import { FileUpload } from './FileUpload';
 import { CargoList } from './CargoList';
@@ -23,7 +23,8 @@ interface VesselDetailProps {
   language?: Language;
   lastUpdate?: number;
   onOpenBLDetail?: (blId: string) => void;
-  onOpenRegister?: (rect?: { x: number, y: number, width: number, height: number }) => void; // New Prop
+  onOpenRegister?: (rect?: { x: number, y: number, width: number, height: number }) => void;
+  onAddTask?: (task: BackgroundTask) => void;
 }
 
 const translations = {
@@ -54,7 +55,7 @@ const translations = {
 };
 
 export const VesselDetail: React.FC<VesselDetailProps> = ({
-  job, bls, checklists, onClose, onUploadBLs, onCreateManualBL, onUpdateChecklist, onUpdateBL, isProcessing, progressMessage, initialTab, initialBLId, language = 'ko', lastUpdate, onOpenBLDetail, onOpenRegister
+  job, bls, checklists, onClose, onUploadBLs, onCreateManualBL, onUpdateChecklist, onUpdateBL, isProcessing, progressMessage, initialTab, initialBLId, language = 'ko', lastUpdate, onOpenBLDetail, onOpenRegister, onAddTask
 }) => {
   const [activeTab, setActiveTab] = useState<'cargo' | 'checklist' | 'shipDetails'>(initialTab || 'cargo');
   const t = translations[language];
@@ -148,6 +149,7 @@ export const VesselDetail: React.FC<VesselDetailProps> = ({
             <ShipDetailsTab
               vesselName={job.vesselName}
               language={language}
+              onAddTask={onAddTask}
             />
           )}
         </div>

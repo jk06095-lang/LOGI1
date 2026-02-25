@@ -139,6 +139,7 @@ export const VesselList: React.FC<VesselListProps> = ({
   const [editingJob, setEditingJob] = useState<VesselJob | null>(null);
 
   const [newJobForm, setNewJobForm] = useState({ name: '', voyage: '', eta: '', etd: '' });
+  const [showAutocomplete, setShowAutocomplete] = useState(false);
 
   // Search & Sort State
   const [searchTerm, setSearchTerm] = useState('');
@@ -440,16 +441,57 @@ export const VesselList: React.FC<VesselListProps> = ({
             </div>
 
             <form onSubmit={handleCreateSubmit} className="p-8 space-y-6 bg-slate-50 dark:bg-slate-800/50">
-              <div>
+              <div className="relative" onBlur={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget)) setShowAutocomplete(false);
+              }}>
                 <label className="block text-sm font-bold text-slate-700 dark:text-slate-200 mb-2">{t.vesselName}</label>
                 <input
                   required
                   type="text"
                   value={newJobForm.name}
-                  onChange={e => setNewJobForm({ ...newJobForm, name: e.target.value })}
+                  onChange={e => {
+                    setNewJobForm({ ...newJobForm, name: e.target.value.toUpperCase() });
+                    setShowAutocomplete(true);
+                  }}
+                  onFocus={() => setShowAutocomplete(true)}
                   className="w-full px-4 py-3.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-sm font-semibold text-lg dark:text-white"
-                  placeholder={t.placeholderName}
+                  placeholder={t.placeholderName + " / Search Call Sign"}
+                  autoComplete="off"
                 />
+
+                {/* Autocomplete Dropdown */}
+                {showAutocomplete && newJobForm.name.length > 0 && (
+                  <div className="absolute z-50 w-full mt-2 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 max-h-60 overflow-y-auto overflow-x-hidden">
+                    {shipRegistries
+                      .filter(r =>
+                        r.vesselName.toLowerCase().includes(newJobForm.name.toLowerCase()) ||
+                        (r.callSign && r.callSign.toLowerCase().includes(newJobForm.name.toLowerCase()))
+                      )
+                      .slice(0, 5)
+                      .map(r => (
+                        <button
+                          key={r.id}
+                          type="button"
+                          className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex justify-between items-center bg-transparent border-b border-slate-100 dark:border-slate-700/50 last:border-0"
+                          onClick={() => {
+                            setNewJobForm({ ...newJobForm, name: r.vesselName });
+                            setShowAutocomplete(false);
+                          }}
+                        >
+                          <div>
+                            <p className="font-bold text-slate-900 dark:text-white">{r.vesselName}</p>
+                            {r.callSign && <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Call Sign: {r.callSign}</p>}
+                          </div>
+                          <CheckCircle size={16} className="text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </button>
+                      ))}
+                    {shipRegistries.filter(r => r.vesselName.toLowerCase().includes(newJobForm.name.toLowerCase()) || (r.callSign && r.callSign.toLowerCase().includes(newJobForm.name.toLowerCase()))).length === 0 && (
+                      <div className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400 text-center italic">
+                        등록된 선박이 없습니다. 새로운 선박명으로 입력합니다.
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Conditional Match Display with Premium Look */}
