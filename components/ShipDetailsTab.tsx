@@ -28,6 +28,7 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
     const [localFiles, setLocalFiles] = useState<Record<string, File>>({});
 
     const currentTaskIdRef = useRef<string | null>(null);
+    const isEditingRef = useRef(false);
 
     const showGlobalToast = (title: string, msg: string, status: 'success' | 'error' | 'processing') => {
         if (status === 'processing' && onAddTask) {
@@ -62,22 +63,22 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
 
     const getSafeId = (name: string) => name.trim().toUpperCase().replace(/[\s/]+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
 
+    // Keep the ref synced with the state
+    useEffect(() => { isEditingRef.current = isEditing; }, [isEditing]);
+
     useEffect(() => {
         const id = getSafeId(vesselName);
         dataService.getShipRegistry(id).then(data => {
+            // Only overwrite form data if the user is not actively editing
+            if (isEditingRef.current) return;
             if (data) {
                 setRegistry(data);
-                // Only overwrite form data if the user is not actively editing
-                if (!isEditing) {
-                    setFormData(data);
-                }
+                setFormData(data);
             } else {
-                if (!isEditing) {
-                    setFormData({ vesselName });
-                }
+                setFormData({ vesselName });
             }
         });
-    }, [vesselName, isEditing]);
+    }, [vesselName]);
 
     const handleSave = async () => {
         try {
@@ -164,36 +165,35 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
             // Run OCR
             const ocrResult = await parseDocument(fileToAnalyze, type);
 
-            let updates = { ...formData };
+            console.log('[OCR] Raw result:', JSON.stringify(ocrResult));
 
-            // For new ships, some properties might not exist on formData at all. 
-            // We explicitly assign the OCR result, falling back to the existing value only if OCR is missing it.
-            if (type === 'CERT_NATIONALITY') {
-                updates = {
-                    ...updates,
-                    shipType: ocrResult.shipType || updates.shipType || undefined,
-                    callSign: ocrResult.callSign || updates.callSign || undefined,
-                    shipOwner: ocrResult.shipOwner || updates.shipOwner || undefined,
-                    shipOwnerAddress: ocrResult.shipOwnerAddress || updates.shipOwnerAddress || undefined,
-                    imoNumber: ocrResult.imoNumber || updates.imoNumber || undefined,
-                    nationality: ocrResult.nationality || updates.nationality || undefined,
-                    portOfRegistry: ocrResult.portOfRegistry || updates.portOfRegistry || undefined,
-                    mmsiNumber: ocrResult.mmsiNumber || updates.mmsiNumber || undefined,
-                };
-            } else if (type === 'CERT_TONNAGE') {
-                updates = {
-                    ...updates,
-                    callSign: ocrResult.callSign || updates.callSign || undefined,
-                    imoNumber: ocrResult.imoNumber || updates.imoNumber || undefined,
-                    grossTonnage: ocrResult.grossTonnage || updates.grossTonnage || undefined,
-                    netTonnage: ocrResult.netTonnage || updates.netTonnage || undefined,
-                    length: ocrResult.length || updates.length || undefined,
-                    breadth: ocrResult.breadth || updates.breadth || undefined,
-                    depth: ocrResult.depth || updates.depth || undefined,
-                };
-            }
+            // Use functional update to avoid stale closure — formData may have changed during the async OCR call
+            setFormData(prev => {
+                const merged = { ...prev };
 
-            setFormData(updates);
+                if (type === 'CERT_NATIONALITY') {
+                    if (ocrResult.shipType) merged.shipType = ocrResult.shipType;
+                    if (ocrResult.callSign) merged.callSign = ocrResult.callSign;
+                    if (ocrResult.shipOwner) merged.shipOwner = ocrResult.shipOwner;
+                    if (ocrResult.shipOwnerAddress) merged.shipOwnerAddress = ocrResult.shipOwnerAddress;
+                    if (ocrResult.imoNumber) merged.imoNumber = ocrResult.imoNumber;
+                    if (ocrResult.nationality) merged.nationality = ocrResult.nationality;
+                    if (ocrResult.portOfRegistry) merged.portOfRegistry = ocrResult.portOfRegistry;
+                    if (ocrResult.mmsiNumber) merged.mmsiNumber = ocrResult.mmsiNumber;
+                } else if (type === 'CERT_TONNAGE') {
+                    if (ocrResult.callSign) merged.callSign = ocrResult.callSign;
+                    if (ocrResult.imoNumber) merged.imoNumber = ocrResult.imoNumber;
+                    if (ocrResult.grossTonnage) merged.grossTonnage = ocrResult.grossTonnage;
+                    if (ocrResult.netTonnage) merged.netTonnage = ocrResult.netTonnage;
+                    if (ocrResult.length) merged.length = ocrResult.length;
+                    if (ocrResult.breadth) merged.breadth = ocrResult.breadth;
+                    if (ocrResult.depth) merged.depth = ocrResult.depth;
+                }
+
+                console.log('[OCR] Merged formData:', JSON.stringify(merged));
+                return merged;
+            });
+
             showGlobalToast('OCR 분석 완료', '추출된 내용을 확인 후 저장해주세요.', 'success');
         } catch (err: any) {
             showGlobalToast('OCR 오류', err.message, 'error');
