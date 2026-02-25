@@ -89,6 +89,7 @@ const createFullDocSchema = (availableCategories: string[]): Schema => {
       shipType: { type: Type.STRING, description: "Ship Type (선종, ex: General Cargo Ship)" },
       callSign: { type: Type.STRING, description: "Call Sign (호출부호)" },
       shipOwner: { type: Type.STRING, description: "Ship Owner (선주)" },
+      shipOwnerAddress: { type: Type.STRING, description: "Ship Owner Address (선주 주소 / 등록소재지)" },
       imoNumber: { type: Type.STRING, description: "IMO Number (IMO 번호)" },
       nationality: { type: Type.STRING, description: "Nationality (선박국적)" },
       portOfRegistry: { type: Type.STRING, description: "Port of Registry (선박등록항)" },
@@ -161,6 +162,7 @@ export const parseDocument = async (
           - 'shipType' for Ship Type (선종)
           - 'callSign' for Call Sign (호출부호)
           - 'shipOwner' for Ship Owner (선명 / 선주)
+          - 'shipOwnerAddress' for Ship Owner Address (선주 주소 / 주소 / 등록소재지)
           - 'imoNumber' for IMO Number (IMO 번호)
           - 'nationality' for Nationality (선박국적)
           - 'portOfRegistry' for Port of Registry (선박등록항)

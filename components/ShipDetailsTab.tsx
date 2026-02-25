@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ShipRegistry, DocumentScanType, BackgroundTask } from '../types';
-import { Ship, FileText, Upload, Save, CheckCircle, BrainCircuit, X, Trash2, Edit, Download } from 'lucide-react';
+import { Ship, FileText, Upload, Save, CheckCircle, BrainCircuit, X, Trash2, Edit, Download, Copy } from 'lucide-react';
 import { dataService } from '../services/dataService';
 import { parseDocument } from '../services/geminiService';
 import { compressImage, uploadFileToStorage, deleteFileFromStorage } from '../services/storageService';
@@ -102,6 +102,7 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
                 updates.shipType = ocrResult.shipType || updates.shipType;
                 updates.callSign = ocrResult.callSign || updates.callSign;
                 updates.shipOwner = ocrResult.shipOwner || updates.shipOwner;
+                updates.shipOwnerAddress = ocrResult.shipOwnerAddress || updates.shipOwnerAddress;
                 updates.imoNumber = ocrResult.imoNumber || updates.imoNumber;
                 updates.nationality = ocrResult.nationality || updates.nationality;
                 updates.portOfRegistry = ocrResult.portOfRegistry || updates.portOfRegistry;
@@ -196,23 +197,42 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
         }
     };
 
-    const InputField = ({ label, field, type = "text" }: { label: string, field: keyof ShipRegistry, type?: string }) => (
-        <div className="flex flex-col">
-            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">{label}</label>
-            {isEditing ? (
-                <input
-                    type={type}
-                    value={(formData[field] as string | number) || ''}
-                    onChange={(e) => setFormData({ ...formData, [field]: type === "number" ? parseFloat(e.target.value) : e.target.value })}
-                    className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
-                />
-            ) : (
-                <div className="px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-transparent rounded-lg text-sm text-slate-900 dark:text-slate-100 font-medium h-[38px] flex items-center">
-                    {registry?.[field] || '-'}
+    const handleCopy = (e: React.MouseEvent, text: string) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (text) {
+            navigator.clipboard.writeText(text);
+            showGlobalToast('복사 완료', '클립보드에 복사되었습니다.', 'success');
+        }
+    };
+
+    const renderInputField = (label: string, field: keyof ShipRegistry, type: string = "text", enableCopy: boolean = false) => {
+        const valueStr = String((formData[field] !== undefined ? formData[field] : registry?.[field]) || '');
+        return (
+            <div className="flex flex-col" key={field}>
+                <div className="flex justify-between items-center mb-1">
+                    <label className="text-xs font-semibold text-slate-500 dark:text-slate-400">{label}</label>
+                    {enableCopy && valueStr && valueStr !== '-' && (
+                        <button onClick={(e) => handleCopy(e, valueStr)} className="text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors" title="복사">
+                            <Copy size={12} />
+                        </button>
+                    )}
                 </div>
-            )}
-        </div>
-    );
+                {isEditing ? (
+                    <input
+                        type={type}
+                        value={(formData[field] as string | number) || ''}
+                        onChange={(e) => setFormData({ ...formData, [field]: type === "number" ? parseFloat(e.target.value) : e.target.value })}
+                        className="px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all dark:text-white"
+                    />
+                ) : (
+                    <div className="px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-transparent rounded-lg text-sm text-slate-900 dark:text-slate-100 font-medium h-[38px] flex items-center">
+                        {registry?.[field] || '-'}
+                    </div>
+                )}
+            </div>
+        );
+    };
 
     return (
         <div className="max-w-5xl mx-auto space-y-8 animate-fade-in pb-20 relative">
@@ -348,27 +368,28 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
                 <div className="p-8">
                     <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mb-6 border-b border-slate-200 dark:border-slate-700 pb-2">선박 정보 및 톤수</h3>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-6">
-                        <InputField label="호출부호 (Call Sign)" field="callSign" />
-                        <InputField label="IMO 번호" field="imoNumber" />
-                        <InputField label="선박국적" field="nationality" />
-                        <InputField label="선박등록항" field="portOfRegistry" />
+                        {renderInputField("호출부호 (Call Sign)", "callSign", "text", true)}
+                        {renderInputField("IMO 번호", "imoNumber", "text", true)}
+                        {renderInputField("선박국적", "nationality", "text", true)}
+                        {renderInputField("선박등록항", "portOfRegistry", "text", true)}
 
-                        <InputField label="MMSI 번호" field="mmsiNumber" />
-                        <InputField label="총톤수 (Gross Tonnage)" field="grossTonnage" type="number" />
-                        <InputField label="순톤수 (Net Tonnage)" field="netTonnage" type="number" />
-                        <InputField label="선종 (Ship Type)" field="shipType" />
+                        {renderInputField("MMSI 번호", "mmsiNumber", "text", true)}
+                        {renderInputField("총톤수 (Gross Tonnage)", "grossTonnage", "number", true)}
+                        {renderInputField("순톤수 (Net Tonnage)", "netTonnage", "number", true)}
+                        {renderInputField("선종 (Ship Type)", "shipType", "text", true)}
                     </div>
 
                     <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mt-12 mb-6 border-b border-slate-200 dark:border-slate-700 pb-2">선체 제원</h3>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-6">
-                        <InputField label="길이 (Length / LOA)" field="length" type="number" />
-                        <InputField label="너비 (Breadth)" field="breadth" type="number" />
-                        <InputField label="깊이 (Moulded Depth)" field="depth" type="number" />
+                        {renderInputField("길이 (Length / LOA)", "length", "number", true)}
+                        {renderInputField("너비 (Breadth)", "breadth", "number", true)}
+                        {renderInputField("깊이 (Moulded Depth)", "depth", "number", true)}
                     </div>
 
                     <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 mt-12 mb-6 border-b border-slate-200 dark:border-slate-700 pb-2">운항 정보</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
-                        <InputField label="선주 (Ship Owner)" field="shipOwner" />
+                        {renderInputField("선주 (Ship Owner)", "shipOwner", "text", true)}
+                        {renderInputField("선주 주소 (Ship Owner Address)", "shipOwnerAddress", "text", true)}
                     </div>
                 </div>
             </div>

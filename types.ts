@@ -182,23 +182,24 @@ export interface VesselJob {
 export interface ShipRegistry {
   id: string; // Typically the normalized vessel name or IMO Number
   vesselName: string;
-  
+
   // Nationality Certificate
   shipType?: string; // 선종
   callSign?: string; // 호출부호
   shipOwner?: string; // 선주
+  shipOwnerAddress?: string; // 선주 주소
   imoNumber?: string; // IMO 번호
   nationality?: string; // 선박국적
   portOfRegistry?: string; // 선박등록항
   mmsiNumber?: string; // MMSI 번호
-  
+
   // Tonnage Certificate
   grossTonnage?: number; // GROSS TONNAGE
   netTonnage?: number; // NET TONNAGE
   length?: number; // LENGTH (LOA)
   breadth?: number; // BREADTH
   depth?: number; // MOULDED DEPTH
-  
+
   // Link to stored files
   nationalityCertFileUrl?: string; // 국적증서
   tonnageCertFileUrl?: string; // 국제톤수증서
