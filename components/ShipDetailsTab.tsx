@@ -155,25 +155,25 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
             if (type === 'CERT_NATIONALITY') {
                 updates = {
                     ...updates,
-                    shipType: ocrResult.shipType || updates.shipType,
-                    callSign: ocrResult.callSign || updates.callSign,
-                    shipOwner: ocrResult.shipOwner || updates.shipOwner,
-                    shipOwnerAddress: ocrResult.shipOwnerAddress || updates.shipOwnerAddress,
-                    imoNumber: ocrResult.imoNumber || updates.imoNumber,
-                    nationality: ocrResult.nationality || updates.nationality,
-                    portOfRegistry: ocrResult.portOfRegistry || updates.portOfRegistry,
-                    mmsiNumber: ocrResult.mmsiNumber || updates.mmsiNumber,
+                    shipType: ocrResult.shipType || updates.shipType || undefined,
+                    callSign: ocrResult.callSign || updates.callSign || undefined,
+                    shipOwner: ocrResult.shipOwner || updates.shipOwner || undefined,
+                    shipOwnerAddress: ocrResult.shipOwnerAddress || updates.shipOwnerAddress || undefined,
+                    imoNumber: ocrResult.imoNumber || updates.imoNumber || undefined,
+                    nationality: ocrResult.nationality || updates.nationality || undefined,
+                    portOfRegistry: ocrResult.portOfRegistry || updates.portOfRegistry || undefined,
+                    mmsiNumber: ocrResult.mmsiNumber || updates.mmsiNumber || undefined,
                 };
             } else if (type === 'CERT_TONNAGE') {
                 updates = {
                     ...updates,
-                    callSign: ocrResult.callSign || updates.callSign,
-                    imoNumber: ocrResult.imoNumber || updates.imoNumber,
-                    grossTonnage: ocrResult.grossTonnage || updates.grossTonnage,
-                    netTonnage: ocrResult.netTonnage || updates.netTonnage,
-                    length: ocrResult.length || updates.length,
-                    breadth: ocrResult.breadth || updates.breadth,
-                    depth: ocrResult.depth || updates.depth,
+                    callSign: ocrResult.callSign || updates.callSign || undefined,
+                    imoNumber: ocrResult.imoNumber || updates.imoNumber || undefined,
+                    grossTonnage: ocrResult.grossTonnage || updates.grossTonnage || undefined,
+                    netTonnage: ocrResult.netTonnage || updates.netTonnage || undefined,
+                    length: ocrResult.length || updates.length || undefined,
+                    breadth: ocrResult.breadth || updates.breadth || undefined,
+                    depth: ocrResult.depth || updates.depth || undefined,
                 };
             }
 
