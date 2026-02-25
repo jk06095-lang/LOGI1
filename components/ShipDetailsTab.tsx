@@ -131,6 +131,7 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
             return;
         }
 
+        setIsEditing(true);
         setIsOcrProcessing(true);
         showGlobalToast('AI 분석 중', '증서 데이터 추출을 시작합니다...', 'processing');
 
@@ -178,7 +179,6 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
             }
 
             setFormData(updates);
-            setIsEditing(true);
             showGlobalToast('OCR 분석 완료', '추출된 내용을 확인 후 저장해주세요.', 'success');
         } catch (err: any) {
             showGlobalToast('OCR 오류', err.message, 'error');
