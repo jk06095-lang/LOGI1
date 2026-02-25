@@ -171,8 +171,9 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
             }
 
             setFormData(updates);
-            setIsEditing(true);
-            showGlobalToast('OCR 분석 완료', '추출된 내용을 확인 후 저장해주세요.', 'success');
+            setRegistry(prev => prev ? { ...prev, ...updates } : updates as ShipRegistry);
+
+            showGlobalToast('OCR 분석 완료', '추출된 내용을 확인 후 [수정] 버튼을 눌러 저장해주세요.', 'success');
         } catch (err: any) {
             showGlobalToast('OCR 오류', err.message, 'error');
         } finally {

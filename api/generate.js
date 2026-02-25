@@ -18,31 +18,31 @@ export default async function handler(req, res) {
   try {
     // 3. Initialize Gemini Client
     const ai = new GoogleGenAI({ apiKey });
-    
+
     const parts = [];
-    
+
     // Add Image if present
     if (image && mimeType) {
-        parts.push({ inlineData: { data: image, mimeType } });
+      parts.push({ inlineData: { data: image, mimeType } });
     }
-    
+
     // Add Prompt
     parts.push({ text: prompt });
 
     // Config
     const config = {
-        temperature: 0.1,
+      temperature: 0.1,
     };
 
     // Add Schema if provided (for JSON mode)
     if (schema) {
-        config.responseMimeType = "application/json";
-        config.responseSchema = schema;
+      config.responseMimeType = "application/json";
+      config.responseSchema = schema;
     }
 
     // 4. Generate Content
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.0-flash",
       contents: { parts },
       config: config
     });
