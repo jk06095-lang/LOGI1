@@ -110,10 +110,8 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
 
             // Auto-save the URL so it doesn't get lost if user closes tab
             const id = getSafeId(vesselName);
-            if (registry) {
-                await dataService.updateShipRegistry(id, { [type === 'CERT_NATIONALITY' ? 'nationalityCertFileUrl' : 'tonnageCertFileUrl']: fileUrl });
-                setRegistry(prev => prev ? { ...prev, ...updates } : updates as ShipRegistry);
-            }
+            await dataService.updateShipRegistry(id, { [type === 'CERT_NATIONALITY' ? 'nationalityCertFileUrl' : 'tonnageCertFileUrl']: fileUrl, vesselName });
+            setRegistry(prev => prev ? { ...prev, ...updates } : { id, vesselName, ...updates } as ShipRegistry);
 
             showGlobalToast('업로드 완료', '파일이 업로드 되었습니다. OCR 분석을 진행해 보세요.', 'success');
         } catch (err: any) {
