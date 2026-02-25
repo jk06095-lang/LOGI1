@@ -67,12 +67,17 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
         dataService.getShipRegistry(id).then(data => {
             if (data) {
                 setRegistry(data);
-                setFormData(data);
+                // Only overwrite form data if the user is not actively editing
+                if (!isEditing) {
+                    setFormData(data);
+                }
             } else {
-                setFormData({ vesselName });
+                if (!isEditing) {
+                    setFormData({ vesselName });
+                }
             }
         });
-    }, [vesselName]);
+    }, [vesselName, isEditing]);
 
     const handleSave = async () => {
         try {
