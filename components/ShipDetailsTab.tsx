@@ -148,26 +148,33 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
             // Run OCR
             const ocrResult = await parseDocument(fileToAnalyze, type);
 
-            const updates = { ...formData };
+            let updates = { ...formData };
 
-            // Auto-fill based on OCR result
+            // For new ships, some properties might not exist on formData at all. 
+            // We explicitly assign the OCR result, falling back to the existing value only if OCR is missing it.
             if (type === 'CERT_NATIONALITY') {
-                updates.shipType = ocrResult.shipType || updates.shipType;
-                updates.callSign = ocrResult.callSign || updates.callSign;
-                updates.shipOwner = ocrResult.shipOwner || updates.shipOwner;
-                updates.shipOwnerAddress = ocrResult.shipOwnerAddress || updates.shipOwnerAddress;
-                updates.imoNumber = ocrResult.imoNumber || updates.imoNumber;
-                updates.nationality = ocrResult.nationality || updates.nationality;
-                updates.portOfRegistry = ocrResult.portOfRegistry || updates.portOfRegistry;
-                updates.mmsiNumber = ocrResult.mmsiNumber || updates.mmsiNumber;
+                updates = {
+                    ...updates,
+                    shipType: ocrResult.shipType || updates.shipType,
+                    callSign: ocrResult.callSign || updates.callSign,
+                    shipOwner: ocrResult.shipOwner || updates.shipOwner,
+                    shipOwnerAddress: ocrResult.shipOwnerAddress || updates.shipOwnerAddress,
+                    imoNumber: ocrResult.imoNumber || updates.imoNumber,
+                    nationality: ocrResult.nationality || updates.nationality,
+                    portOfRegistry: ocrResult.portOfRegistry || updates.portOfRegistry,
+                    mmsiNumber: ocrResult.mmsiNumber || updates.mmsiNumber,
+                };
             } else if (type === 'CERT_TONNAGE') {
-                updates.callSign = ocrResult.callSign || updates.callSign;
-                updates.imoNumber = ocrResult.imoNumber || updates.imoNumber;
-                updates.grossTonnage = ocrResult.grossTonnage || updates.grossTonnage;
-                updates.netTonnage = ocrResult.netTonnage || updates.netTonnage;
-                updates.length = ocrResult.length || updates.length;
-                updates.breadth = ocrResult.breadth || updates.breadth;
-                updates.depth = ocrResult.depth || updates.depth;
+                updates = {
+                    ...updates,
+                    callSign: ocrResult.callSign || updates.callSign,
+                    imoNumber: ocrResult.imoNumber || updates.imoNumber,
+                    grossTonnage: ocrResult.grossTonnage || updates.grossTonnage,
+                    netTonnage: ocrResult.netTonnage || updates.netTonnage,
+                    length: ocrResult.length || updates.length,
+                    breadth: ocrResult.breadth || updates.breadth,
+                    depth: ocrResult.depth || updates.depth,
+                };
             }
 
             setFormData(updates);
