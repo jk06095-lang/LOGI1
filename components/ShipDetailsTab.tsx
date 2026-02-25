@@ -24,6 +24,9 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
     const [dragActiveNat, setDragActiveNat] = useState(false);
     const [dragActiveTon, setDragActiveTon] = useState(false);
 
+    // Cached files to bypass immediate fetch delays after upload
+    const [localFiles, setLocalFiles] = useState<Record<string, File>>({});
+
     const currentTaskIdRef = useRef<string | null>(null);
 
     const showGlobalToast = (title: string, msg: string, status: 'success' | 'error' | 'processing') => {
@@ -107,6 +110,7 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
             }
 
             setFormData(updates);
+            setLocalFiles(prev => ({ ...prev, [type]: file }));
 
             // Auto-save the URL so it doesn't get lost if user closes tab
             const id = getSafeId(vesselName);
@@ -136,14 +140,20 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
         showGlobalToast('AI 분석 중', '증서 데이터 추출을 시작합니다...', 'processing');
 
         try {
-            // Download the file from Firebase Storage URL
             let fileToAnalyze: File;
-            try {
-                const response = await fetch(url);
-                const blob = await response.blob();
-                fileToAnalyze = new File([blob], `document-${Date.now()}`, { type: blob.type || 'application/pdf' });
-            } catch (err) {
-                throw new Error("저장된 파일을 불러오지 못했습니다. 파일을 다시 업로드해주세요.");
+
+            // Use locally cached file if available to bypass CORS/propagation delays
+            if (localFiles[type]) {
+                fileToAnalyze = localFiles[type];
+            } else {
+                // Download the file from Firebase Storage URL
+                try {
+                    const response = await fetch(url);
+                    const blob = await response.blob();
+                    fileToAnalyze = new File([blob], `document-${Date.now()}`, { type: blob.type || 'application/pdf' });
+                } catch (err) {
+                    throw new Error("저장된 파일을 불러오지 못했습니다. 파일을 다시 업로드해주세요.");
+                }
             }
 
             // Run OCR
