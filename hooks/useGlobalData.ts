@@ -142,9 +142,10 @@ export const useGlobalData = (settings: AppSettings) => {
   const addTask = (task: BackgroundTask) => {
     setTasks(prev => [task, ...prev]);
     if (task.status === 'success') {
-      setTimeout(() => removeTask(task.id), 5000);
+      setTimeout(() => removeTask(task.id), 500);
       addToHistory(task.title, task.message || 'Completed successfully', 'success');
     } else if (task.status === 'error') {
+      setTimeout(() => removeTask(task.id), 500);
       addToHistory(task.title, task.message || 'Operation failed', 'error');
     }
   };
@@ -154,9 +155,10 @@ export const useGlobalData = (settings: AppSettings) => {
       if (t.id === id) {
         const updated = { ...t, ...updates };
         if (updates.status === 'success' && t.status !== 'success') {
-          setTimeout(() => removeTask(id), 5000);
+          setTimeout(() => removeTask(id), 500);
           addToHistory(updated.title, updated.message || 'Done', 'success');
         } else if (updates.status === 'error' && t.status !== 'error') {
+          setTimeout(() => removeTask(id), 500);
           addToHistory(updated.title, updated.message || 'Failed', 'error');
         }
         return updated;
