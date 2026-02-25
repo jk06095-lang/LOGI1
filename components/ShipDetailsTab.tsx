@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ShipRegistry, DocumentScanType, BackgroundTask } from '../types';
 import { Ship, FileText, Upload, Save, CheckCircle, BrainCircuit, X, Trash2, Edit, Download, Copy } from 'lucide-react';
 import { dataService } from '../services/dataService';
@@ -24,12 +24,12 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
     const [dragActiveNat, setDragActiveNat] = useState(false);
     const [dragActiveTon, setDragActiveTon] = useState(false);
 
-    const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
+    const currentTaskIdRef = useRef<string | null>(null);
 
     const showGlobalToast = (title: string, msg: string, status: 'success' | 'error' | 'processing') => {
         if (status === 'processing' && onAddTask) {
             const newTaskId = `ship-details-${Date.now()}`;
-            setCurrentTaskId(newTaskId);
+            currentTaskIdRef.current = newTaskId;
             onAddTask({
                 id: newTaskId,
                 title,
@@ -37,15 +37,15 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
                 status,
                 progress: 50
             });
-        } else if (onUpdateTask && currentTaskId) {
-            onUpdateTask(currentTaskId, {
+        } else if (onUpdateTask && currentTaskIdRef.current) {
+            onUpdateTask(currentTaskIdRef.current, {
                 title,
                 message: msg,
                 status,
                 progress: 100
             });
-            setCurrentTaskId(null); // Reset task tracking after completion
-        } else if (onAddTask && !currentTaskId) {
+            currentTaskIdRef.current = null; // Reset task tracking after completion
+        } else if (onAddTask && !currentTaskIdRef.current) {
             // Fallback for one-off success/error without processing state
             onAddTask({
                 id: `ship-details-${Date.now()}`,
