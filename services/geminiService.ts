@@ -157,17 +157,17 @@ export const parseDocument = async (
           break;
         case 'CERT_NATIONALITY':
           promptText = `Analyze this CERTIFICATE OF NATIONALITY (선박국적증서).
-          You MUST extract the following details exactly as written into the corresponding JSON properties:
+          You MUST extract the following details exactly as written into the corresponding JSON properties. BE EXTREMELY CONCISE AND AVOID TRANSCRIBING UNNECESSARY TEXT to prevent JSON truncation.
           - 'vesselName' for Vessel Name (선명)
           - 'shipType' for Ship Type (선종)
           - 'callSign' for Call Sign (호출부호)
           - 'shipOwner' for Ship Owner (선명 / 선주)
           - 'shipOwnerAddress' for Ship Owner Address (선주 주소 / 주소 / 등록소재지)
           - 'imoNumber' for IMO Number (IMO 번호)
-          - 'nationality' for Nationality (선박국적)
-          - 'portOfRegistry' for Port of Registry (선박등록항)
           - 'mmsiNumber' for MMSI Number (MMSI 번호)
-          CRITICAL: You must extract the exact values from the document.`;
+          - 'portOfRegistry' for Port of Registry (선박등록항). Convert the port name to its 5-letter UN/LOCODE if possible (e.g. if ZHOUSHAN, output CNZOS. If BUSAN, output KRPUS).
+          - 'nationality' for Nationality (선박국적). Automatically determine the 2-letter country code based on the port of registry or flag (e.g. if Port is ZHOUSHAN, Nationality is CN. If Panama, PA).
+          CRITICAL: You must extract the exact values.`;
           break;
         case 'CERT_TONNAGE':
           promptText = `Analyze this INTERNATIONAL TONNAGE CERTIFICATE (국제톤수증서).
@@ -234,7 +234,22 @@ export const parseDocument = async (
       const text = data.result;
 
       if (!text) throw new Error("No response from AI");
-      const parsed = JSON.parse(text);
+
+      // Clean up potential markdown formatting that breaks JSON.parse
+      let cleanText = text.trim();
+      if (cleanText.startsWith('\`\`\`json')) {
+        cleanText = cleanText.replace(/^\`\`\`json\n?/, '').replace(/\n?\`\`\`$/, '');
+      } else if (cleanText.startsWith('\`\`\`')) {
+        cleanText = cleanText.replace(/^\`\`\`\n?/, '').replace(/\n?\`\`\`$/, '');
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(cleanText);
+      } catch (parseErr: any) {
+        console.error("JSON Parsing Error. Raw Text:", cleanText.substring(0, 500) + '...');
+        throw new Error("AI returned malformed data. Please try again or check the document. Details: " + parseErr.message);
+      }
 
       // Post-processing
       if (!parsed.totalCbm && parsed.cargoItems && parsed.cargoItems.length > 0) {
