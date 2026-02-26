@@ -200,6 +200,37 @@ export const useChatScroll = (
         prevMessagesLengthRef.current = messages.length;
     }, [messages, channelId, isOpen, restoreScrollPosition]);
 
+    // Continuously correct scroll position during the window's opening animation
+    // Framer Motion changes the height dynamically which causes the element to be pushed to the top of the viewport
+    useEffect(() => {
+        const container = scrollRef.current;
+        if (!container || !isOpen || !channelId) return;
+
+        let isOpeningPhase = true;
+        const timeoutId = setTimeout(() => {
+            isOpeningPhase = false;
+        }, 800); // Stop tracking after the opening spring animation should clearly be finished
+
+        let lastHeight = container.clientHeight;
+
+        const observer = new ResizeObserver(() => {
+            if (isOpeningPhase) {
+                const currentHeight = container.clientHeight;
+                if (currentHeight !== lastHeight) {
+                    restoreScrollPosition();
+                    lastHeight = currentHeight;
+                }
+            }
+        });
+
+        observer.observe(container);
+
+        return () => {
+            clearTimeout(timeoutId);
+            observer.disconnect();
+        };
+    }, [isOpen, channelId, restoreScrollPosition]);
+
     const signalHistoryLoad = () => {
         // Placeholder
     };
