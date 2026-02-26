@@ -103,6 +103,37 @@ const createFullDocSchema = (availableCategories: string[]): Schema => {
   };
 };
 
+// Focused schema for Certificate of Nationality parsing
+const createCertNationalitySchema = (): Schema => ({
+  type: Type.OBJECT,
+  properties: {
+    vesselName: { type: Type.STRING, description: "Vessel Name (선명)" },
+    shipType: { type: Type.STRING, description: "Ship Type (선종, ex: General Cargo Ship)" },
+    callSign: { type: Type.STRING, description: "Call Sign (호출부호)" },
+    shipOwner: { type: Type.STRING, description: "Ship Owner (선주)" },
+    shipOwnerAddress: { type: Type.STRING, description: "Ship Owner Address (선주 주소 / 등록소재지)" },
+    imoNumber: { type: Type.STRING, description: "IMO Number (IMO 번호)" },
+    mmsiNumber: { type: Type.STRING, description: "MMSI Number (MMSI 번호)" },
+    portOfRegistry: { type: Type.STRING, description: "Port of Registry (선박등록항) as UN/LOCODE" },
+    nationality: { type: Type.STRING, description: "Nationality 2-letter country code (선박국적)" },
+  },
+});
+
+// Focused schema for International Tonnage Certificate parsing
+const createCertTonnageSchema = (): Schema => ({
+  type: Type.OBJECT,
+  properties: {
+    vesselName: { type: Type.STRING, description: "Vessel Name (선명)" },
+    callSign: { type: Type.STRING, description: "Call Sign (호출부호)" },
+    imoNumber: { type: Type.STRING, description: "IMO Number (IMO 번호)" },
+    grossTonnage: { type: Type.NUMBER, description: "Gross Tonnage (총톤수)" },
+    netTonnage: { type: Type.NUMBER, description: "Net Tonnage (순톤수)" },
+    length: { type: Type.NUMBER, description: "Length / LOA (길이) in meters" },
+    breadth: { type: Type.NUMBER, description: "Breadth (너비) in meters" },
+    depth: { type: Type.NUMBER, description: "Moulded Depth (깊이) in meters" },
+  },
+});
+
 export const parseDocument = async (
   file: File,
   docType: DocumentScanType,
@@ -116,8 +147,15 @@ export const parseDocument = async (
       const base64Data = await fileToGenerativePart(compressedFile);
       const mimeType = compressedFile.type === 'application/pdf' ? 'application/pdf' : compressedFile.type;
 
-      // 2. Generate Dynamic Schema
-      const fullDocSchema = createFullDocSchema(availableCategories);
+      // 2. Generate Dynamic Schema — use focused schemas for ship certificates
+      let fullDocSchema: Schema;
+      if (docType === 'CERT_NATIONALITY') {
+        fullDocSchema = createCertNationalitySchema();
+      } else if (docType === 'CERT_TONNAGE') {
+        fullDocSchema = createCertTonnageSchema();
+      } else {
+        fullDocSchema = createFullDocSchema(availableCategories);
+      }
 
       // 3. Construct Prompt with Dynamic Categories
       let categoryPrompt = "";
@@ -233,7 +271,17 @@ export const parseDocument = async (
       const data = await response.json();
       const text = data.result;
 
-      if (!text) throw new Error("No response from AI");
+      console.log('[geminiService] Raw response type:', typeof text);
+      console.log('[geminiService] Raw response preview:', typeof text === 'string' ? text.substring(0, 200) : JSON.stringify(text).substring(0, 200));
+
+      if (!text && text !== 0) throw new Error("No response from AI");
+
+      // If the result is already a parsed object (e.g., from structured JSON output), use it directly
+      if (typeof text === 'object' && text !== null) {
+        console.log('[geminiService] Response is already an object, skipping JSON.parse');
+        resolve(text);
+        return;
+      }
 
       // Clean up potential markdown formatting that breaks JSON.parse
       let cleanText = text.trim();
@@ -250,6 +298,8 @@ export const parseDocument = async (
         console.error("JSON Parsing Error. Raw Text:", cleanText.substring(0, 500) + '...');
         throw new Error("AI returned malformed data. Please try again or check the document. Details: " + parseErr.message);
       }
+
+      console.log('[geminiService] Parsed result keys:', Object.keys(parsed));
 
       // Post-processing
       if (!parsed.totalCbm && parsed.cargoItems && parsed.cargoItems.length > 0) {

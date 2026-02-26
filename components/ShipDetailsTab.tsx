@@ -166,31 +166,50 @@ export const ShipDetailsTab: React.FC<ShipDetailsTabProps> = ({ vesselName, lang
             const ocrResult = await parseDocument(fileToAnalyze, type);
 
             console.log('[OCR] Raw result:', JSON.stringify(ocrResult));
+            console.log('[OCR] Raw result type:', typeof ocrResult);
+            console.log('[OCR] Result keys:', Object.keys(ocrResult || {}));
+
+            // Helper: check if a value is a real extracted value (not null, undefined, or empty string)
+            const hasValue = (v: any): boolean => v != null && v !== '';
 
             // Use functional update to avoid stale closure — formData may have changed during the async OCR call
             setFormData(prev => {
                 const merged = { ...prev };
+                let fieldCount = 0;
 
                 if (type === 'CERT_NATIONALITY') {
-                    if (ocrResult.shipType) merged.shipType = ocrResult.shipType;
-                    if (ocrResult.callSign) merged.callSign = ocrResult.callSign;
-                    if (ocrResult.shipOwner) merged.shipOwner = ocrResult.shipOwner;
-                    if (ocrResult.shipOwnerAddress) merged.shipOwnerAddress = ocrResult.shipOwnerAddress;
-                    if (ocrResult.imoNumber) merged.imoNumber = ocrResult.imoNumber;
-                    if (ocrResult.nationality) merged.nationality = ocrResult.nationality;
-                    if (ocrResult.portOfRegistry) merged.portOfRegistry = ocrResult.portOfRegistry;
-                    if (ocrResult.mmsiNumber) merged.mmsiNumber = ocrResult.mmsiNumber;
+                    if (hasValue(ocrResult.shipType)) { merged.shipType = ocrResult.shipType; fieldCount++; }
+                    if (hasValue(ocrResult.callSign)) { merged.callSign = ocrResult.callSign; fieldCount++; }
+                    if (hasValue(ocrResult.shipOwner)) { merged.shipOwner = ocrResult.shipOwner; fieldCount++; }
+                    if (hasValue(ocrResult.shipOwnerAddress)) { merged.shipOwnerAddress = ocrResult.shipOwnerAddress; fieldCount++; }
+                    if (hasValue(ocrResult.imoNumber)) { merged.imoNumber = ocrResult.imoNumber; fieldCount++; }
+                    if (hasValue(ocrResult.nationality)) { merged.nationality = ocrResult.nationality; fieldCount++; }
+                    if (hasValue(ocrResult.portOfRegistry)) { merged.portOfRegistry = ocrResult.portOfRegistry; fieldCount++; }
+                    if (hasValue(ocrResult.mmsiNumber)) { merged.mmsiNumber = ocrResult.mmsiNumber; fieldCount++; }
                 } else if (type === 'CERT_TONNAGE') {
-                    if (ocrResult.callSign) merged.callSign = ocrResult.callSign;
-                    if (ocrResult.imoNumber) merged.imoNumber = ocrResult.imoNumber;
-                    if (ocrResult.grossTonnage) merged.grossTonnage = ocrResult.grossTonnage;
-                    if (ocrResult.netTonnage) merged.netTonnage = ocrResult.netTonnage;
-                    if (ocrResult.length) merged.length = ocrResult.length;
-                    if (ocrResult.breadth) merged.breadth = ocrResult.breadth;
-                    if (ocrResult.depth) merged.depth = ocrResult.depth;
+                    if (hasValue(ocrResult.callSign)) { merged.callSign = ocrResult.callSign; fieldCount++; }
+                    if (hasValue(ocrResult.imoNumber)) { merged.imoNumber = ocrResult.imoNumber; fieldCount++; }
+                    if (hasValue(ocrResult.grossTonnage)) { merged.grossTonnage = ocrResult.grossTonnage; fieldCount++; }
+                    if (hasValue(ocrResult.netTonnage)) { merged.netTonnage = ocrResult.netTonnage; fieldCount++; }
+                    if (hasValue(ocrResult.length)) { merged.length = ocrResult.length; fieldCount++; }
+                    if (hasValue(ocrResult.breadth)) { merged.breadth = ocrResult.breadth; fieldCount++; }
+                    if (hasValue(ocrResult.depth)) { merged.depth = ocrResult.depth; fieldCount++; }
                 }
 
+                console.log(`[OCR] Merged ${fieldCount} fields into formData`);
                 console.log('[OCR] Merged formData:', JSON.stringify(merged));
+
+                if (fieldCount === 0) {
+                    console.warn('[OCR] WARNING: No fields were merged! OCR result may be empty or have unexpected format.');
+                    console.warn('[OCR] Individual field values:', {
+                        shipType: ocrResult.shipType,
+                        callSign: ocrResult.callSign,
+                        imoNumber: ocrResult.imoNumber,
+                        grossTonnage: ocrResult.grossTonnage,
+                        netTonnage: ocrResult.netTonnage,
+                    });
+                }
+
                 return merged;
             });
 
