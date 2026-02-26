@@ -35,19 +35,19 @@ export const useChatScroll = (
         const key = getStorageKey();
         if (!key) return;
 
-        const children = Array.from(container.children) as HTMLElement[];
+        const messageElements = Array.from(container.querySelectorAll('[data-msg-id]')) as HTMLElement[];
         let bottomMostVisibleId: string | null = null;
 
         // Find the message at the bottom of the viewport
-        for (const child of children) {
-            const msgId = child.getAttribute('data-msg-id');
+        for (const el of messageElements) {
+            const msgId = el.getAttribute('data-msg-id');
             if (msgId) {
-                const childTop = child.offsetTop;
-                const childBottom = childTop + child.offsetHeight;
+                const childTop = el.offsetTop;
+                const childBottom = childTop + el.offsetHeight;
 
                 // Check if this element is visible at the bottom of the scroll view
                 // (allowing some buffer)
-                if (childBottom >= scrollTop + clientHeight - 50 && childTop <= scrollTop + clientHeight) {
+                if (childBottom >= scrollTop && childTop <= scrollTop + clientHeight + 50) {
                     bottomMostVisibleId = msgId;
                 }
             }
@@ -73,7 +73,12 @@ export const useChatScroll = (
         const savedLastReadId = key ? localStorage.getItem(key) : null;
 
         const scrollInstant = (top: number) => {
+            const originalBehavior = container.style.scrollBehavior;
+            container.style.scrollBehavior = 'auto';
             container.scrollTo({ top, behavior: 'auto' });
+            requestAnimationFrame(() => {
+                container.style.scrollBehavior = originalBehavior;
+            });
         };
 
         if (savedLastReadId) {
@@ -139,7 +144,13 @@ export const useChatScroll = (
         }
     }, []);
 
-    // Reset state when channel changes
+    // Reset state when channel changes or chat closes
+    useEffect(() => {
+        if (!isOpen) {
+            prevMessagesLengthRef.current = 0;
+        }
+    }, [isOpen]);
+
     useEffect(() => {
         prevMessagesLengthRef.current = 0;
         messageRefs.current.clear();
@@ -157,15 +168,8 @@ export const useChatScroll = (
 
         if (isChannelLoad) {
             isRestoring.current = true;
-
-            // Temporarily force auto behavior
-            const originalBehavior = container.style.scrollBehavior;
-            container.style.scrollBehavior = 'auto';
-
             restoreScrollPosition();
-
             requestAnimationFrame(() => {
-                container.style.scrollBehavior = originalBehavior;
                 isRestoring.current = false;
             });
         }
