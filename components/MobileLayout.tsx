@@ -15,6 +15,7 @@ import { useChatScroll } from '../hooks/useChatScroll';
 import { HSCodeSearch } from '../features/toolbox/tabs/HSCodeSearch';
 import { MyMemo } from '../features/toolbox/tabs/MyMemo';
 import { TeamBoard } from '../features/toolbox/tabs/TeamBoard';
+import { HelpSection } from './HelpSection';
 
 const mobileTranslations = {
     ko: {
@@ -1088,6 +1089,9 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
                                 </div>
                             </div>
                         )}
+
+                        {/* Help Section */}
+                        <HelpSection language={settings.language} userName={user?.displayName || 'User'} isMobile={true} />
 
                         <button
                             onClick={onLogout}

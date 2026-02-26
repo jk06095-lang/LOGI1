@@ -473,5 +473,69 @@ export const dataService = {
     grantAuthorization: async (uid: string) => {
         if (!db) return;
         await setDoc(doc(db, "users", uid), { authorized: true }, { merge: true });
+    },
+
+    // --- HELP SECTION ---
+
+    getManualMeta: async (): Promise<{ htmlUrl: string; imageUrls: string[]; uploadedAt: string } | null> => {
+        if (!db) return null;
+        try {
+            const snap = await getDoc(doc(db, "settings", "manual"));
+            if (snap.exists()) return snap.data() as any;
+            return null;
+        } catch (e) { console.error("Get Manual Meta Error:", e); return null; }
+    },
+
+    updateManualMeta: async (data: { htmlUrl: string; imageUrls: string[]; uploadedAt: string }) => {
+        if (!db) return;
+        try {
+            await setDoc(doc(db, "settings", "manual"), data, { merge: true });
+        } catch (e) { console.error("Update Manual Meta Error:", e); }
+    },
+
+    subscribeQAPosts: (callback: (posts: any[]) => void) => {
+        if (!db) return () => { };
+        const q = query(collection(db, "helpQA"), orderBy("createdAt", "desc"));
+        return onSnapshot(q, (snapshot) => {
+            const posts = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            callback(posts);
+        }, (err) => console.error("QA Subscribe Error:", err));
+    },
+
+    addQAPost: async (post: { title: string; content: string; author: string; createdAt: string }) => {
+        if (!db) return;
+        try {
+            await addDoc(collection(db, "helpQA"), post);
+        } catch (e) { console.error("Add QA Post Error:", e); }
+    },
+
+    deleteQAPost: async (id: string) => {
+        if (!db) return;
+        try {
+            await deleteDoc(doc(db, "helpQA", id));
+        } catch (e) { console.error("Delete QA Post Error:", e); }
+    },
+
+    subscribeChangelog: (callback: (entries: any[]) => void) => {
+        if (!db) return () => { };
+        const q = query(collection(db, "changelog"), orderBy("date", "desc"));
+        return onSnapshot(q, (snapshot) => {
+            const entries = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            callback(entries);
+        }, (err) => console.error("Changelog Subscribe Error:", err));
+    },
+
+    addChangelogEntry: async (entry: { version: string; date: string; content: string }) => {
+        if (!db) return;
+        try {
+            await addDoc(collection(db, "changelog"), entry);
+        } catch (e) { console.error("Add Changelog Error:", e); }
+    },
+
+    deleteChangelogEntry: async (id: string) => {
+        if (!db) return;
+        try {
+            await deleteDoc(doc(db, "changelog", id));
+        } catch (e) { console.error("Delete Changelog Error:", e); }
     }
 };
