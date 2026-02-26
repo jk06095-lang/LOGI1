@@ -13,12 +13,11 @@ export const useChatScroll = (
     const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
     const prevMessagesLengthRef = useRef(0);
-    const isRestoring = useRef(false);
     const saveTimeoutRef = useRef<any>(null);
 
-    // Tracks the ID of the message that was "last read" when the component mounted
-    // Used to render the "New Messages" divider.
-    const [initialLastReadId, setInitialLastReadId] = useState<string | null>(null);
+    // Tracks the ID of the message that was "last read" when the component mounted per channel.
+    // Used to render the "New Messages" divider. Persistent across tab switches.
+    const [channelLastReadMap, setChannelLastReadMap] = useState<Record<string, string>>({});
 
     // Generate storage key
     const getStorageKey = useCallback(() => {
@@ -82,7 +81,11 @@ export const useChatScroll = (
         };
 
         if (savedLastReadId) {
-            setInitialLastReadId(savedLastReadId);
+            // Only set the initial read ID ONCE per channel per window session to keep the divider visible
+            setChannelLastReadMap(prev => {
+                if (prev[channelId]) return prev;
+                return { ...prev, [channelId]: savedLastReadId };
+            });
 
             // Check if this ID exists in current messages
             const msgIndex = messages.findIndex(m => m.id === savedLastReadId);
@@ -151,10 +154,10 @@ export const useChatScroll = (
         }
     }, [isOpen]);
 
+    // Do not clear the channelLastReadMap on channel change so the divider persists
     useEffect(() => {
         prevMessagesLengthRef.current = 0;
         messageRefs.current.clear();
-        setInitialLastReadId(null);
     }, [channelId]);
 
     // Handle Scroll Restoration & New Messages
@@ -167,18 +170,14 @@ export const useChatScroll = (
         const isChannelLoad = prevMessagesLengthRef.current === 0 && hasMessages;
 
         if (isChannelLoad) {
-            isRestoring.current = true;
             restoreScrollPosition();
-            requestAnimationFrame(() => {
-                isRestoring.current = false;
-            });
         }
         /* 
            NOTE: When prepending history (pagination), the length increases but we are NOT at the bottom.
            The parent component (ChatWindow) should handle scroll adjustment for prepend.
            We only handle "Auto-scroll for NEW messages at bottom".
         */
-        else if (messages.length > prevMessagesLengthRef.current && !isRestoring.current) {
+        else if (messages.length > prevMessagesLengthRef.current) {
             // Only auto-scroll if the NEW message is at the END (timestamp check or simple append check)
             // If we prepended history, we shouldn't scroll to bottom.
 
@@ -209,16 +208,26 @@ export const useChatScroll = (
         let isOpeningPhase = true;
         const timeoutId = setTimeout(() => {
             isOpeningPhase = false;
-        }, 800); // Stop tracking after the opening spring animation should clearly be finished
+        }, 800);
 
         let lastHeight = container.clientHeight;
+        let lastScrollTop = container.scrollTop;
 
         const observer = new ResizeObserver(() => {
             if (isOpeningPhase) {
                 const currentHeight = container.clientHeight;
-                if (currentHeight !== lastHeight) {
+                if (Math.abs(currentHeight - lastHeight) > 5) {
+
+                    // Crucial addition: if user actually manually scrolls during this 800ms, abort the auto-locking!
+                    if (Math.abs(container.scrollTop - lastScrollTop) > 50) {
+                        isOpeningPhase = false;
+                        return;
+                    }
+
                     restoreScrollPosition();
                     lastHeight = currentHeight;
+                    // update our baseline scroll top after restoration
+                    setTimeout(() => { lastScrollTop = container.scrollTop; }, 0);
                 }
             }
         });
@@ -243,6 +252,6 @@ export const useChatScroll = (
         messageRefs,
         signalHistoryLoad,
         restoreScrollPosition,
-        initialLastReadId // Expose this for the Divider
+        initialLastReadId: channelId ? channelLastReadMap[channelId] || null : null // Expose per channel
     };
 };
