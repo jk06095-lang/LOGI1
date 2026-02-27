@@ -304,7 +304,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
                         </div>
                     )}
 
-                    <div className="flex-1 overflow-y-auto custom-scrollbar relative p-4 scroll-smooth" ref={scrollRef} onScroll={handleScroll}>
+                    <div className="flex-1 overflow-y-auto custom-scrollbar relative p-4" ref={scrollRef} onScroll={handleScroll}>
                         {(activeTab === 'global' || selectedUser) && (
                             <MessageList
                                 messages={messages}
