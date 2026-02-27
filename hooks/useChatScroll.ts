@@ -13,7 +13,10 @@ export const useChatScroll = (
     const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
     const prevMessagesLengthRef = useRef(0);
+    const [isRestoringState, setIsRestoringState] = useState(true); // Expose to UI to hide flash
+    const isRestoring = useRef(false);
     const saveTimeoutRef = useRef<any>(null);
+    const prevChannelIdRef = useRef<string | null>(null);
 
     // Tracks the ID of the message that was "last read" when the component mounted per channel.
     // Used to render the "New Messages" divider. Persistent across tab switches.
@@ -154,12 +157,6 @@ export const useChatScroll = (
         }
     }, [isOpen]);
 
-    // Do not clear the channelLastReadMap on channel change so the divider persists
-    useEffect(() => {
-        prevMessagesLengthRef.current = 0;
-        messageRefs.current.clear();
-    }, [channelId]);
-
     // Handle Scroll Restoration & New Messages
     useLayoutEffect(() => {
         if (!isOpen || !channelId) return;
@@ -167,17 +164,46 @@ export const useChatScroll = (
         if (!container) return;
 
         const hasMessages = messages.length > 0;
-        const isChannelLoad = prevMessagesLengthRef.current === 0 && hasMessages;
+        let isChannelLoad = false;
+
+        if (channelId !== prevChannelIdRef.current) {
+            prevMessagesLengthRef.current = 0;
+            messageRefs.current.clear();
+            prevChannelIdRef.current = channelId;
+            setIsRestoringState(true);
+        }
+
+        if (prevMessagesLengthRef.current === 0 && hasMessages) {
+            isChannelLoad = true;
+        }
 
         if (isChannelLoad) {
-            restoreScrollPosition();
+            isRestoring.current = true;
+            setIsRestoringState(true);
+            let attempts = 0;
+            const tryRestore = () => {
+                const els = document.querySelectorAll(`[data-msg-id]`);
+                if (els.length > 0 || attempts > 5) {
+                    restoreScrollPosition();
+                    requestAnimationFrame(() => {
+                        isRestoring.current = false;
+                        setIsRestoringState(false);
+                    });
+                } else {
+                    attempts++;
+                    setTimeout(tryRestore, 50);
+                }
+            };
+            tryRestore();
+        } else if (!isRestoring.current && isRestoringState) {
+            setIsRestoringState(false);
         }
         /* 
            NOTE: When prepending history (pagination), the length increases but we are NOT at the bottom.
            The parent component (ChatWindow) should handle scroll adjustment for prepend.
            We only handle "Auto-scroll for NEW messages at bottom".
         */
-        else if (messages.length > prevMessagesLengthRef.current) {
+        else if (messages.length > prevMessagesLengthRef.current && !isRestoring.current) {
             // Only auto-scroll if the NEW message is at the END (timestamp check or simple append check)
             // If we prepended history, we shouldn't scroll to bottom.
 
@@ -252,6 +278,7 @@ export const useChatScroll = (
         messageRefs,
         signalHistoryLoad,
         restoreScrollPosition,
-        initialLastReadId: channelId ? channelLastReadMap[channelId] || null : null // Expose per channel
+        initialLastReadId: channelId ? (channelLastReadMap[channelId] || null) : null, // Expose per channel
+        isRestoring: isRestoringState
     };
 };

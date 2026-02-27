@@ -67,7 +67,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
         return users.find(u => u.uid === selectedUser.uid) || selectedUser;
     }, [users, selectedUser]);
 
-    const { scrollRef, handleScroll, scrollToBottom, showScrollDown, messageRefs, signalHistoryLoad, restoreScrollPosition, initialLastReadId } = useChatScroll(messages, channelId, user?.uid, isOpen);
+    const { scrollRef, handleScroll, scrollToBottom, showScrollDown, messageRefs, signalHistoryLoad, restoreScrollPosition, initialLastReadId, isRestoring } = useChatScroll(messages, channelId, user?.uid, isOpen);
 
     useEffect(() => {
         if (!user) return;
@@ -316,6 +316,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
                                 onReply={setReplyingTo}
                                 loadMoreMessages={loadMoreMessages}
                                 initialLastReadId={initialLastReadId}
+                                isRestoring={isRestoring}
                             />
                         )}
 

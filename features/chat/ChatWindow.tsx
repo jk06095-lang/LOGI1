@@ -52,7 +52,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
     }, [users, selectedUser]);
 
     const {
-        scrollRef, handleScroll, scrollToBottom, showScrollDown, messageRefs, signalHistoryLoad, restoreScrollPosition, initialLastReadId
+        scrollRef, handleScroll, scrollToBottom, showScrollDown, messageRefs, signalHistoryLoad, restoreScrollPosition, initialLastReadId, isRestoring
     } = useChatScroll(messages, channelId, user?.uid, isOpen);
 
     // Scroll Compensation for History Load
@@ -346,6 +346,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
                         onReply={setReplyingTo}
                         loadMoreMessages={handleHistoryLoadTrigger}
                         initialLastReadId={initialLastReadId}
+                        isRestoring={isRestoring}
                     />
                 )}
 

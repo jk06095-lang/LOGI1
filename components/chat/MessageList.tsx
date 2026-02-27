@@ -15,13 +15,14 @@ interface MessageListProps {
     onReply: (msg: ChatMessage) => void;
     loadMoreMessages: () => void;
     initialLastReadId: string | null;
+    isRestoring?: boolean;
 }
 
 const formatTime = (ts: number) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 const getDateString = (ts: number) => new Date(ts).toLocaleDateString();
 
 export const MessageList: React.FC<MessageListProps> = ({
-    messages, user, allUsers, typingUsers, messageRefs, onReaction, onReply, loadMoreMessages, initialLastReadId
+    messages, user, allUsers, typingUsers, messageRefs, onReaction, onReply, loadMoreMessages, initialLastReadId, isRestoring
 }) => {
     const [activeReaction, setActiveReaction] = useState<{ id: string, emoji: string, x: number, y: number } | null>(null);
     // State to track which message has its action menu open (for mobile tap)
@@ -49,7 +50,7 @@ export const MessageList: React.FC<MessageListProps> = ({
     };
 
     return (
-        <div className="space-y-6 pb-8">
+        <div className={`space-y-6 pb-8 ${isRestoring ? 'invisible' : 'visible'}`}>
             <div className="flex justify-center">
                 <button
                     onClick={loadMoreMessages}
