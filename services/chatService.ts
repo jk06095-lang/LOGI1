@@ -10,9 +10,6 @@ export const generateChannelId = (uid1: string, uid2: string) => {
 export const chatService = {
     subscribeChatMessages: (channelId: string, limitCount: number, callback: (messages: ChatMessage[]) => void) => {
         try {
-            // OPTIMIZATION: Use limitToLast(n) + orderBy('timestamp', 'asc')
-            // This fetches the *latest* n messages in correct chronological order directly from Firestore.
-            // It avoids fetching old messages or sorting/reversing large arrays on the client.
             const q = query(
                 collection(db, "messages"),
                 where("channelId", "==", channelId),
@@ -23,6 +20,24 @@ export const chatService = {
             return onSnapshot(q, (snapshot) => {
                 const msgs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage));
                 callback(msgs);
+            }, async (error) => {
+                // Fallback: if composite index is missing, use a simpler query
+                console.warn("Chat subscription error (missing index?), using fallback:", error.message);
+                try {
+                    const fallbackQ = query(
+                        collection(db, "messages"),
+                        where("channelId", "==", channelId),
+                        limit(limitCount)
+                    );
+                    const snapshot = await getDocs(fallbackQ);
+                    const msgs = snapshot.docs
+                        .map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage))
+                        .sort((a, b) => a.timestamp - b.timestamp);
+                    callback(msgs);
+                } catch (fallbackErr) {
+                    console.error("Fallback query also failed:", fallbackErr);
+                    callback([]);
+                }
             });
         } catch (e) {
             console.error("Chat Subscribe Error", e);
