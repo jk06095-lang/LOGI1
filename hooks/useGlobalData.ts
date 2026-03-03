@@ -32,21 +32,23 @@ export const useGlobalData = (settings: AppSettings) => {
     return stored ? parseInt(stored, 10) : 0;
   });
 
-  // Auth & Permissions
+  // Auth & Permissions (Bypassed for Demo)
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      if (currentUser) {
-        dataService.updateUserPresence(currentUser);
-        dataService.setupNotifications(currentUser);
-        // Access Gate Disabled: Always authorize logged-in users
-        setIsAuthorized(true);
-      } else {
-        setIsAuthorized(null);
-      }
-      setAuthLoading(false);
-    });
-    return () => unsubscribe();
+    // For the demo version, we bypass Firebase Auth and inject a fake user.
+    const dummyUser = {
+      uid: 'demo-guest-user',
+      email: 'guest@demo.com',
+      displayName: 'Demo Guest',
+      photoURL: 'https://ui-avatars.com/api/?name=Demo+Guest&background=0D8ABC&color=fff',
+    } as User;
+
+    setUser(dummyUser);
+    setIsAuthorized(true);
+    setAuthLoading(false);
+
+    // Normally we'd call these, but we shouldn't update presence for a fake shared user to avoid DB clutter:
+    // dataService.updateUserPresence(dummyUser);
+    // dataService.setupNotifications(dummyUser);
   }, []);
 
   // Presence
