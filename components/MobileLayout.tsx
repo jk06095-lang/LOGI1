@@ -230,15 +230,6 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
     const lastTypingSentRef = useRef<number>(0);
     const [isTyping, setIsTyping] = useState(false);
 
-    // Auto-navigate to global chat room on first mount
-    const hasAutoNavigated = useRef(false);
-    useEffect(() => {
-        if (!hasAutoNavigated.current && view === 'list' && activeChannel.id === 'global') {
-            hasAutoNavigated.current = true;
-            onNavigateToRoom();
-        }
-    }, []);
-
     // History Loading Logic
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
     const [hasMoreHistory, setHasMoreHistory] = useState(true);
@@ -1228,6 +1219,11 @@ export const MobileLayout: React.FC<MobileLayoutProps> = ({
 
                             <button
                                 onClick={() => {
+                                    if (currentView !== 'chat') {
+                                        setActiveChannel({ id: 'global', name: t.globalChat, type: 'global' });
+                                        setChatView('room');
+                                        window.history.pushState({ chatRoom: true }, '');
+                                    }
                                     setCurrentView('chat');
                                     if (onCheckMessages) onCheckMessages();
                                 }}
