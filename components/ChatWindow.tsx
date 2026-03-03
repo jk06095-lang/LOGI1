@@ -211,6 +211,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
         await chatService.toggleMessageReaction(targetId, user.uid, emoji);
     };
 
+    const handleDelete = async (messageId: string) => {
+        setMessages(prev => prev.filter(msg => msg.id !== messageId));
+        try {
+            await chatService.deleteChatMessage(messageId);
+        } catch (error) {
+            console.error('Failed to delete message', error);
+        }
+    };
+
     const handleUserSelect = (targetUser: ChatUser) => {
         if (targetUser.uid === user?.uid || !user) return;
         const dmId = generateChannelId(user.uid, targetUser.uid);
@@ -314,6 +323,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ isOpen, isMinimized, onC
                                 messageRefs={messageRefs}
                                 onReaction={handleReaction}
                                 onReply={setReplyingTo}
+                                onDelete={handleDelete}
                                 loadMoreMessages={loadMoreMessages}
                                 initialLastReadId={initialLastReadId}
                                 isRestoring={isRestoring}

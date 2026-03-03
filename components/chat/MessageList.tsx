@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChatMessage, ChatUser } from '../../types';
 import { User } from 'firebase/auth';
-import { User as UserIcon, Check, CheckCheck, Reply, Loader2 } from 'lucide-react';
+import { User as UserIcon, Check, CheckCheck, Reply, Loader2, Trash2 } from 'lucide-react';
 
 interface MessageListProps {
     messages: ChatMessage[];
@@ -13,6 +13,7 @@ interface MessageListProps {
     messageRefs: React.MutableRefObject<Map<string, HTMLDivElement>>;
     onReaction: (emoji: string, messageId: string) => void;
     onReply: (msg: ChatMessage) => void;
+    onDelete?: (messageId: string) => void;
     loadMoreMessages: () => void;
     initialLastReadId: string | null;
     isRestoring?: boolean;
@@ -22,7 +23,7 @@ const formatTime = (ts: number) => new Date(ts).toLocaleTimeString([], { hour: '
 const getDateString = (ts: number) => new Date(ts).toLocaleDateString();
 
 export const MessageList: React.FC<MessageListProps> = ({
-    messages, user, allUsers, typingUsers, messageRefs, onReaction, onReply, loadMoreMessages, initialLastReadId, isRestoring
+    messages, user, allUsers, typingUsers, messageRefs, onReaction, onReply, onDelete, loadMoreMessages, initialLastReadId, isRestoring
 }) => {
     const [activeReaction, setActiveReaction] = useState<{ id: string, emoji: string, x: number, y: number } | null>(null);
     // State to track which message has its action menu open (for mobile tap)
@@ -192,6 +193,17 @@ export const MessageList: React.FC<MessageListProps> = ({
                                                         >
                                                             <Reply size={14} strokeWidth={2.5} />
                                                         </button>
+                                                        {isMe && onDelete && (
+                                                            <>
+                                                                <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                                                                <button
+                                                                    onClick={(e) => { e.stopPropagation(); if (window.confirm('Delete this message?')) { onDelete(msg.id); } setMobileMenuMsgId(null); }}
+                                                                    className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-full transition-all"
+                                                                >
+                                                                    <Trash2 size={13} strokeWidth={2.5} />
+                                                                </button>
+                                                            </>
+                                                        )}
                                                     </>
                                                 )}
                                             </div>

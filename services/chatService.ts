@@ -230,5 +230,9 @@ export const chatService = {
         snapshot.docs.forEach(doc => batch.delete(doc.ref));
         await batch.commit();
         return snapshot.size;
+    },
+
+    deleteChatMessage: async (messageId: string) => {
+        await deleteDoc(doc(db, "messages", messageId));
     }
 };

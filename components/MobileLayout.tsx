@@ -230,6 +230,15 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
     const lastTypingSentRef = useRef<number>(0);
     const [isTyping, setIsTyping] = useState(false);
 
+    // Auto-navigate to global chat room on first mount
+    const hasAutoNavigated = useRef(false);
+    useEffect(() => {
+        if (!hasAutoNavigated.current && view === 'list' && activeChannel.id === 'global') {
+            hasAutoNavigated.current = true;
+            onNavigateToRoom();
+        }
+    }, []);
+
     // History Loading Logic
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
     const [hasMoreHistory, setHasMoreHistory] = useState(true);
@@ -415,6 +424,15 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
         await chatService.toggleMessageReaction(messageId, user.uid, emoji);
     };
 
+    const handleDelete = async (messageId: string) => {
+        setMessages(prev => prev.filter(msg => msg.id !== messageId));
+        try {
+            await chatService.deleteChatMessage(messageId);
+        } catch (error) {
+            console.error('Failed to delete message', error);
+        }
+    };
+
     const getDmChannelId = (partnerId: string) => {
         if (!user) return '';
         return [user.uid, partnerId].sort().join('_');
@@ -531,6 +549,7 @@ const MobileChatView: React.FC<MobileChatViewProps> = ({ user, view, setView, ac
                     messageRefs={messageRefs}
                     onReaction={handleReaction}
                     onReply={setReplyingTo}
+                    onDelete={handleDelete}
                     loadMoreMessages={loadMoreHistory}
                     initialLastReadId={initialLastReadId}
                 />
