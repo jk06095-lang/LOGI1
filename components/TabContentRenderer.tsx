@@ -130,7 +130,7 @@ export const TabContentRenderer: React.FC<TabContentRendererProps> = (props) => 
         onUpdateChecklist={dataActions.updateChecklist}
         onUpdateBL={dataActions.updateBL}
         onOpenBLDetail={(blId) => openShipmentDetailTab(blId)}
-        onOpenRegister={(rect) => openWindow('cargo-register', 'cargo-register', { jobId: currentJob.id }, rect)}
+        onOpenRegister={(rect) => openWindow('cargo-register', 'register', { targetJobId: currentJob.id }, rect)}
         onAddTask={tasks.addTask}
         onUpdateTask={tasks.updateTask}
         isProcessing={processing.isProcessing}
