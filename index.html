@@ -1,165 +1,228 @@
-
 <!DOCTYPE html>
 <html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LOGI1 - Logistics ERP</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Inter', 'Noto Sans KR', 'Noto Sans SC', 'sans-serif'],
-              serif: ['Merriweather', 'Noto Sans KR', 'Noto Sans SC', 'serif'],
-              mono: ['JetBrains Mono', 'monospace'],
-            },
-            animation: {
-              'fade-in': 'fadeIn 0.2s ease-out',
-              'fade-in-up': 'fadeInUp 0.3s ease-out',
-            },
-            keyframes: {
-              fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
-              fadeInUp: { '0%': { opacity: '0', transform: 'translateY(10px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
-            },
-            screens: {
-              'print': {'raw': 'print'},
-            }
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LOGI1 - Logistics ERP</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'Noto Sans KR', 'Noto Sans SC', 'sans-serif'],
+            serif: ['Merriweather', 'Noto Sans KR', 'Noto Sans SC', 'serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          animation: {
+            'fade-in': 'fadeIn 0.2s ease-out',
+            'fade-in-up': 'fadeInUp 0.3s ease-out',
+          },
+          keyframes: {
+            fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+            fadeInUp: { '0%': { opacity: '0', transform: 'translateY(10px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+          },
+          screens: {
+            'print': { 'raw': 'print' },
           }
         }
       }
-    </script>
-    <style>
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
-      @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
-      @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap');
-      @import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700;900&display=swap');
-      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700;900&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
 
-      body {
-        font-family: 'Inter', 'Noto Sans KR', 'Noto Sans SC', sans-serif;
-        background-color: #f8fafc;
-        overflow: hidden;
-        -webkit-font-smoothing: antialiased;
-      }
+    body {
+      font-family: 'Inter', 'Noto Sans KR', 'Noto Sans SC', sans-serif;
+      background-color: #f8fafc;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
 
-      /* Mobile viewport height fix for various phone ratios */
+    /* Mobile viewport height fix for various phone ratios */
+    :root {
+      --mobile-vh: 100vh;
+    }
+
+    @supports (height: 100dvh) {
       :root {
-        --mobile-vh: 100vh;
+        --mobile-vh: 100dvh;
       }
-      
-      @supports (height: 100dvh) {
-        :root {
-          --mobile-vh: 100dvh;
-        }
+    }
+
+    @supports (-webkit-touch-callout: none) {
+      :root {
+        --mobile-vh: -webkit-fill-available;
       }
-      
-      @supports (-webkit-touch-callout: none) {
-        :root {
-          --mobile-vh: -webkit-fill-available;
-        }
+    }
+
+
+    /* Universal font adjustment for breaking layout */
+    .font-serif {
+      letter-spacing: -0.01em;
+    }
+
+    .font-mono {
+      letter-spacing: -0.02em;
+    }
+
+    .scrollbar-hide::-webkit-scrollbar {
+      display: none;
+    }
+
+    .scrollbar-hide {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 10px;
+    }
+
+    .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #475569;
+    }
+
+    /* Table Resizer Styles */
+    .resizer {
+      position: absolute;
+      right: 0;
+      top: 0;
+      height: 100%;
+      width: 5px;
+      background: rgba(0, 0, 0, 0.1);
+      cursor: col-resize;
+      user-select: none;
+      touch-action: none;
+      z-index: 10;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .resizer:hover,
+    .resizing {
+      opacity: 1;
+      background: #3b82f6;
+      /* Blue highlight */
+    }
+
+    @media print {
+      @page {
+        size: A4 landscape;
+        /* Explicitly set A4 Landscape */
+        margin: 0;
+        /* Remove default browser margins */
       }
 
-      
-      /* Universal font adjustment for breaking layout */
-      .font-serif { letter-spacing: -0.01em; }
-      .font-mono { letter-spacing: -0.02em; }
-      
-      .scrollbar-hide::-webkit-scrollbar { display: none; }
-      .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-      
-      .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-      .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-      .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-      .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
-
-      /* Table Resizer Styles */
-      .resizer {
-        position: absolute;
-        right: 0;
-        top: 0;
-        height: 100%;
-        width: 5px;
-        background: rgba(0, 0, 0, 0.1);
-        cursor: col-resize;
-        user-select: none;
-        touch-action: none;
-        z-index: 10;
-        opacity: 0;
-        transition: opacity 0.2s;
-      }
-      
-      .resizer:hover, .resizing {
-        opacity: 1;
-        background: #3b82f6; /* Blue highlight */
+      html,
+      body {
+        width: 297mm;
+        height: auto !important;
+        min-height: 100%;
+        overflow: visible !important;
+        background-color: white !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        margin: 0 !important;
+        padding: 0 !important;
       }
 
-      @media print {
-        @page {
-          size: A4 landscape; /* Explicitly set A4 Landscape */
-          margin: 0; /* Remove default browser margins */
-        }
-        
-        html, body {
-          width: 297mm;
-          height: auto !important; /* Allow height to fit content */
-          min-height: 100%;
-          overflow: visible !important;
-          background-color: white !important;
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-
-        /* Reset layout for flow and pagination */
-        #root, main, .print-container {
-          height: auto !important;
-          overflow: visible !important;
-          display: block !important;
-          position: static !important;
-          width: 100% !important;
-          margin: 0 !important;
-          padding: 0 !important;
-          background: white !important;
-        }
-
-        /* Hide Scrollbars & UI */
-        ::-webkit-scrollbar, .resizer, .no-print {
-          display: none !important;
-        }
-
-        /* Enforce Page Breaks */
-        .break-after-page {
-          page-break-after: always !important;
-          break-after: page !important;
-          page-break-inside: avoid !important;
-          width: 297mm !important;
-          /* Reduced to 208mm to provide 2mm buffer within 210mm height to prevent blank pages */
-          height: 208mm !important; 
-          margin: 0 !important;
-          padding: 10mm !important; 
-          box-shadow: none !important;
-          border: none !important;
-          background: white !important;
-          position: relative !important;
-          overflow: hidden !important; /* Clip content to page size */
-          display: block !important;
-          left: 0 !important;
-          top: 0 !important;
-          transform: none !important; /* Force reset zoom/transform on print */
-        }
-        
-        /* Crucial: Prevent the last page from creating a blank following page */
-        .break-after-page:last-of-type {
-          page-break-after: auto !important;
-          break-after: auto !important;
-          margin-bottom: 0 !important;
-        }
+      /* Reset ALL layout containers for flow and pagination.
+           This addresses the nested overflow-hidden / flex / absolute layering
+           that was clipping the report content during print. */
+      #root,
+      #root>div,
+      #root>div>main,
+      #root>div>main>div,
+      #root>div>main>div>div,
+      main,
+      .print-container {
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        display: block !important;
+        position: static !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+        visibility: visible !important;
+        flex: none !important;
+        transform: none !important;
+        inset: auto !important;
       }
-    </style>
+
+      /* Hide Sidebar, TabNavigation, Scrollbars, Toasts,  & all UI chrome */
+      ::-webkit-scrollbar,
+      .resizer,
+      .no-print {
+        display: none !important;
+      }
+
+      /* Re-assert print:hidden after the !important display:block reset above */
+      .print\:hidden,
+      [class*="print:hidden"] {
+        display: none !important;
+      }
+
+      /* Hide the Sidebar component (first child of root flex container) */
+      #root>div>div:first-child {
+        display: none !important;
+      }
+
+      /* Hide tab bar, notification panel, and task toasts */
+      #root>div>main>div:first-child {
+        display: none !important;
+      }
+
+      /* Hide the WindowRenderer overlay */
+      #root>div>div:nth-child(2) {
+        display: none !important;
+      }
+
+      /* Enforce Page Breaks */
+      .break-after-page {
+        page-break-after: always !important;
+        break-after: page !important;
+        page-break-inside: avoid !important;
+        width: 297mm !important;
+        height: 208mm !important;
+        margin: 0 !important;
+        padding: 10mm !important;
+        box-shadow: none !important;
+        border: none !important;
+        background: white !important;
+        position: relative !important;
+        overflow: hidden !important;
+        display: block !important;
+        left: 0 !important;
+        top: 0 !important;
+        transform: none !important;
+      }
+
+      /* Crucial: Prevent the last page from creating a blank following page */
+      .break-after-page:last-of-type {
+        page-break-after: auto !important;
+        break-after: auto !important;
+        margin-bottom: 0 !important;
+      }
+    }
+  </style>
   <script type="importmap">
 {
   "imports": {
@@ -182,8 +245,10 @@
 }
 </script>
 </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
-  </body>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+
 </html>

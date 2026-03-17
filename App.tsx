@@ -166,7 +166,7 @@ const App: React.FC = () => {
         </div>
 
         {/* Task Toast Stack */}
-        <div className="absolute top-14 right-4 z-[2000] flex flex-col gap-2 w-80 pointer-events-none">
+        <div className="absolute top-14 right-4 z-[2000] flex flex-col gap-2 w-80 pointer-events-none no-print">
           {tasks.map(t => (
             <div key={t.id} className="bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 p-3 pointer-events-auto flex items-start gap-3">
               <div className="mt-0.5">{t.status === 'processing' ? <Loader2 size={18} className="animate-spin text-blue-600" /> : t.status === 'success' ? <CheckCircle size={18} className="text-emerald-500" /> : <AlertCircle size={18} className="text-red-500" />}</div>
