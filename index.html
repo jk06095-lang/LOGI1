@@ -142,14 +142,12 @@
         padding: 0 !important;
       }
 
-      /* Reset ALL layout containers for flow and pagination.
-           This addresses the nested overflow-hidden / flex / absolute layering
-           that was clipping the report content during print. */
+      /* Reset the top-level layout containers for print flow.
+         Only resets #root → outer-flex → main. Does NOT blanket-reset
+         all divs inside main, to avoid unhiding non-active tabs. */
       #root,
       #root>div,
       #root>div>main,
-      #root>div>main>div,
-      #root>div>main>div>div,
       main,
       .print-container {
         height: auto !important;
@@ -167,25 +165,59 @@
         inset: auto !important;
       }
 
-      /* Hide Sidebar, TabNavigation, Scrollbars, Toasts,  & all UI chrome */
+      /* Reset the content-area wrapper (last child of main) */
+      #root>div>main>div:last-child {
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        display: block !important;
+        position: static !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+        flex: none !important;
+      }
+
+      /* Reset ONLY the visible/active tab wrapper — non-active tabs have .hidden */
+      #root>div>main>div:last-child>div:not(.hidden) {
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        display: block !important;
+        position: static !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: white !important;
+        transform: none !important;
+        inset: auto !important;
+      }
+
+      /* Keep non-active tabs hidden during print */
+      .hidden {
+        display: none !important;
+      }
+
+      /* Hide scrollbars, resizers, and elements marked no-print */
       ::-webkit-scrollbar,
       .resizer,
       .no-print {
         display: none !important;
       }
 
-      /* Re-assert print:hidden after the !important display:block reset above */
+      /* Re-assert Tailwind print:hidden */
       .print\:hidden,
       [class*="print:hidden"] {
         display: none !important;
       }
 
-      /* Hide the Sidebar component (first child of root flex container) */
+      /* Hide the Sidebar (first child div of root flex container) */
       #root>div>div:first-child {
         display: none !important;
       }
 
-      /* Hide tab bar, notification panel, and task toasts */
+      /* Hide tab bar + notification panel */
       #root>div>main>div:first-child {
         display: none !important;
       }
