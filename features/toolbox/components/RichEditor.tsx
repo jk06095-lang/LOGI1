@@ -1051,7 +1051,8 @@ const RichEditorImplementation: React.FC<RichEditorProps> = ({ initialContent = 
 
         // Validation
         const allAllowed = [...ALLOWED_MIME_TYPES.images, ...ALLOWED_MIME_TYPES.docs, ...ALLOWED_MIME_TYPES.archives];
-        if (!allAllowed.includes(file.type) && !file.name.match(/\.(rar|7z)$/i)) {
+        const allowedExtensions = /\.(jpe?g|png|gif|webp|svg|pdf|docx?|xlsx?|pptx?|csv|txt|md|zip|rar|7z)$/i;
+        if (!allAllowed.includes(file.type) && !allowedExtensions.test(file.name)) {
             alert(`${t.uploadFailed}: Unsupported format. \nAllowed: Images, PDF, Office Docs, Text, Zip`);
             if (fileInputRef.current) fileInputRef.current.value = '';
             return;
@@ -1109,7 +1110,7 @@ const RichEditorImplementation: React.FC<RichEditorProps> = ({ initialContent = 
     return (
         <div className="flex flex-col h-full bg-white dark:bg-slate-900 overflow-hidden relative group">
             <style>{editorStyles}</style>
-            <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} />
+            <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.csv,.zip,.rar,.7z" />
             <div className="flex items-center gap-1 p-2 border-b border-gray-100 dark:border-slate-800 bg-white dark:bg-slate-900 z-10 overflow-x-auto scrollbar-hide shrink-0">
                 <ToolbarButton icon={Bold} onClick={() => execCommand('bold')} tooltip={t.bold} />
                 <ToolbarButton icon={Italic} onClick={() => execCommand('italic')} tooltip={t.italic} />
