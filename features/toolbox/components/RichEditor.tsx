@@ -1017,13 +1017,40 @@ const RichEditorImplementation: React.FC<RichEditorProps> = ({ initialContent = 
     };
 
 
+    // Helper: Get file type info for Notion-style display
+    const getFileTypeInfo = (fileName: string, mimeType: string): { icon: string; label: string; colorClass: string } => {
+        const ext = fileName.split('.').pop()?.toLowerCase() || '';
+
+        if (mimeType === 'application/pdf' || ext === 'pdf')
+            return { icon: '📄', label: 'PDF', colorClass: 'file-type-pdf' };
+        if (['xls', 'xlsx', 'csv'].includes(ext) || mimeType.includes('spreadsheet') || mimeType.includes('excel'))
+            return { icon: '📊', label: ext.toUpperCase(), colorClass: 'file-type-excel' };
+        if (['doc', 'docx'].includes(ext) || mimeType.includes('word'))
+            return { icon: '📝', label: ext.toUpperCase(), colorClass: 'file-type-word' };
+        if (['ppt', 'pptx'].includes(ext) || mimeType.includes('presentation') || mimeType.includes('powerpoint'))
+            return { icon: '📊', label: ext.toUpperCase(), colorClass: 'file-type-ppt' };
+        if (['zip', 'rar', '7z'].includes(ext) || mimeType.includes('zip') || mimeType.includes('rar') || mimeType.includes('7z'))
+            return { icon: '🗜️', label: ext.toUpperCase(), colorClass: 'file-type-archive' };
+        if (['txt', 'md', 'log'].includes(ext) || mimeType.startsWith('text/'))
+            return { icon: '📃', label: ext.toUpperCase(), colorClass: 'file-type-text' };
+
+        return { icon: '📎', label: ext.toUpperCase() || 'FILE', colorClass: 'file-type-default' };
+    };
+
+    // Helper: Format file size
+    const formatFileSize = (bytes: number): string => {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    };
+
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
         // Validation
         const allAllowed = [...ALLOWED_MIME_TYPES.images, ...ALLOWED_MIME_TYPES.docs, ...ALLOWED_MIME_TYPES.archives];
-        if (!allAllowed.includes(file.type) && !file.name.match(/\.(rar|7z)$/i)) { // Extra check for some extensions that might have varying mime types
+        if (!allAllowed.includes(file.type) && !file.name.match(/\.(rar|7z)$/i)) {
             alert(`${t.uploadFailed}: Unsupported format. \nAllowed: Images, PDF, Office Docs, Text, Zip`);
             if (fileInputRef.current) fileInputRef.current.value = '';
             return;
@@ -1050,8 +1077,11 @@ const RichEditorImplementation: React.FC<RichEditorProps> = ({ initialContent = 
                 // Insert image
                 document.execCommand('insertHTML', false, `<img src="${url}" alt="${file.name}" style="max-width: 100%; border-radius: 8px; margin: 1em 0;" />`);
             } else {
-                // Insert file attachment
-                document.execCommand('insertHTML', false, `<div class="file-attachment"><a href="${url}" download="${file.name}" target="_blank">📎 ${file.name}</a></div>&nbsp;`);
+                // Insert Notion-style file attachment block
+                const { icon, label, colorClass } = getFileTypeInfo(file.name, file.type);
+                const sizeStr = formatFileSize(file.size);
+                const fileBlockHtml = `<div class="file-attachment ${colorClass}" contenteditable="false"><a href="${url}" download="${file.name}" target="_blank" rel="noopener noreferrer"><span class="file-icon">${icon}</span><span class="file-info"><span class="file-name">${file.name}</span><span class="file-meta">${label} · ${sizeStr}</span></span><span class="file-download">↓</span></a></div><p><br/></p>`;
+                document.execCommand('insertHTML', false, fileBlockHtml);
             }
 
             handleInput();
