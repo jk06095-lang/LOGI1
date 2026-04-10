@@ -119,19 +119,12 @@ export const performGarbageCollection = async (): Promise<number> => {
     postsSnapshot.forEach(doc => {
         addPathsFromContent(doc.data().content || '');
     });
-    // Fetch Comments? (If we implement comments with images later, we need this. Current comments are text-only?)
-    // Assuming comments are text-only for now based on current TeamBoard.tsx. 
-    // Wait, TeamBoard comment uses simple input, no rich editor for comments yet. So we ignore comments.
 
-    // B. Fetch LocalStorage Memos
-    const STORAGE_KEY = 'logi1-toolbox-memos-v2';
-    const savedMemos = localStorage.getItem(STORAGE_KEY);
-    if (savedMemos) {
-        try {
-            const memos = JSON.parse(savedMemos);
-            memos.forEach((m: any) => addPathsFromContent(m.content || ''));
-        } catch (e) { console.error("Error parsing memos", e); }
-    }
+    // B. Fetch Firestore Memos
+    const memosSnapshot = await getDocs(collection(db, 'toolbox_memos'));
+    memosSnapshot.forEach(doc => {
+        addPathsFromContent(doc.data().content || '');
+    });
 
     console.log(`Found ${referencedPaths.size} referenced files.`);
 

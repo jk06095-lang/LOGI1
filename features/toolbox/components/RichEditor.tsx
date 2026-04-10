@@ -20,6 +20,7 @@ interface RichEditorProps {
     initialContent?: string;
     onChange: (html: string) => void;
     placeholder?: string;
+    onFileUploaded?: (url: string) => void;
 }
 
 // --- Icons & Types ---
@@ -320,7 +321,7 @@ export const RichEditor: React.FC<RichEditorProps> = (props) => {
 // Editor CSS Styles (inline since Tailwind Typography not available)
 // Editor CSS Styles imported from ../styles/editorStyles
 
-const RichEditorImplementation: React.FC<RichEditorProps> = ({ initialContent = '', onChange, placeholder }) => {
+const RichEditorImplementation: React.FC<RichEditorProps> = ({ initialContent = '', onChange, placeholder, onFileUploaded }) => {
     const contentRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -1070,6 +1071,9 @@ const RichEditorImplementation: React.FC<RichEditorProps> = ({ initialContent = 
             // Upload
             await uploadBytes(storageRef, file);
             const url = await getDownloadURL(storageRef);
+
+            // Notify parent of the uploaded file URL for session tracking
+            onFileUploaded?.(url);
 
             contentRef.current?.focus();
 

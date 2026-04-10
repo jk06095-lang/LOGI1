@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { X, Send, Maximize2, Minimize2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { RichEditor } from './RichEditor';
+import { extractStorageUrls, deleteFiles } from '../utils/fileCleanupService';
 
 interface WritePostModalProps {
     isOpen: boolean;
@@ -18,16 +19,58 @@ export const WritePostModal: React.FC<WritePostModalProps> = ({ isOpen, onClose,
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
+    // Session tracking: URLs uploaded during this editing session
+    const sessionUploadedUrlsRef = useRef<string[]>([]);
+
+    // Track each file uploaded during this session
+    const handleFileUploaded = useCallback((url: string) => {
+        sessionUploadedUrlsRef.current.push(url);
+    }, []);
+
+    // Cleanup orphan files: delete uploaded files not present in saved content
+    const cleanupOrphanFiles = useCallback(async (savedContent: string, isCancel: boolean) => {
+        try {
+            const sessionUrls = sessionUploadedUrlsRef.current;
+            if (sessionUrls.length === 0 && !isCancel) {
+                // No files uploaded this session, but on save we still need to check
+                // if files were removed from the original content during editing
+            }
+
+            // URLs that exist in the final saved content
+            const savedUrls = new Set(extractStorageUrls(savedContent));
+
+            // 1. Session orphans: files uploaded this session but NOT in saved content
+            const sessionOrphans = sessionUrls.filter(url => !savedUrls.has(url));
+
+            // 2. Edit orphans: files that were in initialContent but NOT in saved content (only on save, not cancel)
+            let editOrphans: string[] = [];
+            if (!isCancel && initialContent) {
+                const originalUrls = extractStorageUrls(initialContent);
+                editOrphans = originalUrls.filter(url => !savedUrls.has(url));
+            }
+
+            const allOrphans = [...new Set([...sessionOrphans, ...editOrphans])];
+            if (allOrphans.length > 0) {
+                console.log(`[File Cleanup] Deleting ${allOrphans.length} orphan file(s)...`);
+                await deleteFiles(allOrphans);
+            }
+        } catch (err) {
+            console.error('[File Cleanup] Error during orphan cleanup:', err);
+        }
+    }, [initialContent]);
+
     // Sync state when modal opens
     React.useEffect(() => {
         if (isOpen) {
             setContent(initialContent);
             setType(initialType);
+            // Reset session tracking for new session
+            sessionUploadedUrlsRef.current = [];
         }
     }, [isOpen, initialContent, initialType]);
 
     const handleSubmit = async () => {
-        const isContentEmpty = !content.replace(/<[^>]*>/g, '').trim() && !content.includes('<img');
+        const isContentEmpty = !content.replace(/<[^>]*>/g, '').trim() && !content.includes('<img') && !content.includes('file-attachment');
         const hasContentChanged = content !== initialContent;
         const hasTypeChanged = type !== initialType;
 
@@ -36,8 +79,23 @@ export const WritePostModal: React.FC<WritePostModalProps> = ({ isOpen, onClose,
 
         setIsSubmitting(true);
         await onSubmit(content, type);
+
+        // Clean up files removed during editing (edit orphans + session orphans not in final content)
+        await cleanupOrphanFiles(content, false);
+
         setIsSubmitting(false);
         setContent('');
+        sessionUploadedUrlsRef.current = [];
+        onClose();
+    };
+
+    const handleClose = async () => {
+        // On cancel: delete ALL files uploaded this session that aren't in the original content
+        // (since we're discarding changes, the original content is what matters)
+        if (sessionUploadedUrlsRef.current.length > 0) {
+            await cleanupOrphanFiles(initialContent, true);
+        }
+        sessionUploadedUrlsRef.current = [];
         onClose();
     };
 
@@ -87,7 +145,7 @@ export const WritePostModal: React.FC<WritePostModalProps> = ({ isOpen, onClose,
                                     <span className="hidden md:inline">Publish</span>
                                     <Send size={16} />
                                 </button>
-                                <button onClick={onClose} className="p-2 text-gray-400 hover:text-red-500 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20">
+                                <button onClick={handleClose} className="p-2 text-gray-400 hover:text-red-500 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20">
                                     <X size={20} />
                                 </button>
                             </div>
@@ -100,6 +158,7 @@ export const WritePostModal: React.FC<WritePostModalProps> = ({ isOpen, onClose,
                                     initialContent={initialContent}
                                     onChange={setContent}
                                     placeholder="Type '/' for commands or use the toolbar..."
+                                    onFileUploaded={handleFileUploaded}
                                 />
                             </div>
                         </div>

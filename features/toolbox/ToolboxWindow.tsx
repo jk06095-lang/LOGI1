@@ -36,6 +36,24 @@ export const ToolboxWindow: React.FC<ToolboxWindowProps> = (props) => {
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
+    // Background Garbage Collection: runs once per 24h on first mount
+    React.useEffect(() => {
+        const GC_KEY = 'logi1-toolbox-gc-last-run';
+        const COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
+        const lastRun = parseInt(localStorage.getItem(GC_KEY) || '0', 10);
+        const now = Date.now();
+
+        if (now - lastRun > COOLDOWN_MS) {
+            // Run GC in background, don't block UI
+            performGarbageCollection()
+                .then((count) => {
+                    localStorage.setItem(GC_KEY, String(Date.now()));
+                    if (count > 0) console.log(`[Toolbox GC] Cleaned up ${count} orphan file(s).`);
+                })
+                .catch((err) => console.error('[Toolbox GC] Failed:', err));
+        }
+    }, []);
+
     // Localization
     const language = useUIStore((state) => state.settings.language);
     const t = getToolboxStrings(language);
